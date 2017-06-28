@@ -1,0 +1,256 @@
+//*********************************************************
+//
+// Copyright (c) Microsoft. All rights reserved.
+// THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF
+// ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY
+// IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR
+// PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
+//
+//*********************************************************
+
+#pragma once
+
+#include "ModuleManager.h"
+
+struct FMixerUser;
+struct FMixerLocalUser;
+struct FMixerRemoteUser;
+struct FMixerButtonDescription;
+struct FMixerButtonState;
+struct FMixerStickDescription;
+struct FMixerStickState;
+class FUniqueNetId;
+
+enum class EMixerLoginState : uint8;
+enum class EMixerInteractivityParticipantState : uint8;
+enum class EMixerInteractivityState : uint8;
+
+/**
+* Interface for Mixer Interactivity features.
+* Exposes user auth, state control, and remote events for consumption by C++ game code.
+*/
+class IMixerInteractivityModule : public IModuleInterface
+{
+public:
+
+	/**
+	* Singleton-like access to this module's interface.  This is just for convenience!
+	* Beware of calling this during the shutdown phase, though.  Your module might have been unloaded already.
+	*
+	* @return					Returns singleton instance, loading the module on demand if needed
+	*/
+	static inline IMixerInteractivityModule& Get()
+	{
+		return FModuleManager::LoadModuleChecked<IMixerInteractivityModule>("MixerInteractivity");
+	}
+
+	/**
+	* Checks to see if this module is loaded and ready.  It is only valid to call Get() if IsAvailable() returns true.
+	*
+	* @return					True if the module is loaded and ready to use
+	*/
+	static inline bool IsAvailable()
+	{
+		return FModuleManager::Get().IsModuleLoaded("MixerInteractivity");
+	}
+
+public:
+	/**
+	* Sign a local user into the Mixer service without displaying UI.  The operation will fail if user interaction
+	* would be required to complete sign-in.  The operation takes place asynchronously, with changes reported via
+	* the OnLoginStateChanged event.
+	* 
+	* @param	UserId			Network id for the local user whose identity will be used for Mixer login.
+	* 
+	* @return					True if a login attempt was started; results will be reported via OnLoginStateChanged.
+	*/
+	virtual bool LoginSilently(TSharedPtr<const FUniqueNetId> UserId = nullptr) = 0;
+
+	/**
+	* Sign a local user into the Mixer service displaying OAuth login UI if necessary.  UI will be hosted
+	* in a default-styled popup window.  The operation takes place asynchronously, with changes reported via
+	* the OnLoginStateChanged event.  Not supported on all platforms.
+	*
+	* @param	UserId			Network id for the local user whose identity will be used for Mixer login
+	*
+	* @return					True if a login attempt was started; results will be reported via OnLoginStateChanged.
+	*/
+	virtual bool LoginWithUI(TSharedPtr<const FUniqueNetId> UserId = nullptr) = 0;
+
+	/**
+	* Sign a local user into the Mixer service using an authorization code obtained by the title through
+	* some external mechanism (e.g. Mixer shortcode auth flow).  The operation takes place asynchronously, 
+	* with changes reported via the OnLoginStateChanged event.
+	*
+	* @param	AuthCode		The title-obtained OAuth authorization code 
+	* @param	UserId			Network id for the local user whose identity will be used for Mixer login
+	*
+	* @return					True if a login attempt was started; results will be reported via OnLoginStateChanged.
+	*/
+	virtual bool LoginWithAuthCode(const FString& AuthCode, TSharedPtr<const FUniqueNetId> UserId = nullptr) = 0;
+
+	/**
+	* Sign the current Mixer user, if any, out of the Mixer service
+	*
+	* @return					True 
+	*/
+	virtual bool Logout() = 0;
+
+	/**
+	* Reports whether a user is currently logged in to Mixer, or if a login/logout operation is in progress.
+	*
+	* @return					See EMixerLoginState.
+	*/
+	virtual EMixerLoginState GetLoginState() = 0;
+
+	/**
+	* Notify the Mixer service that the game is ready for interactive input.  The operation takes
+	* place asynchronously, with changes reported via the OnInteractivityStateChanged event.
+	*/
+	virtual void StartInteractivity() = 0;
+
+	/**
+	* Notify the Mixer service that the game is no longer accepting interactive input.  The operation takes
+	* place asynchronously, with changes reported via the OnInteractivityStateChanged event.
+	*/
+	virtual void StopInteractivity() = 0;
+
+	/**
+	* Reports the current interactivity state.
+	*
+	* @return					See EMixerInteractivityState.
+	*/
+	virtual EMixerInteractivityState GetInteractivityState() = 0;
+
+	/**
+	* Request a change in the interactive scene displayed to remote users.
+	*
+	* @param	Scene			Name of the new interactive scene to display.
+	* @param	GroupName		Name of the group to whom the new scene should be shown.  Default group if empty.
+	*/
+	virtual void SetCurrentScene(FName Scene, FName GroupName = NAME_None) = 0;
+
+	/**
+	* Gets the name of the interactive scene currently displayed to remote users.
+	*
+	* @param	GroupName		Name of the group whose scene should be returned.  Default group if empty.
+	*
+	* @Return					Name if the interactive scene currently displayed.
+	*/
+	virtual FName GetCurrentScene(FName GroupName = NAME_None) = 0;
+
+	/**
+	* Request that the named button enter a cooldown state for the specified period.  While cooling down
+	* the button will be non-interactive.
+	*
+	* @param	Button			Name of the button that should be on cooldown.
+	* @param	CooldownTime	Duration for which the button should be non-interactive.
+	*/
+	virtual void TriggerButtonCooldown(FName Button, FTimespan CooldownTime) = 0;
+
+	/**
+	* Retrieve information about a named button that is independent of its current state.
+	* See FMixerButtonDescription for details.
+	*
+	* @param	Button			Name of the button for which information should be returned.
+	* @param	OutDesc			Out parameter filled in with information about the button upon success.
+	*
+	* @Return					True if button was found and OutDesc is valid.
+	*/
+	virtual bool GetButtonDescription(FName Button, FMixerButtonDescription& OutDesc) = 0;
+
+	/**
+	* Retrieve information about a named button that is dependent on remote user and title interactions.
+	* See FMixerButtonState for details.
+	*
+	* @param	Button			Name of the button for which information should be returned.
+	* @param	OutState		Out parameter filled in with information about the button upon success.
+	*
+	* @Return					True if button was found and OutState is valid.
+	*/
+	virtual bool GetButtonState(FName Button, FMixerButtonState& OutState) = 0;
+
+	/**
+	* Retrieve information about a named joystick that is independent of its current state.
+	* See FMixerStickDescription for details.
+	*
+	* @param	Stick			Name of the joystick for which information should be returned.
+	* @param	OutDesc			Out parameter filled in with information about the joystick upon success.
+	*
+	* @Return					True if joystick was found and OutDesc is valid.
+	*/
+	virtual bool GetStickDescription(FName Stick, FMixerStickDescription& OutDesc) = 0;
+
+	/**
+	* Retrieve information about a named joystick that is dependent on remote user and title interactions.
+	* See FMixerStickState for details.
+	*
+	* @param	Stick			Name of the joystick for which information should be returned.
+	* @param	OutState		Out parameter filled in with information about the joystick upon success.
+	*
+	* @Return					True if joystick was found and OutState is valid.
+	*/
+	virtual bool GetStickState(FName Stick, FMixerStickState& OutState) = 0;
+
+	/**
+	* Retrieve a structure describing the local user currently signed in to the Mixer service.
+	*
+	* @Return					See FMixerLocalUser.  Invalid shared pointer when no user is signed in.
+	*/
+	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser() = 0;
+
+	/**
+	* Retrieve a structure describing a remote user currently interacting with the title on the Mixer service.
+	*
+	* @param	ParticipantId	Mixer id of the remote user.  
+	* @Return					See FMixerRemoteUser.  Invalid shared pointer when no user could be found.
+	*/
+	virtual TSharedPtr<const FMixerRemoteUser> GetParticipant(uint32 ParticipantId) = 0;
+
+	/**
+	* Create a user group with the given name.  Groups may be used to show different scenes to different
+	* segments of the participating audience.  No-op if the group already exists.
+	*
+	* @param	GroupName		Name for the new group.
+	* @param	InitialScene	Interactive scene that this new group should see.
+	*
+	* @Return					True if group is newly created.  False if it already existed (interactive scene will not be changed).
+	*/
+	virtual bool CreateGroup(FName GroupName, FName InitialScene) = 0;
+
+	/**
+	* Retrieve the collection of participants that belong to the named group.
+	*
+	* @param	GroupName		Name of the group for which to retrieve participants.
+	* @param	OutParticipants	Out parameter filled with the members of the named group.
+	*
+	* @Return					True if the group exists (even if it is empty).  False otherwise.
+	*/
+	virtual bool GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants) = 0;
+
+	/**
+	* Move a single participant to the named group.
+	*
+	* @param	GroupName		Name of the group to which the participant should be moved.
+	* @param	ParticipantId	Id of the user to be moved.
+	*
+	* @Return					True if the destination group exists.  False otherwise.
+	*/
+	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId) = 0;
+
+	// Events
+	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnLoginStateChanged, EMixerLoginState);
+	virtual FOnLoginStateChanged& OnLoginStateChanged() = 0;
+
+	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnInteractivityStateChanged, EMixerInteractivityState);
+	virtual FOnInteractivityStateChanged& OnInteractivityStateChanged() = 0;
+
+	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnParticipantStateChangedEvent, TSharedPtr<const FMixerRemoteUser>, EMixerInteractivityParticipantState);
+	virtual FOnParticipantStateChangedEvent& OnParticipantStateChanged() = 0;
+
+	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnButtonEvent, FName, TSharedPtr<const FMixerRemoteUser>, bool);
+	virtual FOnButtonEvent& OnButtonEvent() = 0;
+
+	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnStickEvent, FName, TSharedPtr<const FMixerRemoteUser>, FVector2D);
+	virtual FOnStickEvent& OnStickEvent() = 0;
+};

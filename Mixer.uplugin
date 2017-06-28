@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1",
+	"FriendlyName": "Mixer",
+	"Description": "Interact with participants on the Mixer broadcasting service",
+	"Category": "Misc",
+	"CreatedBy": "Microsoft",
+	"CreatedByURL": "www.microsoft.com",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"EnabledByDefault": false,
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"Installed": true,
+	"Modules": [
+		{
+			"Name": "MixerInteractivity",
+			"Type": "Runtime",
+            "LoadingPhase": "Default",
+			"WhitelistPlatforms" : [ "Win32", "Win64", "XboxOne" ]
+		},
+		{
+			"Name": "MixerInteractivityEditor",
+			"Type": "Editor",
+            "LoadingPhase": "Default"
+		}
+	]
+}
