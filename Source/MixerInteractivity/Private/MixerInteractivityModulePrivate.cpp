@@ -206,9 +206,16 @@ bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserI
 		.InitialURL(Command)
 		.ShowControls(false)
 		.ShowAddressBar(false)
-		.OnUrlChanged_Raw(this, &FMixerInteractivityModule::OnBrowserUrlChanged);
+		.OnUrlChanged_Raw(this, &FMixerInteractivityModule::OnBrowserUrlChanged)
+		.OnCreateWindow_Raw(this, &FMixerInteractivityModule::OnBrowserPopupWindow);
 
-	LoginWindow->SetContent(BrowserWidget);
+	SAssignNew(LoginBrowserPanes, SOverlay) +
+		SOverlay::Slot()
+		[
+			BrowserWidget
+		];
+
+	LoginWindow->SetContent(LoginBrowserPanes.ToSharedRef());
 	TSharedPtr<SWindow> RootWindow = FGlobalTabmanager::Get()->GetRootWindow();
 	if (RootWindow.IsValid())
 	{
@@ -328,7 +335,7 @@ EMixerLoginState FMixerInteractivityModule::GetLoginState()
 	}
 }
 
-#if PLATFORM_WINDOWS
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
 void FMixerInteractivityModule::OnBrowserUrlChanged(const FText& NewUrl)
 {
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
@@ -354,9 +361,31 @@ void FMixerInteractivityModule::OnBrowserUrlChanged(const FText& NewUrl)
 		LoginWindow->SetOnWindowClosed(FOnWindowClosed());
 		TSharedRef<SWindow> WindowToClose = LoginWindow.ToSharedRef();
 		LoginWindow.Reset();
+		LoginBrowserPanes.Reset();
 		FSlateApplication::Get().RequestDestroyWindow(WindowToClose);
 	}
 }
+
+bool FMixerInteractivityModule::OnBrowserPopupWindow(const TWeakPtr<IWebBrowserWindow>& NewBrowserWindow, const TWeakPtr<IWebBrowserPopupFeatures>& PopupFeatures)
+{
+	TSharedRef<SWebBrowser> BrowserWidget = SNew(SWebBrowser, NewBrowserWindow.Pin())
+		.ShowControls(false)
+		.ShowAddressBar(false)
+		.OnCloseWindow_Lambda([this](const TWeakPtr<IWebBrowserWindow>& BrowserWindowPtr)
+	{
+		// Assume it's the last one that needs to come off.  May need to be more thorough
+		LoginBrowserPanes->RemoveSlot();
+		return true;
+	});
+
+	LoginBrowserPanes->AddSlot()
+		[
+			BrowserWidget
+		];
+
+	return true;
+}
+
 #endif
 
 void FMixerInteractivityModule::OnBrowserWindowClosed(const TSharedRef<SWindow>&)

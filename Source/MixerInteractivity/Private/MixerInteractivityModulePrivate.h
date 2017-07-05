@@ -63,6 +63,9 @@ private:
 };
 
 class SWindow;
+class SOverlay;
+class IWebBrowserWindow;
+class IWebBrowserPopupFeatures;
 class UMixerInteractivityBlueprintEventSource;
 
 class FMixerInteractivityModule :
@@ -119,6 +122,7 @@ private:
 
 	void OnBrowserUrlChanged(const FText& NewUrl);
 	void OnBrowserWindowClosed(const TSharedRef<SWindow>&);
+	bool OnBrowserPopupWindow(const TWeakPtr<IWebBrowserWindow>& NewBrowserWindow, const TWeakPtr<IWebBrowserPopupFeatures>& PopupFeatures);
 
 	bool NeedsClientLibraryActive();
 	void InitDesignTimeGroups();
@@ -139,6 +143,7 @@ private:
 #endif
 
 	TSharedPtr<SWindow> LoginWindow;
+	TSharedPtr<SOverlay> LoginBrowserPanes;
 
 	TSharedPtr<const FUniqueNetId> NetId;
 	TSharedPtr<FMixerLocalUserJsonSerializable> CurrentUser;
