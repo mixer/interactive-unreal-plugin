@@ -207,7 +207,14 @@ bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserI
 		.ShowControls(false)
 		.ShowAddressBar(false)
 		.OnUrlChanged_Raw(this, &FMixerInteractivityModule::OnBrowserUrlChanged)
-		.OnCreateWindow_Raw(this, &FMixerInteractivityModule::OnBrowserPopupWindow);
+		.OnCreateWindow_Raw(this, &FMixerInteractivityModule::OnBrowserPopupWindow)
+		.OnCloseWindow_Lambda([this](const TWeakPtr<IWebBrowserWindow>& BrowserWindowPtr)
+	{
+		TSharedRef<SWindow> WindowToClose = LoginWindow.ToSharedRef();
+		FSlateApplication::Get().RequestDestroyWindow(WindowToClose);
+		return true;
+	});
+	
 
 	SAssignNew(LoginBrowserPanes, SOverlay) +
 		SOverlay::Slot()

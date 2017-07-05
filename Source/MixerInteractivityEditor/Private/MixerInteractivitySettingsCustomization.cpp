@@ -238,6 +238,8 @@ void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBui
 	{
 		IMixerInteractivityEditorModule::Get().RequestAvailableInteractiveGames(FOnMixerInteractiveGamesRequestFinished::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnInteractiveGamesRequestFinished));
 	}
+
+	IsChangingUser = false;
 }
 
 FReply FMixerInteractivitySettingsCustomization::Login()
