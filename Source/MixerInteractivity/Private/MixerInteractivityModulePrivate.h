@@ -136,6 +136,8 @@ private:
 
 	void LoginAttemptFinished(bool Success);
 
+	FString GetRedirectUri();
+
 private:
 
 #if PLATFORM_XBOXONE

@@ -137,7 +137,7 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 	JsonWriter->WriteObjectStart();
 	JsonWriter->WriteValue(TEXT("grant_type"), TEXT("refresh_token"));
 	JsonWriter->WriteValue(TEXT("refresh_token"), UserSettings->RefreshToken);
-	JsonWriter->WriteValue(TEXT("redirect_uri"), Settings->RedirectUri);
+	JsonWriter->WriteValue(TEXT("redirect_uri"), GetRedirectUri());
 	JsonWriter->WriteValue(TEXT("client_id"), Settings->ClientId);
 	JsonWriter->WriteObjectEnd();
 	JsonWriter->Close();
@@ -189,7 +189,7 @@ bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserI
 
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 	FString Command = FString::Printf(TEXT("https://mixer.com/oauth/authorize?redirect_uri=%s&client_id=%s&scope=%s&response_type=code"),
-		*FPlatformHttp::UrlEncode(Settings->RedirectUri), *FPlatformHttp::UrlEncode(Settings->ClientId), *FPlatformHttp::UrlEncode(OAuthScope));
+		*FPlatformHttp::UrlEncode(GetRedirectUri()), *FPlatformHttp::UrlEncode(Settings->ClientId), *FPlatformHttp::UrlEncode(OAuthScope));
 
 	const FText TitleText = NSLOCTEXT("MixerInteractivity", "LoginWindowTitle", "Login to Mixer");
 	LoginWindow = SNew(SWindow)
@@ -338,11 +338,19 @@ EMixerLoginState FMixerInteractivityModule::GetLoginState()
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
 void FMixerInteractivityModule::OnBrowserUrlChanged(const FText& NewUrl)
 {
+	FString NewUrlString = NewUrl.ToString();
+	FString Protocol;
+	FParse::SchemeNameFromURI(*NewUrlString, Protocol);
+	NewUrlString = NewUrlString.RightChop(Protocol.Len() + 3);
+	FString Host;
+	FString PathAndQuery;
+	NewUrlString.Split(TEXT("/"), &Host, &PathAndQuery);
+
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	if (NewUrl.ToString().StartsWith(Settings->RedirectUri))
+	if (!Host.EndsWith(TEXT("mixer.com")))
 	{
 		FString AuthCode;
-		if (FParse::Value(*NewUrl.ToString(), TEXT("code="), AuthCode) &&
+		if (FParse::Value(*PathAndQuery, TEXT("code="), AuthCode) &&
 			!AuthCode.IsEmpty())
 		{
 			// strip off any url parameters and just keep the token itself
@@ -607,7 +615,7 @@ bool FMixerInteractivityModule::LoginWithAuthCodeInternal(const FString& AuthCod
 	TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&ContentString);
 	JsonWriter->WriteObjectStart();
 	JsonWriter->WriteValue(TEXT("grant_type"), TEXT("authorization_code"));
-	JsonWriter->WriteValue(TEXT("redirect_uri"), Settings->RedirectUri);
+	JsonWriter->WriteValue(TEXT("redirect_uri"), GetRedirectUri());
 	JsonWriter->WriteValue(TEXT("client_id"), Settings->ClientId);
 	JsonWriter->WriteValue(TEXT("code"), AuthCode);
 	JsonWriter->WriteObjectEnd();
@@ -1158,6 +1166,22 @@ void FMixerInteractivityModule::InitDesignTimeGroups()
 			}
 		}
 	}
+}
+
+FString FMixerInteractivityModule::GetRedirectUri()
+{
+	// Deal with any wildcards and ensure protocol is on the front.  This is helpful to
+	// allow the 'Hosts' entry from the Mixer OAuth Clients page to just be directly reused.
+	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+	FString RedirectUri = Settings->RedirectUri;
+	RedirectUri = RedirectUri.Replace(TEXT(".*."), TEXT("."));
+	if (!RedirectUri.StartsWith(TEXT("http")))
+	{
+		RedirectUri = FString(TEXT("http://")) + RedirectUri;
+	}
+	RedirectUri = RedirectUri.Replace(TEXT("/*."), TEXT("/www."));
+
+	return RedirectUri;
 }
 
 FMixerRemoteUserCached::FMixerRemoteUserCached(std::shared_ptr<Microsoft::mixer::interactive_participant> InParticipant)
