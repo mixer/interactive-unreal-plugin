@@ -51,7 +51,7 @@ FMixerInteractivitySettingsCustomization::~FMixerInteractivitySettingsCustomizat
 
 void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
-	IDetailCategoryBuilder& GameBindingCategoryBuilder = DetailBuilder.EditCategory("Game Binding");
+	IDetailCategoryBuilder& GameBindingCategoryBuilder = DetailBuilder.EditCategory("Game Binding", FText::GetEmpty(), ECategoryPriority::Uncommon);
 
 	TSharedRef<SWidget> HeaderContent =
 		SNew(SHorizontalBox)
@@ -73,6 +73,7 @@ void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBui
 		[
 			SNew(SButton)
 			.Visibility(this, &FMixerInteractivitySettingsCustomization::GetLoginButtonVisibility)
+			.IsEnabled(this, &FMixerInteractivitySettingsCustomization::GetLoginButtonEnabledState)
 			.Text(LOCTEXT("LoginButtonText", "Login"))
 			.ToolTipText(LOCTEXT("LoginButton_Tooltip", "Log into Mixer to select the game and version to associate with this project"))
 			.OnClicked(this, &FMixerInteractivitySettingsCustomization::Login)
@@ -288,7 +289,14 @@ FText FMixerInteractivitySettingsCustomization::GetCurrentUserText() const
 	case EMixerLoginState::Logging_Out:
 		return LOCTEXT("LogInOutInProgress", "Working on it...");
 	case EMixerLoginState::Not_Logged_In:
-		return LOCTEXT("NoCurrentUser", "Not logged in");
+		if (GetLoginButtonEnabledState())
+		{
+			return LOCTEXT("NoCurrentUser", "Not logged in");
+		}
+		else
+		{
+			return LOCTEXT("MissingLoginInfo", "Client Id and Redirect Uri required.");
+		}
 
 	default:
 		return FText::GetEmpty();
@@ -624,6 +632,12 @@ EVisibility FMixerInteractivitySettingsCustomization::GetErrorVisibilityForGroup
 		}
 	}
 	return EVisibility::Collapsed;
+}
+
+bool FMixerInteractivitySettingsCustomization::GetLoginButtonEnabledState() const
+{
+	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+	return !Settings->ClientId.IsEmpty() && !Settings->RedirectUri.IsEmpty();
 }
 
 

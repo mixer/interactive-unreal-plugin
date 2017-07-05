@@ -38,6 +38,7 @@ private:
 	FReply ChangeUser();
 
 	EVisibility GetLoginButtonVisibility() const;
+	bool GetLoginButtonEnabledState() const;
 	EVisibility GetChangeUserVisibility() const;
 	EVisibility GetLoginInProgressVisibility() const;
 	FText GetCurrentUserText() const;
