@@ -32,6 +32,7 @@
 #include "IDetailChildrenBuilder.h"
 #include "SErrorHint.h"
 #include "SButton.h"
+#include "SRichTextBlock.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
@@ -51,6 +52,38 @@ FMixerInteractivitySettingsCustomization::~FMixerInteractivitySettingsCustomizat
 
 void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
+	IDetailCategoryBuilder& AuthCategoryBuilder = DetailBuilder.EditCategory("Auth");
+
+	AuthCategoryBuilder.AddCustomRow(LOCTEXT("GetClientId", "Get Client Id"), false)
+	.WholeRowWidget
+	[
+		SNew(SBorder)
+		.Padding(1)
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.Padding(FMargin(10, 10, 10, 10))
+			.FillWidth(1.0f)
+			[
+				SNew(SRichTextBlock)
+				.Text(LOCTEXT("GetClientIdText", "Visit the Mixer <a id=\"browser\" href=\"https://mixer.com/lab/oauth\">OAuth Clients Page</> to obtain a Client Id and configure valid hosts for your Redirect Uri."))
+				.TextStyle(FEditorStyle::Get(), "MessageLog")
+				.DecoratorStyleSet(&FEditorStyle::Get())
+				.AutoWrapText(true)
+				+ SRichTextBlock::HyperlinkDecorator(TEXT("browser"), FSlateHyperlinkRun::FOnClick::CreateLambda(
+					[](const FSlateHyperlinkRun::FMetadata& Metadata)
+					{
+						const FString* UrlPtr = Metadata.Find(TEXT("href"));
+						if (UrlPtr)
+						{
+							FPlatformProcess::LaunchURL(**UrlPtr, nullptr, nullptr);
+						}
+					}
+				))
+			]
+		]
+	];
+
 	IDetailCategoryBuilder& GameBindingCategoryBuilder = DetailBuilder.EditCategory("Game Binding", FText::GetEmpty(), ECategoryPriority::Uncommon);
 
 	TSharedRef<SWidget> HeaderContent =
