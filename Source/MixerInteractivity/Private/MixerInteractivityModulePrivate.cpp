@@ -356,6 +356,7 @@ void FMixerInteractivityModule::OnBrowserUrlChanged(const FText& NewUrl)
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 	if (!Host.EndsWith(TEXT("mixer.com")))
 	{
+		bool AuthCodeSucceeded = false;
 		FString AuthCode;
 		if (FParse::Value(*PathAndQuery, TEXT("code="), AuthCode) &&
 			!AuthCode.IsEmpty())
@@ -365,12 +366,13 @@ void FMixerInteractivityModule::OnBrowserUrlChanged(const FText& NewUrl)
 			if (AuthCode.Split(TEXT("&"), &AuthCodeOnly, NULL))
 			{
 				AuthCode = AuthCodeOnly;
-
-				if (!LoginWithAuthCodeInternal(AuthCode, NetId))
-				{
-					LoginAttemptFinished(false);
-				}
+				AuthCodeSucceeded = LoginWithAuthCodeInternal(AuthCode, NetId);
 			}
+		}
+
+		if (!AuthCodeSucceeded)
+		{
+			LoginAttemptFinished(false);
 		}
 
 		LoginWindow->SetOnWindowClosed(FOnWindowClosed());
