@@ -132,6 +132,23 @@ struct FMixerStickState
 	bool Enabled;
 };
 
+/** Additional information about a button event */
+struct FMixerButtonEventDetails
+{
+	/** 
+	* Id for the Spark transaction associated with this button event (empty if none).
+	* After handling the event, the charge should be confirmed via
+	* IMixerInteractivityModule::CaptureSparkTransaction.
+	*/
+	FString TransactionId;
+
+	/** Number of sparks that will be charged for this interaction, if confirmed */
+	uint32 SparkCost;
+
+	/** Whether the button event represents a press (true) or release (false) */
+	bool Pressed;
+};
+
 enum class EMixerLoginState : uint8
 {
 	Not_Logged_In,

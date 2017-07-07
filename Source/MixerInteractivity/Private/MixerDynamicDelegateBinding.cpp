@@ -56,15 +56,17 @@ FMixerStickEventDynamicDelegate* UMixerInteractivityBlueprintEventSource::GetSti
 	return &DelegateWrapper.Delegate;
 }
 
-void UMixerInteractivityBlueprintEventSource::OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, bool Pressed)
+void UMixerInteractivityBlueprintEventSource::OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerButtonEventDetails& Details)
 {
 	FMixerButtonEventDynamicDelegateWrapper* DelegateWrapper = ButtonDelegates.Find(ButtonName);
 	if (DelegateWrapper)
 	{
 		FMixerButtonReference ButtonRef;
 		ButtonRef.Name = ButtonName;
-		FMixerButtonEventDynamicDelegate& DelegateToFire = Pressed ? DelegateWrapper->PressedDelegate : DelegateWrapper->ReleasedDelegate;
-		DelegateToFire.Broadcast(ButtonRef, static_cast<int32>(Participant->Id));
+		FMixerButtonEventDynamicDelegate& DelegateToFire = Details.Pressed ? DelegateWrapper->PressedDelegate : DelegateWrapper->ReleasedDelegate;
+		FMixerTransactionId TransactionId;
+		TransactionId.Id = Details.TransactionId;
+		DelegateToFire.Broadcast(ButtonRef, static_cast<int32>(Participant->Id), TransactionId, static_cast<int32>(Details.SparkCost));
 	}
 }
 

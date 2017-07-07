@@ -117,6 +117,41 @@ struct TStructOpsTypeTraits<FMixerGroupReference> : public TStructOpsTypeTraitsB
 	};
 };
 
+USTRUCT(BlueprintType)
+struct MIXERINTERACTIVITY_API FMixerTransactionId
+{
+public:
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Id;
+
+public:
+	/** Export contents of this struct as a string */
+	bool ExportTextItem(FString& ValueStr, FMixerTransactionId const& DefaultValue, UObject* Parent, int32 PortFlags, UObject* ExportRootScope) const
+	{
+		ValueStr = Id;
+		return true;
+	}
+
+	/** Import string contexts and try to map them into a unique id */
+	bool ImportTextItem(const TCHAR*& Buffer, int32 PortFlags, UObject* Parent, FOutputDevice* ErrorText)
+	{
+		Id = Buffer;
+		return true;
+	}
+};
+
+template<>
+struct TStructOpsTypeTraits<FMixerTransactionId> : public TStructOpsTypeTraitsBase2<FMixerTransactionId>
+{
+	enum
+	{
+		WithExportTextItem = true,
+		WithImportTextItem = true
+	};
+};
+
 UENUM()
 enum class EMixerInteractivityParticipantState : uint8
 {
@@ -278,4 +313,12 @@ public:
 	*/
 	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity", meta = (CompactNodeTitle = "->", BlueprintAutocast))
 	static FName GetName(const FMixerObjectReference& Obj);
+
+	/**
+	* Captures a given interactive event transaction, charging the sparks to the appropriate remote participant.
+	*
+	* @param	TransactionId	Id of the transaction for which sparks should be charged (obtained from event)
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Mixer|Interactivity")
+	static void CaptureSparkTransaction(FMixerTransactionId TransactionId);
 };

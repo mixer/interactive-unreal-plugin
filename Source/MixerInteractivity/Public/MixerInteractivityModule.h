@@ -19,6 +19,7 @@ struct FMixerButtonDescription;
 struct FMixerButtonState;
 struct FMixerStickDescription;
 struct FMixerStickState;
+struct FMixerButtonEventDetails;
 class FUniqueNetId;
 
 enum class EMixerLoginState : uint8;
@@ -238,6 +239,13 @@ public:
 	*/
 	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId) = 0;
 
+	/**
+	* Captures a given interactive event transaction, charging the sparks to the appropriate remote participant. 
+	*
+	* @param	TransactionId	Id of the transaction for which sparks should be charged (obtained from event)
+	*/
+	virtual void CaptureSparkTransaction(const FString& TransactionId) = 0;
+
 	// Events
 	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnLoginStateChanged, EMixerLoginState);
 	virtual FOnLoginStateChanged& OnLoginStateChanged() = 0;
@@ -248,7 +256,7 @@ public:
 	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnParticipantStateChangedEvent, TSharedPtr<const FMixerRemoteUser>, EMixerInteractivityParticipantState);
 	virtual FOnParticipantStateChangedEvent& OnParticipantStateChanged() = 0;
 
-	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnButtonEvent, FName, TSharedPtr<const FMixerRemoteUser>, bool);
+	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnButtonEvent, FName, TSharedPtr<const FMixerRemoteUser>, const FMixerButtonEventDetails&);
 	virtual FOnButtonEvent& OnButtonEvent() = 0;
 
 	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnStickEvent, FName, TSharedPtr<const FMixerRemoteUser>, FVector2D);

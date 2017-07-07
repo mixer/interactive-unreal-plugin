@@ -13,6 +13,9 @@
 #include "Engine/Engine.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
+#include "MessageLog.h"
+
+#define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
 struct FMixerInteractivityChangeAction : public FPendingLatentAction
 {
@@ -267,10 +270,25 @@ void UMixerInteractivityBlueprintLibrary::GetParticipantsInGroup(FMixerGroupRefe
 
 void UMixerInteractivityBlueprintLibrary::MoveParticipantToGroup(FMixerGroupReference Group, int32 ParticipantId)
 {
-	IMixerInteractivityModule::Get().MoveParticipantToGroup(Group.Name, ParticipantId);
+	if (!IMixerInteractivityModule::Get().MoveParticipantToGroup(Group.Name, ParticipantId))
+	{
+#if WITH_EDITOR
+		FMessageLog("PIE").Warning(FText::Format(
+			LOCTEXT("MoveToGroupError_NotFound", "MoveParticipantToGroup failed: group {0} was not found.  Create it via Mixer Interactivity Project Settings."),
+			FText::FromName(Group.Name)
+		));
+#endif
+	}
 }
 
 FName UMixerInteractivityBlueprintLibrary::GetName(const FMixerObjectReference& Obj)
 {
 	return Obj.Name;
 }
+
+void UMixerInteractivityBlueprintLibrary::CaptureSparkTransaction(FMixerTransactionId TransactionId)
+{
+	IMixerInteractivityModule::Get().CaptureSparkTransaction(TransactionId.Id);
+}
+
+#undef LOCTEXT_NAMESPACE

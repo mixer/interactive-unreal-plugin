@@ -593,7 +593,11 @@ void FMixerInteractivityModule::TickClientLibrary()
 		{
 			auto OriginalButtonArgs = std::static_pointer_cast<interactive_button_event_args>(MixerEvent.event_args());
 			TSharedPtr<const FMixerRemoteUser> RemoteParticipant = CreateOrUpdateCachedParticipant(OriginalButtonArgs->participant());
-			ButtonEvent.Broadcast(FName(OriginalButtonArgs->control_id().c_str()), RemoteParticipant, OriginalButtonArgs->is_pressed());
+			FMixerButtonEventDetails Details;
+			Details.Pressed = OriginalButtonArgs->is_pressed();
+			Details.TransactionId = OriginalButtonArgs->transaction_id().c_str();
+			Details.SparkCost = OriginalButtonArgs->cost();
+			ButtonEvent.Broadcast(FName(OriginalButtonArgs->control_id().c_str()), RemoteParticipant, Details);
 		}
 		break;
 
@@ -776,7 +780,9 @@ void FMixerInteractivityModule::StopInteractivity()
 	{
 	case Microsoft::mixer::interactivity_enabled:
 	case Microsoft::mixer::interactivity_pending:
-		check(InteractivityState == EMixerInteractivityState::Interactivity_Starting || InteractivityState == EMixerInteractivityState::Interactive);
+		check(InteractivityState == EMixerInteractivityState::Interactivity_Starting || 
+				InteractivityState == EMixerInteractivityState::Interactivity_Stopping || 
+				InteractivityState == EMixerInteractivityState::Interactive);
 		Microsoft::mixer::interactivity_manager::get_singleton_instance()->stop_interactive();
 		InteractivityState = EMixerInteractivityState::Interactivity_Stopping;
 		break;
@@ -1062,16 +1068,7 @@ bool FMixerInteractivityModule::CreateGroup(FName GroupName, FName InitialScene)
 	using namespace Microsoft::mixer;
 
 	FString GroupNameAsString = GroupName.ToString();
-	std::shared_ptr<interactive_group> FoundGroup = nullptr;
-	// Workaround issue in client library - do this the slow way for now
-	for (std::shared_ptr<interactive_group> ExistingGroup : interactivity_manager::get_singleton_instance()->groups())
-	{
-		if (GroupNameAsString == ExistingGroup->group_id().c_str())
-		{
-			FoundGroup = ExistingGroup;
-			break;
-		}
-	}
+	std::shared_ptr<interactive_group> FoundGroup = interactivity_manager::get_singleton_instance()->group(*GroupName.ToString());
 	bool CanCreate = FoundGroup == nullptr;
 	if (CanCreate)
 	{
@@ -1157,6 +1154,11 @@ bool FMixerInteractivityModule::MoveParticipantToGroup(FName GroupName, uint32 P
 		}
 	}
 	return FoundUser;
+}
+
+void FMixerInteractivityModule::CaptureSparkTransaction(const FString& TransactionId)
+{
+	Microsoft::mixer::interactivity_manager::get_singleton_instance()->capture_transaction(*TransactionId);
 }
 
 void FMixerInteractivityModule::InitDesignTimeGroups()

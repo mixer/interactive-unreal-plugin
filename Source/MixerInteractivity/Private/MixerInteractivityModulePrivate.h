@@ -103,6 +103,7 @@ public:
 	virtual bool CreateGroup(FName GroupName, FName InitialScene = NAME_None);
 	virtual bool GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants);
 	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId);
+	virtual void CaptureSparkTransaction(const FString& TransactionId);
 
 	virtual FOnLoginStateChanged& OnLoginStateChanged()						{ return LoginStateChanged; }
 	virtual FOnInteractivityStateChanged& OnInteractivityStateChanged()		{ return InteractivityStateChanged; }

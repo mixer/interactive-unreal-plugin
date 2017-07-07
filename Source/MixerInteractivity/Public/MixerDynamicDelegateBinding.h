@@ -20,7 +20,7 @@
 
 #include "MixerDynamicDelegateBinding.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FMixerButtonEventDynamicDelegate, FMixerButtonReference, Button, int32, ParticipantId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FMixerButtonEventDynamicDelegate, FMixerButtonReference, Button, int32, ParticipantId, FMixerTransactionId, TransactionId, int32, SparkCost);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMixerParticipantEventDynamicDelegate, int32, ParticipantId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FMixerStickEventDynamicDelegate, FMixerStickReference, Joystick, int32, ParticipantId, float, XAxis, float, YAxis);
 
@@ -68,7 +68,7 @@ public:
 	FMixerButtonEventDynamicDelegate* GetButtonEvent(FName ButtonName, bool Pressed);
 	FMixerStickEventDynamicDelegate* GetStickEvent(FName StickName);
 
-	void OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, bool Pressed);
+	void OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerButtonEventDetails& Details);
 	void OnParticipantStateChangedNativeEvent(TSharedPtr<const FMixerRemoteUser> Participant, EMixerInteractivityParticipantState NewState);
 	void OnStickNativeEvent(FName StickName, TSharedPtr<const FMixerRemoteUser> Participant, FVector2D StickValue);
 

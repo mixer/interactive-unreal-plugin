@@ -47,6 +47,8 @@ void UK2Node_MixerButton::ExpandNode(FKismetCompilerContext& CompilerContext, UE
 	bool ReleasedPinIsActive = ReleasedPin != nullptr && ReleasedPin->LinkedTo.Num() > 0;
 	UK2Node_TemporaryVariable* IntermediateButtonNode = nullptr;
 	UK2Node_TemporaryVariable* IntermediateParticipantNode = nullptr;
+	UK2Node_TemporaryVariable* IntermediateTransactionNode = nullptr;
+	UK2Node_TemporaryVariable* IntermediateCostNode = nullptr;
 
 	const UEdGraphSchema_K2* Schema = CompilerContext.GetSchema();
 
@@ -60,6 +62,15 @@ void UK2Node_MixerButton::ExpandNode(FKismetCompilerContext& CompilerContext, UE
 		IntermediateParticipantNode = CompilerContext.SpawnIntermediateNode<UK2Node_TemporaryVariable>(this, SourceGraph);
 		IntermediateParticipantNode->VariableType.PinCategory = Schema->PC_Int;
 		IntermediateParticipantNode->AllocateDefaultPins();
+
+		IntermediateTransactionNode = CompilerContext.SpawnIntermediateNode<UK2Node_TemporaryVariable>(this, SourceGraph);
+		IntermediateTransactionNode->VariableType.PinCategory = Schema->PC_Struct;
+		IntermediateTransactionNode->VariableType.PinSubCategoryObject = FMixerTransactionId::StaticStruct();
+		IntermediateTransactionNode->AllocateDefaultPins();
+
+		IntermediateCostNode = CompilerContext.SpawnIntermediateNode<UK2Node_TemporaryVariable>(this, SourceGraph);
+		IntermediateCostNode->VariableType.PinCategory = Schema->PC_Int;
+		IntermediateCostNode->AllocateDefaultPins();
 	}
 
 	auto ExpandEventPin = [&](UEdGraphPin* OriginalPin, bool IsPressedEvent)
@@ -76,30 +87,37 @@ void UK2Node_MixerButton::ExpandNode(FKismetCompilerContext& CompilerContext, UE
 		{
 			check(IntermediateParticipantNode);
 
-			UK2Node_AssignmentStatement* ButtonAssignment = CompilerContext.SpawnIntermediateNode<UK2Node_AssignmentStatement>(this, SourceGraph);
-			ButtonAssignment->AllocateDefaultPins();
 
-			Schema->TryCreateConnection(IntermediateButtonNode->GetVariablePin(), ButtonAssignment->GetVariablePin());
-			Schema->TryCreateConnection(ButtonAssignment->GetValuePin(), ButtonEvent->FindPinChecked(TEXT("Button")));
-			CompilerContext.MovePinLinksToIntermediate(*FindPin(TEXT("Button")), *IntermediateButtonNode->GetVariablePin());
+			auto MoveNodeToIntermediate = [&](const FString& OriginalPinName, UK2Node_TemporaryVariable* IntermediatePin)
+			{
+				UK2Node_AssignmentStatement* AssignmentNode = CompilerContext.SpawnIntermediateNode<UK2Node_AssignmentStatement>(this, SourceGraph);
+				AssignmentNode->AllocateDefaultPins();
+
+				Schema->TryCreateConnection(IntermediatePin->GetVariablePin(), AssignmentNode->GetVariablePin());
+				Schema->TryCreateConnection(AssignmentNode->GetValuePin(), ButtonEvent->FindPinChecked(OriginalPinName));
+				CompilerContext.MovePinLinksToIntermediate(*FindPin(OriginalPinName), *IntermediatePin->GetVariablePin());
+				return AssignmentNode;
+			};
+
+			UK2Node_AssignmentStatement* ButtonAssignment = MoveNodeToIntermediate(TEXT("Button"), IntermediateButtonNode);
+			UK2Node_AssignmentStatement* ParticipantAssignment = MoveNodeToIntermediate(TEXT("ParticipantId"), IntermediateParticipantNode);
+			UK2Node_AssignmentStatement* TransactionAssignment = MoveNodeToIntermediate(TEXT("TransactionId"), IntermediateTransactionNode);
+			UK2Node_AssignmentStatement* CostAssignment = MoveNodeToIntermediate(TEXT("SparkCost"), IntermediateCostNode);
 
 			CompilerContext.MovePinLinksToIntermediate(*OriginalPin, *ButtonAssignment->GetThenPin());
-
-			UK2Node_AssignmentStatement* ParticipantAssignment = CompilerContext.SpawnIntermediateNode<UK2Node_AssignmentStatement>(this, SourceGraph);
-			ParticipantAssignment->AllocateDefaultPins();
-
-			Schema->TryCreateConnection(IntermediateParticipantNode->GetVariablePin(), ParticipantAssignment->GetVariablePin());
-			Schema->TryCreateConnection(ParticipantAssignment->GetValuePin(), ButtonEvent->FindPinChecked(TEXT("ParticipantId")));
-			CompilerContext.MovePinLinksToIntermediate(*FindPin(TEXT("ParticipantId")), *IntermediateParticipantNode->GetVariablePin());
-
 			Schema->TryCreateConnection(ParticipantAssignment->GetThenPin(), ButtonAssignment->GetExecPin());
-			Schema->TryCreateConnection(Schema->FindExecutionPin(*ButtonEvent, EGPD_Output), ParticipantAssignment->GetExecPin());
+			Schema->TryCreateConnection(TransactionAssignment->GetThenPin(), ParticipantAssignment->GetExecPin());
+			Schema->TryCreateConnection(CostAssignment->GetThenPin(), TransactionAssignment->GetExecPin());
+
+			Schema->TryCreateConnection(Schema->FindExecutionPin(*ButtonEvent, EGPD_Output), CostAssignment->GetExecPin());
 		}
 		else
 		{
 			CompilerContext.MovePinLinksToIntermediate(*OriginalPin, *Schema->FindExecutionPin(*ButtonEvent, EGPD_Output));
 			CompilerContext.MovePinLinksToIntermediate(*FindPin(TEXT("Button")), *ButtonEvent->FindPin(TEXT("Button")));
 			CompilerContext.MovePinLinksToIntermediate(*FindPin(TEXT("ParticipantId")), *ButtonEvent->FindPin(TEXT("ParticipantId")));
+			CompilerContext.MovePinLinksToIntermediate(*FindPin(TEXT("TransactionId")), *ButtonEvent->FindPin(TEXT("TransactionId")));
+			CompilerContext.MovePinLinksToIntermediate(*FindPin(TEXT("SparkCost")), *ButtonEvent->FindPin(TEXT("SparkCost")));
 		}
 	};
 
@@ -158,6 +176,12 @@ void UK2Node_MixerButton::AllocateDefaultPins()
 	CreatePin(EGPD_Output, K2Schema->PC_Exec, TEXT(""), NULL, false, false, TEXT("Released"));
 	CreatePin(EGPD_Output, K2Schema->PC_Struct, TEXT(""), FMixerButtonReference::StaticStruct(), false, false, TEXT("Button"));
 	CreatePin(EGPD_Output, K2Schema->PC_Int, TEXT(""), NULL, false, false, TEXT("ParticipantId"));
+
+	// Advanced pins
+	UEdGraphPin* AdvancedPin = CreatePin(EGPD_Output, K2Schema->PC_Struct, TEXT(""), FMixerTransactionId::StaticStruct(), false, true, TEXT("TransactionId"));
+	AdvancedPin->bAdvancedView = 1;
+	AdvancedPin = CreatePin(EGPD_Output, K2Schema->PC_Int, TEXT(""), NULL, false, false, TEXT("SparkCost"));
+	AdvancedPin->bAdvancedView = 1;
 
 	Super::AllocateDefaultPins();
 }
