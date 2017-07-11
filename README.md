@@ -4,7 +4,7 @@ The Mixer Unity plugin helps you add features to your game that let the audience
 
 ### Getting started
 Follow the Getting started guide to set up the plugin and your first interactive project.
-[Getting started](https://github.com/mixer/interactive-unreal-plugin/wiki/Getting-started)
+[Getting started](https://github.com/mixer/interactive-unreal-plugin/wiki/Getting-started-using-Blueprints)
 
 ### Having Trouble?  
 
