@@ -163,6 +163,7 @@ public:
 	/**
 	* Retrieve information about a named button that is dependent on remote user and title interactions.
 	* See FMixerButtonState for details.
+	* This overload reports the aggregate state of the button over all participants.
 	*
 	* @param	Button			Name of the button for which information should be returned.
 	* @param	OutState		Out parameter filled in with information about the button upon success.
@@ -170,6 +171,19 @@ public:
 	* @Return					True if button was found and OutState is valid.
 	*/
 	virtual bool GetButtonState(FName Button, FMixerButtonState& OutState) = 0;
+
+	/**
+	* Retrieve information about a named button that is dependent on remote user and title interactions.
+	* See FMixerButtonState for details.
+	* This overload reports the state of the button for a single participant.
+	*
+	* @param	Button			Name of the button for which information should be returned.
+	* @param	ParticipantId	Mixer id of the remote user whose view of the button should be returned.
+	* @param	OutState		Out parameter filled in with information about the button upon success.
+	*
+	* @Return					True if button was found and OutState is valid.
+	*/
+	virtual bool GetButtonState(FName Button, uint32 ParticipantId, FMixerButtonState& OutState) = 0;
 
 	/**
 	* Retrieve information about a named joystick that is independent of its current state.
@@ -185,6 +199,7 @@ public:
 	/**
 	* Retrieve information about a named joystick that is dependent on remote user and title interactions.
 	* See FMixerStickState for details.
+	* This overload reports the aggregate state of the stick over all participants.
 	*
 	* @param	Stick			Name of the joystick for which information should be returned.
 	* @param	OutState		Out parameter filled in with information about the joystick upon success.
@@ -192,6 +207,19 @@ public:
 	* @Return					True if joystick was found and OutState is valid.
 	*/
 	virtual bool GetStickState(FName Stick, FMixerStickState& OutState) = 0;
+
+	/**
+	* Retrieve information about a named joystick that is dependent on remote user and title interactions.
+	* See FMixerStickState for details.
+	* This overload reports the state of the stick for a single participant.
+	*
+	* @param	Stick			Name of the joystick for which information should be returned.
+	* @param	ParticipantId	Mixer id of the remote user whose view of the stick should be returned.
+	* @param	OutState		Out parameter filled in with information about the joystick upon success.
+	*
+	* @Return					True if joystick was found and OutState is valid.
+	*/
+	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState) = 0;
 
 	/**
 	* Retrieve a structure describing the local user currently signed in to the Mixer service.

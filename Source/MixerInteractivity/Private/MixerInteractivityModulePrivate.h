@@ -91,8 +91,10 @@ public:
 	virtual void TriggerButtonCooldown(FName Button, FTimespan CooldownTime);
 	virtual bool GetButtonDescription(FName Button, FMixerButtonDescription& OutDesc);
 	virtual bool GetButtonState(FName Button, FMixerButtonState& OutState);
+	virtual bool GetButtonState(FName Button, uint32 ParticipantId, FMixerButtonState& OutState);
 	virtual bool GetStickDescription(FName Stick, FMixerStickDescription& OutDesc);
 	virtual bool GetStickState(FName Stick, FMixerStickState& OutState);
+	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState);
 
 	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()
 	{

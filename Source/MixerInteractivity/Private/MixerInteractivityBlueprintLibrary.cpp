@@ -161,10 +161,20 @@ void UMixerInteractivityBlueprintLibrary::GetButtonDescription(FMixerButtonRefer
 	}
 }
 
-void UMixerInteractivityBlueprintLibrary::GetButtonState(FMixerButtonReference Button, FTimespan& RemainingCooldown, float& Progress, int32& DownCount, int32& PressCount, int32& UpCount, bool& Enabled)
+void UMixerInteractivityBlueprintLibrary::GetButtonState(FMixerButtonReference Button, FTimespan& RemainingCooldown, float& Progress, int32& DownCount, int32& PressCount, int32& UpCount, bool& Enabled, int32 ParticipantId)
 {
 	FMixerButtonState ButtonState;
-	if (IMixerInteractivityModule::Get().GetButtonState(Button.Name, ButtonState))
+	bool GotState = false;
+	if (ParticipantId != 0)
+	{
+		GotState = IMixerInteractivityModule::Get().GetButtonState(Button.Name, ParticipantId, ButtonState);
+	}
+	else
+	{
+		GotState = IMixerInteractivityModule::Get().GetButtonState(Button.Name, ButtonState);
+	}
+
+	if (GotState)
 	{
 		RemainingCooldown = ButtonState.RemainingCooldown;
 		Progress = ButtonState.Progress;
@@ -193,10 +203,20 @@ void UMixerInteractivityBlueprintLibrary::GetStickDescription(FMixerStickReferen
 	}
 }
 
-void UMixerInteractivityBlueprintLibrary::GetStickState(FMixerStickReference Stick, float& XAxis, float& YAxis, bool& Enabled)
+void UMixerInteractivityBlueprintLibrary::GetStickState(FMixerStickReference Stick, float& XAxis, float& YAxis, bool& Enabled, int32 ParticipantId)
 {
 	FMixerStickState StickState;
-	if (IMixerInteractivityModule::Get().GetStickState(Stick.Name, StickState))
+	bool GotState = false;
+	if (ParticipantId != 0)
+	{
+		GotState = IMixerInteractivityModule::Get().GetStickState(Stick.Name, ParticipantId, StickState);
+	}
+	else
+	{
+		GotState = IMixerInteractivityModule::Get().GetStickState(Stick.Name, StickState);
+	}
+
+	if (GotState)
 	{
 		XAxis = StickState.Axes.X;
 		YAxis = StickState.Axes.Y;

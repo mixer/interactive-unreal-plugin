@@ -229,9 +229,10 @@ public:
 	* @param	PressCount		Number of remote users who have pressed (down and up) the button in the last interval.
 	* @param	UpCount			Number of remote users who have released the button in the last interval.
 	* @param	Enabled			Whether the button is currently enabled.
+	* @param	ParticipantId	If provided, Mixer id of the remote user whose view of button state should be returned.  Otherwise state is aggregated over all participants.
 	*/
-	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity")
-	static void GetButtonState(FMixerButtonReference Button, FTimespan& RemainingCooldown, float& Progress, int32& DownCount, int32& PressCount, int32& UpCount, bool& Enabled);
+	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity", Meta=(AdvancedDisplay = "7"))
+	static void GetButtonState(FMixerButtonReference Button, FTimespan& RemainingCooldown, float& Progress, int32& DownCount, int32& PressCount, int32& UpCount, bool& Enabled, int32 ParticipantId = 0);
 
 	/**
 	* Retrieve information about a joystick that is independent of its current state.
@@ -248,10 +249,11 @@ public:
 	* @param	Stick			Reference to the joystick for which information should be returned.
 	* @param	XAxis			Current aggregate state of the joystick along the X axis [-1,1]
 	* @param	YAxis			Current aggregate state of the joystick along the Y axis [-1,1]
-	* @param	Enabled			Whether the button is currently enabled.
+	* @param	Enabled			Whether the joystick is currently enabled.
+	* @param	ParticipantId	If provided, Mixer id of the remote user whose view of joystick state should be returned.  Otherwise state is aggregated over all participants.
 	*/
-	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity")
-	static void GetStickState(FMixerStickReference Stick, float& XAxis, float& YAxis, bool& Enabled);
+	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity", Meta = (AdvancedDisplay = "4"))
+	static void GetStickState(FMixerStickReference Stick, float& XAxis, float& YAxis, bool& Enabled, int32 ParticipantId = 0);
 
 	/**
 	* Request a change in the interactive scene displayed to remote users.

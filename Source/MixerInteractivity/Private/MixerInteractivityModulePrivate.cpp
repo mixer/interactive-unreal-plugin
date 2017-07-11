@@ -898,10 +898,28 @@ bool FMixerInteractivityModule::GetButtonState(FName Button, FMixerButtonState& 
 	if (ButtonControl)
 	{
 		OutState.RemainingCooldown = FTimespan::FromMilliseconds(ButtonControl->remaining_cooldown().count());
-		OutState.Progress = 0.0f; // ButtonControl->progress();
+		OutState.Progress = ButtonControl->progress();
 		OutState.PressCount = ButtonControl->count_of_button_presses();
 		OutState.DownCount = ButtonControl->count_of_button_downs();
 		OutState.UpCount = ButtonControl->count_of_button_ups();
+		OutState.Enabled = !ButtonControl->disabled();
+		return true;
+	}
+	return false;
+}
+
+bool FMixerInteractivityModule::GetButtonState(FName Button, uint32 ParticipantId, FMixerButtonState& OutState)
+{
+	using namespace Microsoft::mixer;
+
+	std::shared_ptr<interactive_button_control> ButtonControl = FindButton(Button);
+	if (ButtonControl)
+	{
+		OutState.RemainingCooldown = FTimespan::FromMilliseconds(ButtonControl->remaining_cooldown().count());
+		OutState.Progress = ButtonControl->progress();
+		OutState.PressCount = ButtonControl->is_pressed(ParticipantId) ? 1 : 0;
+		OutState.DownCount = ButtonControl->is_down(ParticipantId) ? 1 : 0;
+		OutState.UpCount = ButtonControl->is_up(ParticipantId) ? 1 : 0;
 		OutState.Enabled = !ButtonControl->disabled();
 		return true;
 	}
@@ -929,6 +947,20 @@ bool FMixerInteractivityModule::GetStickState(FName Stick, FMixerStickState& Out
 	if (StickControl)
 	{
 		OutState.Axes = FVector2D(static_cast<float>(StickControl->x()), static_cast<float>(StickControl->y()));
+		OutState.Enabled = true; //!StickControl->disabled();
+		return true;
+	}
+	return false;
+}
+
+bool FMixerInteractivityModule::GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState)
+{
+	using namespace Microsoft::mixer;
+
+	std::shared_ptr<interactive_joystick_control> StickControl = FindStick(Stick);
+	if (StickControl)
+	{
+		OutState.Axes = FVector2D(static_cast<float>(StickControl->x(ParticipantId)), static_cast<float>(StickControl->y(ParticipantId)));
 		OutState.Enabled = true; //!StickControl->disabled();
 		return true;
 	}
