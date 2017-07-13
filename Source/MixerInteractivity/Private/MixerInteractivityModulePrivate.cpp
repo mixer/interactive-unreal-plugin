@@ -346,31 +346,48 @@ EMixerLoginState FMixerInteractivityModule::GetLoginState()
 void FMixerInteractivityModule::OnBrowserUrlChanged(const FText& NewUrl)
 {
 	FString NewUrlString = NewUrl.ToString();
-	FString Protocol;
-	FParse::SchemeNameFromURI(*NewUrlString, Protocol);
-	NewUrlString = NewUrlString.RightChop(Protocol.Len() + 3);
-	FString Host;
-	FString PathAndQuery;
-	NewUrlString.Split(TEXT("/"), &Host, &PathAndQuery);
+	bool IsAuthFlowFinished = false;
+	bool IsAuthFlowSuccessful = false;
+	FString AuthCode;
 
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	if (!Host.EndsWith(TEXT("mixer.com")))
+	// Check first for known done-with-OAuth query parameters.  This should cover us
+	// in the case that the redirect uri is on mixer.com
+	if (FParse::Value(*NewUrlString, TEXT("code="), AuthCode))
 	{
-		bool AuthCodeSucceeded = false;
-		FString AuthCode;
-		if (FParse::Value(*PathAndQuery, TEXT("code="), AuthCode) &&
-			!AuthCode.IsEmpty())
+		IsAuthFlowFinished = true;
+		if (!AuthCode.IsEmpty())
 		{
 			// strip off any url parameters and just keep the token itself
 			FString AuthCodeOnly;
 			if (AuthCode.Split(TEXT("&"), &AuthCodeOnly, NULL))
 			{
 				AuthCode = AuthCodeOnly;
-				AuthCodeSucceeded = LoginWithAuthCodeInternal(AuthCode, NetId);
+				IsAuthFlowSuccessful = LoginWithAuthCodeInternal(AuthCode, NetId);
 			}
 		}
+	}
+	else if (FParse::Value(*NewUrlString, TEXT("error="), AuthCode))
+	{
+		IsAuthFlowFinished = true;
+		IsAuthFlowSuccessful = false;
+	}
+	else
+	{
+		// Failsafe - if we've left mixer.com we're definitely finished.
+		FString Protocol;
+		FParse::SchemeNameFromURI(*NewUrlString, Protocol);
+		NewUrlString = NewUrlString.RightChop(Protocol.Len() + 3);
+		FString Host;
+		FString PathAndQuery;
 
-		if (!AuthCodeSucceeded)
+		NewUrlString.Split(TEXT("/"), &Host, &PathAndQuery);
+		IsAuthFlowFinished = !Host.EndsWith(TEXT("mixer.com"));
+		IsAuthFlowSuccessful = false;
+	}
+
+	if (IsAuthFlowFinished)
+	{
+		if (!IsAuthFlowSuccessful)
 		{
 			LoginAttemptFinished(false);
 		}
