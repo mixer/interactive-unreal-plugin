@@ -26,6 +26,7 @@ UMixerInteractivityBlueprintEventSource::UMixerInteractivityBlueprintEventSource
 		IMixerInteractivityModule::Get().OnButtonEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnButtonNativeEvent);
 		IMixerInteractivityModule::Get().OnParticipantStateChanged().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnParticipantStateChangedNativeEvent);
 		IMixerInteractivityModule::Get().OnStickEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnStickNativeEvent);
+		IMixerInteractivityModule::Get().OnBroadcastingStateChanged().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnBroadcastingStateChangedNativeEvent);
 	}
 }
 
@@ -101,6 +102,18 @@ void UMixerInteractivityBlueprintEventSource::OnParticipantStateChangedNativeEve
 	}
 }
 
+void UMixerInteractivityBlueprintEventSource::OnBroadcastingStateChangedNativeEvent(bool NewBroadcastingState)
+{
+	if (NewBroadcastingState)
+	{
+		BroadcastingStartedDelegate.Broadcast();
+	}
+	else
+	{
+		BroadcastingStoppedDelegate.Broadcast();
+	}
+}
+
 UWorld* UMixerInteractivityBlueprintEventSource::GetWorld() const
 {
 	return Cast<UWorld>(GetOuter());
@@ -163,6 +176,20 @@ void UMixerDelegateBinding::BindDynamicDelegates(UObject* InInstance) const
 		Delegate.BindUFunction(InInstance, ParticipantInputDisabledBinding);
 		EventSource->ParticipantInputDisabledDelegate.AddUnique(Delegate);
 	}
+
+	if (BroadcastingStartedBinding != NAME_None)
+	{
+		FScriptDelegate Delegate;
+		Delegate.BindUFunction(InInstance, BroadcastingStartedBinding);
+		EventSource->BroadcastingStartedDelegate.AddUnique(Delegate);
+	}
+
+	if (BroadcastingStoppedBinding != NAME_None)
+	{
+		FScriptDelegate Delegate;
+		Delegate.BindUFunction(InInstance, BroadcastingStoppedBinding);
+		EventSource->BroadcastingStoppedDelegate.AddUnique(Delegate);
+	}
 }
 
 void UMixerDelegateBinding::UnbindDynamicDelegates(UObject* InInstance) const
@@ -191,5 +218,15 @@ void UMixerDelegateBinding::UnbindDynamicDelegates(UObject* InInstance) const
 	if (ParticipantInputDisabledBinding != NAME_None)
 	{
 		EventSource->ParticipantInputDisabledDelegate.Remove(InInstance, ParticipantInputDisabledBinding);
+	}
+
+	if (BroadcastingStartedBinding != NAME_None)
+	{
+		EventSource->BroadcastingStartedDelegate.Remove(InInstance, BroadcastingStartedBinding);
+	}
+
+	if (BroadcastingStoppedBinding != NAME_None)
+	{
+		EventSource->BroadcastingStoppedDelegate.Remove(InInstance, BroadcastingStartedBinding);
 	}
 }

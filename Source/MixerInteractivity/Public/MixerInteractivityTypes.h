@@ -31,6 +31,42 @@ public:
 	FMixerUser();
 };
 
+/** Information about a channel owned by a user on Mixer */
+struct FMixerChannel
+{
+public:
+	/** A name for the channel, suitable for display in game UI */
+	FString Name;
+
+	/** 
+	* The number of users currently viewing this channel 
+	* Note: this value is periodically updated from the Mixer service.
+	*/
+	uint32 CurrentViewers;
+
+	/** 
+	* The number of unique users who have viewed this channel since its creation 
+	* Note: this value is periodically updated from the Mixer service.
+	*/
+	uint32 LifetimeUniqueViewers;
+
+	/** 
+	The number of users who have chosen to follow this channel
+	*Note: this value is periodically updated from the Mixer service.
+	*/
+	uint32 Followers;
+
+	/**
+	* Whether or not the channel is currently displaying broadcast video content 
+	* Note: when this value changes for the local user's channel the title can 
+	* receive a notification via IMixerInteractivityModule::OnBroadcastingStateChanged
+	*/
+	bool IsBroadcasting;
+
+protected:
+	FMixerChannel();
+};
+
 /** 
 * Represents a user on the local device who is logged in to Mixer
 * and potentially operating an interactive session 
@@ -40,15 +76,23 @@ struct FMixerLocalUser : public FMixerUser
 public:
 	/** 
 	* Experience points measuring progress towards Mixer levels
-	* Note: this value is currently retrieved on login and not updated.
+	* Note: this value is periodically updated from the Mixer service.
 	*/
 	int32 Experience;
 
 	/** 
 	* Sparks owned by the user
-	* Note: this value is currently retrieved on login and not updated.
+	* Note: this value is periodically updated from the Mixer service.
 	*/
 	int32 Sparks;
+
+	/**
+	* Get information about the channel associated with this user, including
+	* whether or not it is currently displaying broadcast content.
+	*
+	* @Return					See FMixerChannel
+	*/
+	virtual const FMixerChannel& GetChannel() const = 0;
 
 	FMixerLocalUser();
 };

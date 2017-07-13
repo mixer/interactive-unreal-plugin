@@ -38,16 +38,39 @@ namespace Microsoft
 	}
 }
 
+struct FMixerChannelJsonSerializable : public FMixerChannel, public FJsonSerializable
+{
+public:
+	BEGIN_JSON_SERIALIZER
+		JSON_SERIALIZE("name", Name);
+		JSON_SERIALIZE("viewersCurrent", CurrentViewers);
+		JSON_SERIALIZE("viewersTotal", LifetimeUniqueViewers);
+		JSON_SERIALIZE("numFollowers", Followers);
+		JSON_SERIALIZE("online", IsBroadcasting);
+	END_JSON_SERIALIZER
+};
+
 struct FMixerLocalUserJsonSerializable : public FMixerLocalUser, public FJsonSerializable
 {
 public:
+	FMixerChannelJsonSerializable Channel;
+	double RefreshAtAppTime;
+
 	BEGIN_JSON_SERIALIZER
 		JSON_SERIALIZE("username", Name);
 		JSON_SERIALIZE("id", Id);
 		JSON_SERIALIZE("level", Level);
 		JSON_SERIALIZE("experience", Experience);
 		JSON_SERIALIZE("sparks", Sparks);
+		JSON_SERIALIZE_OBJECT_SERIALIZABLE("channel", Channel);
 	END_JSON_SERIALIZER
+
+	virtual const FMixerChannel& GetChannel() const override { return Channel; }
+
+	FMixerLocalUserJsonSerializable()
+		: RefreshAtAppTime(0.0)
+	{
+	}
 };
 
 struct FMixerRemoteUserCached : public FMixerRemoteUser
@@ -112,6 +135,7 @@ public:
 	virtual FOnParticipantStateChangedEvent& OnParticipantStateChanged()	{ return ParticipantStateChanged; }
 	virtual FOnButtonEvent& OnButtonEvent()									{ return ButtonEvent; }
 	virtual FOnStickEvent& OnStickEvent()									{ return StickEvent; }
+	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged()		{ return BroadcastingStateChanged; }
 
 public:
 
@@ -122,6 +146,7 @@ private:
 
 	void OnTokenRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
 	void OnUserRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
+	void OnUserMaintenanceRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
 
 	void OnBrowserUrlChanged(const FText& NewUrl);
 	void OnBrowserWindowClosed(const TSharedRef<SWindow>&);
@@ -136,6 +161,7 @@ private:
 
 	void TickParticipantCacheMaintenance();
 	void TickClientLibrary();
+	void TickLocalUserMaintenance();
 
 	void LoginAttemptFinished(bool Success);
 
@@ -163,6 +189,7 @@ private:
 	FOnParticipantStateChangedEvent ParticipantStateChanged;
 	FOnButtonEvent ButtonEvent;
 	FOnStickEvent StickEvent;
+	FOnBroadcastingStateChanged BroadcastingStateChanged;
 
 	bool RetryLoginWithUI;
 	bool HasCreatedGroups;

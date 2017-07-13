@@ -17,6 +17,15 @@ FMixerUser::FMixerUser()
 
 }
 
+FMixerChannel::FMixerChannel()
+	: CurrentViewers(0)
+	, LifetimeUniqueViewers(0)
+	, Followers(0)
+	, IsBroadcasting(false)
+{
+
+}
+
 FMixerLocalUser::FMixerLocalUser()
 	: Experience(0)
 	, Sparks(0)

@@ -289,4 +289,7 @@ public:
 
 	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnStickEvent, FName, TSharedPtr<const FMixerRemoteUser>, FVector2D);
 	virtual FOnStickEvent& OnStickEvent() = 0;
+
+	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnBroadcastingStateChanged, bool);
+	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged() = 0;
 };

@@ -446,6 +446,7 @@ bool FMixerInteractivityModule::Tick(float DeltaTime)
 
 	TickParticipantCacheMaintenance();
 	TickClientLibrary();
+	TickLocalUserMaintenance();
 
 	return true;
 }
@@ -614,6 +615,63 @@ void FMixerInteractivityModule::TickClientLibrary()
 		default:
 			break;
 		}
+	}
+}
+
+void FMixerInteractivityModule::TickLocalUserMaintenance()
+{
+	if (NeedsClientLibraryActive() && CurrentUser.IsValid())
+	{
+		if (FApp::GetCurrentTime() > CurrentUser->RefreshAtAppTime)
+		{
+			TSharedRef<IHttpRequest> UserRequest = FHttpModule::Get().CreateRequest();
+			UserRequest->SetVerb(TEXT("GET"));
+			UserRequest->SetURL(FString::Printf(TEXT("https://mixer.com/api/v1/users/%d"), CurrentUser->Id));
+			UserRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnUserMaintenanceRequestComplete);
+			UserRequest->ProcessRequest();
+
+			// Prevent further polling while we have a request active
+			CurrentUser->RefreshAtAppTime = MAX_dbl;
+		}
+	}
+}
+
+void FMixerInteractivityModule::OnUserMaintenanceRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
+{
+	if (CurrentUser.IsValid())
+	{
+		if (bSucceeded && HttpResponse.IsValid())
+		{
+			if (EHttpResponseCodes::IsOk(HttpResponse->GetResponseCode()))
+			{
+				FMixerLocalUserJsonSerializable UpdatedUser;
+				if (UpdatedUser.FromJson(HttpResponse->GetContentAsString()))
+				{
+					// Make sure the user hasn't changed!
+					if (CurrentUser->Id == UpdatedUser.Id)
+					{
+						CurrentUser->Sparks = UpdatedUser.Sparks;
+						CurrentUser->Experience = UpdatedUser.Experience;
+						CurrentUser->Level = UpdatedUser.Level;
+
+						bool UserBroadcastStateChanged = CurrentUser->Channel.IsBroadcasting != UpdatedUser.Channel.IsBroadcasting;
+						CurrentUser->Channel = UpdatedUser.Channel;
+
+						if (UserBroadcastStateChanged)
+						{
+							OnBroadcastingStateChanged().Broadcast(CurrentUser->Channel.IsBroadcasting);
+						}
+					}
+				}
+			}
+		}
+
+		// Note: so far, adjusting this interval in response to app lifecycle events (in case broadcasting
+		// was started by the user while app was in background) have not been terribly effective - when starting the
+		// state takes long enough to change on the service that it's not very different from just waiting for the next
+		// regularly schedule poll.
+		static const double UserPollingInterval = 30.0;
+		CurrentUser->RefreshAtAppTime = FMath::Min(CurrentUser->RefreshAtAppTime, FApp::GetCurrentTime() + UserPollingInterval);
 	}
 }
 
@@ -1063,6 +1121,14 @@ void FMixerInteractivityModule::LoginAttemptFinished(bool Success)
 		InitDesignTimeGroups();
 
 		OnLoginStateChanged().Broadcast(EMixerLoginState::Logged_In);
+
+		// If we arrive at Logged_In and are already broadcasting we
+		// should send a changed event - from the client's POV we weren't
+		// broadcasting before since we weren't logged in!
+		if (CurrentUser.IsValid() && CurrentUser->Channel.IsBroadcasting)
+		{
+			OnBroadcastingStateChanged().Broadcast(true);
+		}
 	}
 	else
 	{

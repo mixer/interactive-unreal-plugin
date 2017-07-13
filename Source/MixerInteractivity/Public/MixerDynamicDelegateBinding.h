@@ -23,6 +23,7 @@
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FMixerButtonEventDynamicDelegate, FMixerButtonReference, Button, int32, ParticipantId, FMixerTransactionId, TransactionId, int32, SparkCost);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMixerParticipantEventDynamicDelegate, int32, ParticipantId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FMixerStickEventDynamicDelegate, FMixerStickReference, Joystick, int32, ParticipantId, float, XAxis, float, YAxis);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMixerBroadcastingEventDynamicDelegate);
 
 USTRUCT()
 struct MIXERINTERACTIVITY_API FMixerButtonEventDynamicDelegateWrapper
@@ -64,6 +65,12 @@ public:
 	UPROPERTY()
 	FMixerParticipantEventDynamicDelegate ParticipantInputDisabledDelegate;
 
+	UPROPERTY()
+	FMixerBroadcastingEventDynamicDelegate BroadcastingStartedDelegate;
+
+	UPROPERTY()
+	FMixerBroadcastingEventDynamicDelegate BroadcastingStoppedDelegate;
+
 public:
 	FMixerButtonEventDynamicDelegate* GetButtonEvent(FName ButtonName, bool Pressed);
 	FMixerStickEventDynamicDelegate* GetStickEvent(FName StickName);
@@ -71,6 +78,7 @@ public:
 	void OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerButtonEventDetails& Details);
 	void OnParticipantStateChangedNativeEvent(TSharedPtr<const FMixerRemoteUser> Participant, EMixerInteractivityParticipantState NewState);
 	void OnStickNativeEvent(FName StickName, TSharedPtr<const FMixerRemoteUser> Participant, FVector2D StickValue);
+	void OnBroadcastingStateChangedNativeEvent(bool NewBroadcastingState);
 
 	virtual UWorld* GetWorld() const override;
 
@@ -131,6 +139,12 @@ public:
 
 	UPROPERTY()
 	FName ParticipantInputDisabledBinding;
+
+	UPROPERTY()
+	FName BroadcastingStartedBinding;
+
+	UPROPERTY()
+	FName BroadcastingStoppedBinding;
 
 	void AddButtonBinding(const FMixerButtonEventBinding& BindingInfo);
 	void AddStickBinding(const FMixerStickEventBinding& BindingInfo);
