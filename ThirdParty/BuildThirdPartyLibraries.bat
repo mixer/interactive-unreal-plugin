@@ -22,3 +22,6 @@ xcopy /Y /I %~dp0\interactive-cpp\Binaries\Release\Win32\Casablanca\*.* %~dp0\Li
 xcopy /Y /I %~dp0\interactive-cpp\Binaries\Release\Win32\Interactivity.Win32.Cpp\*.* %~dp0\Lib\Win32
 xcopy /Y /I %~dp0\interactive-cpp\Binaries\Release\x64\Casablanca\*.* %~dp0\Lib\Win64
 xcopy /Y /I %~dp0\interactive-cpp\Binaries\Release\x64\Interactivity.Win32.Cpp\*.* %~dp0\Lib\Win64
+
+xcopy /Y /I %~dp0\interactive-cpp\Include\*.* %~dp0\Include
+xcopy /Y /I /S %~dp0\interactive-cpp\cpprestsdk\release\include\*.* %~dp0\Include

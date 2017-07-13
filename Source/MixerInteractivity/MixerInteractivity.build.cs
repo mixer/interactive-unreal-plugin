@@ -18,10 +18,7 @@ public class MixerInteractivity : ModuleRules
 			});
 
 		string ThirdPartyFolder = Path.Combine(ModuleDirectory, "..", "..", "ThirdParty");
-		string MixerSdkFolder = Path.Combine(ThirdPartyFolder, "interactive-cpp");
-		PrivateIncludePaths.Add(Path.Combine(MixerSdkFolder, "Include"));
-		PrivateIncludePaths.Add(Path.Combine(MixerSdkFolder, "cpprestsdk", "Release", "include"));
-
+		PrivateIncludePaths.Add(Path.Combine(ThirdPartyFolder, "Include"));
 		PublicLibraryPaths.Add(Path.Combine(ThirdPartyFolder, "Lib", Target.Platform.ToString()));
 
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
