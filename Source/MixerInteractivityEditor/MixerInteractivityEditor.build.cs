@@ -25,7 +25,7 @@ public class MixerInteractivityEditor : ModuleRules
 				"GraphEditor",
 				"ContentBrowser",
 				"InputCore",
-				"KismetCompiler"
+				"KismetCompiler",
 			});
 
 		PrivateIncludePathModuleNames.AddRange(
@@ -33,6 +33,6 @@ public class MixerInteractivityEditor : ModuleRules
 			{
 				"Settings",
 			});
-
+		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	}
 }

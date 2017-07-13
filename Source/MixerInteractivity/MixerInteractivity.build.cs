@@ -54,5 +54,6 @@ public class MixerInteractivity : ModuleRules
 		}
 
 		bEnableExceptions = true;
+		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	}
 }
