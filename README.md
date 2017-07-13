@@ -1,7 +1,7 @@
 
 ### Welcome!
 
-The Mixer Unity plugin helps you add features to your game that let the audience interact with people streaming your game!
+The Mixer Unreal plugin helps you add features to your game that let the audience interact with people streaming your game!
 
 ### Getting started
 Follow the Getting started guide to set up the plugin and your first interactive project.
@@ -10,9 +10,9 @@ Follow the Getting started guide to set up the plugin and your first interactive
 ## Setup
 
 This repository contains a [git submodule](https://git-scm.com/docs/git-submodule)
-called `cpprestsdk`. This library is utilized for http, websocket and JSON support.
+called `interactive-cpp`. This library is the core C++ SDK for Mixer Interactivity, which the Unreal plugin builds upon.
 
-To clone the `interactive-unreal-plugin` repository and initialize the `cpprestsdk`
+To clone the `interactive-unreal-plugin` repository and initialize the `interactive-cpp`
 submodule, run the following command:
 
 ```
@@ -26,10 +26,8 @@ by running the following command:
 $ git submodule update --init --recursive
 ```
 
-The submodule points to the tip of the branch of the `cpprestsdk` repository
-specified in `interactive-unreal-plugin`'s `.gitmodules` file. Note that this submodule
-is a fork of the mainline cpprestsdk repo, maintained by the Xbox Live team to
-support the Xbox platform.
+The submodule points to the tip of the branch of the `interactive-cpp` repository
+specified in `interactive-unreal-plugin`'s `.gitmodules` file. 
 
 
 ### Having Trouble?  
