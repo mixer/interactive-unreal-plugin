@@ -311,7 +311,7 @@ EMixerLoginState FMixerInteractivityModule::GetLoginState()
 		check(CurrentUser.IsValid());
 		if (NeedsClientLibraryActive())
 		{
-			switch (Microsoft::mixer::interactivity_manager::get_singleton_instance()->interactivity_state())
+			switch (ClientLibraryState)
 			{
 			case Microsoft::mixer::not_initialized:
 				return EMixerLoginState::Not_Logged_In;
@@ -528,11 +528,13 @@ void FMixerInteractivityModule::TickClientLibrary()
 		case interactive_event_type::interactivity_state_changed:
 		{
 			auto StateChangeArgs = std::static_pointer_cast<interactivity_state_change_event_args>(MixerEvent.event_args());
+			EMixerLoginState PreviousLoginState = GetLoginState();
+			ClientLibraryState = StateChangeArgs->new_state();
 			switch (StateChangeArgs->new_state())
 			{
 			case interactivity_state::not_initialized:
 				InteractivityState = EMixerInteractivityState::Not_Interactive;
-				switch (GetLoginState())
+				switch (PreviousLoginState)
 				{
 				case EMixerLoginState::Logging_In:
 					LoginAttemptFinished(false);
@@ -554,7 +556,7 @@ void FMixerInteractivityModule::TickClientLibrary()
 				break;
 
 			case interactivity_state::interactivity_pending:
-				if (GetLoginState() == EMixerLoginState::Logging_In)
+				if (PreviousLoginState == EMixerLoginState::Logging_In)
 				{
 					LoginAttemptFinished(true);
 				}
@@ -566,7 +568,7 @@ void FMixerInteractivityModule::TickClientLibrary()
 
 			case interactivity_state::interactivity_disabled:
 				InteractivityState = EMixerInteractivityState::Not_Interactive;
-				if (GetLoginState() == EMixerLoginState::Logging_In)
+				if (PreviousLoginState == EMixerLoginState::Logging_In)
 				{
 					LoginAttemptFinished(true);
 				}
@@ -578,7 +580,7 @@ void FMixerInteractivityModule::TickClientLibrary()
 
 			case interactivity_state::interactivity_enabled:
 				InteractivityState = EMixerInteractivityState::Interactive;
-				if (GetLoginState() == EMixerLoginState::Logging_In)
+				if (PreviousLoginState == EMixerLoginState::Logging_In)
 				{
 					LoginAttemptFinished(true);
 				}

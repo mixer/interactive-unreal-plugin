@@ -35,6 +35,7 @@ namespace Microsoft
 		class interactive_button_control;
 		class interactive_joystick_control;
 		class interactive_participant;
+		enum interactivity_state;
 	}
 }
 
@@ -182,6 +183,7 @@ private:
 	TMap<uint32, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCache;
 
 	EMixerLoginState UserAuthState;
+	Microsoft::mixer::interactivity_state ClientLibraryState;
 	EMixerInteractivityState InteractivityState;
 
 	FOnLoginStateChanged LoginStateChanged;
