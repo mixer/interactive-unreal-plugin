@@ -188,10 +188,16 @@ bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserI
 #endif
 
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	FString Command = FString::Printf(TEXT("https://mixer.com/oauth/authorize?redirect_uri=%s&client_id=%s&scope=%s&response_type=code"),
-		*FPlatformHttp::UrlEncode(GetRedirectUri()), *FPlatformHttp::UrlEncode(Settings->ClientId), *FPlatformHttp::UrlEncode(OAuthScope));
+	FString SandboxName = Settings->Sandbox;
+	if (SandboxName.IsEmpty())
+	{
+		SandboxName = "RETAIL";
+	}
 
-	const FText TitleText = NSLOCTEXT("MixerInteractivity", "LoginWindowTitle", "Login to Mixer");
+	FString Command = FString::Printf(TEXT("https://mixer.com/oauth/authorize?redirect_uri=%s&client_id=%s&scope=%s&response_type=code&sandbox=%s"),
+		*FPlatformHttp::UrlEncode(GetRedirectUri()), *FPlatformHttp::UrlEncode(Settings->ClientId), *FPlatformHttp::UrlEncode(OAuthScope), *FPlatformHttp::UrlEncode(SandboxName));
+
+	const FText TitleText = FText::Format(NSLOCTEXT("MixerInteractivity", "LoginWindowTitle_Sandbox", "Login to Mixer - XBL Sandbox {0}"), FText::FromString(SandboxName));
 	LoginWindow = SNew(SWindow)
 		.Title(TitleText)
 		.SizingRule(ESizingRule::FixedSize)

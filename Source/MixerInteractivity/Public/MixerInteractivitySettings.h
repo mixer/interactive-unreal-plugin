@@ -47,6 +47,14 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Auth")
 	FString RedirectUri;
 
+	/**
+	* The Xbox Live Sandbox for a developer Microsoft Account.
+	* Required when using a developer Microsoft Account to log in
+	* inside the Editor.
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = "Auth", AdvancedDisplay)
+	FString Sandbox;
+
 	/** 
 	* The name of the Mixer Interactive Project that this title should be associated with.
 	* Available options are based on the set of games owned by the current logged in Mixer user.
