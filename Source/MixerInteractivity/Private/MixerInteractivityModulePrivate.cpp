@@ -36,6 +36,8 @@
 #include "IWebBrowserSingleton.h"
 #include "IWebBrowserCookieManager.h"
 #include "SWebBrowser.h"
+#elif PLATFORM_NEEDS_OSS_LIVE
+#include "OnlineSubsystemUtils.h"
 #endif
 
 #if PLATFORM_WINDOWS
@@ -69,6 +71,35 @@ void FMixerInteractivityModule::StartupModule()
 	UserAuthState = EMixerLoginState::Not_Logged_In;
 	InteractivityState = EMixerInteractivityState::Not_Interactive;
 	HasCreatedGroups = false;
+
+#if PLATFORM_NEEDS_OSS_LIVE
+	IOnlineIdentityPtr IdentityInterface = Online::GetIdentityInterface(nullptr, LIVE_SUBSYSTEM);
+	if (IdentityInterface.IsValid())
+	{
+		FOnLoginCompleteDelegate LoginCompleteDelegate = FOnLoginCompleteDelegate::CreateRaw(this, &FMixerInteractivityModule::OnXTokenRetrievalComplete);
+		for (int32 i = 0; i < MAX_LOCAL_PLAYERS; ++i)
+		{
+			LoginCompleteDelegateHandle[i] = IdentityInterface->AddOnLoginCompleteDelegate_Handle(i, LoginCompleteDelegate);
+		}
+	}
+#endif
+}
+
+void FMixerInteractivityModule::ShutdownModule()
+{
+#if PLATFORM_NEEDS_OSS_LIVE
+	IOnlineIdentityPtr IdentityInterface = Online::GetIdentityInterface(nullptr, LIVE_SUBSYSTEM);
+	if (IdentityInterface.IsValid())
+	{
+		for (int32 i = 0; i < MAX_LOCAL_PLAYERS; ++i)
+		{
+			if (LoginCompleteDelegateHandle[i].IsValid())
+			{
+				IdentityInterface->ClearOnLoginCompleteDelegate_Handle(i, LoginCompleteDelegateHandle[i]);
+			}
+		}
+	}
+#endif
 }
 
 bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> UserId)
@@ -101,6 +132,36 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 		}
 		return nullptr;
 	});
+#elif PLATFORM_NEEDS_OSS_LIVE
+	// Non-Xbox platform using XToken auth.  Requires custom version of OnlineSubsystemLive
+	if (!UserId.IsValid())
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("User id is required to login to Mixer on non-oauth platforms."));
+		return false;
+	}
+
+	IOnlineIdentityPtr IdentityInterface = Online::GetIdentityInterface(nullptr, LIVE_SUBSYSTEM);
+	if (!IdentityInterface.IsValid())
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("Currently only Xbox Live XToken signin is supported for non-oauth platforms.  This requires OnlineSubsystemLive."));
+		return false;
+	}
+
+	FPlatformUserId LocalUserNum = IdentityInterface->GetPlatformUserIdFromUniqueNetId(*UserId);
+	if (LocalUserNum < 0 || LocalUserNum > MAX_LOCAL_PLAYERS)
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("Could not map user id %s to a local player index."), *UserId->ToString());
+		return false;
+	}
+	FOnlineAccountCredentials Credentials;
+	Credentials.Type = TEXT("https://mixer.com");
+	if (!IdentityInterface->Login(LocalUserNum, Credentials))
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("Unexpected error performing XToken retrieval for Mixer login."));
+		return false;
+	}
+
+	check(LoginCompleteDelegateHandle[LocalUserNum].IsValid());
 #else
 	if (UserAuthState == EMixerLoginState::Logged_In)
 	{
@@ -1293,6 +1354,44 @@ FString FMixerInteractivityModule::GetRedirectUri()
 
 	return RedirectUri;
 }
+
+#if PLATFORM_NEEDS_OSS_LIVE
+void FMixerInteractivityModule::OnXTokenRetrievalComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& ErrorMessage)
+{
+	if (UserId == *NetId && UserAuthState == EMixerLoginState::Logging_In)
+	{
+		bool MovedToNextLoginPhase = false;
+		if (bWasSuccessful)
+		{
+			IOnlineIdentityPtr IdentityInterface = Online::GetIdentityInterface(nullptr, LIVE_SUBSYSTEM);
+			check(IdentityInterface.IsValid());
+			TSharedPtr<FUserOnlineAccount> UserAccount = IdentityInterface->GetUserAccount(UserId);
+			if (UserAccount.IsValid())
+			{
+				FString XToken;
+				if (UserAccount->GetAuthAttribute(TEXT("https://mixer.com"), XToken))
+				{
+					Microsoft::mixer::interactivity_manager::get_singleton_instance()->set_xtoken(*XToken);
+
+					TSharedRef<IHttpRequest> UserRequest = FHttpModule::Get().CreateRequest();
+					UserRequest->SetVerb(TEXT("GET"));
+					UserRequest->SetURL(TEXT("https://mixer.com/api/v1/users/current"));
+					UserRequest->SetHeader(TEXT("Authorization"), XToken);
+					UserRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnUserRequestComplete);
+					MovedToNextLoginPhase = UserRequest->ProcessRequest();
+				}
+			}
+		}
+
+		if (!MovedToNextLoginPhase)
+		{
+			NetId.Reset();
+			UserAuthState = EMixerLoginState::Not_Logged_In;
+			LoginAttemptFinished(false);
+		}
+	}
+}
+#endif
 
 #if PLATFORM_XBOXONE
 void FMixerInteractivityModule::TickXboxLogin()

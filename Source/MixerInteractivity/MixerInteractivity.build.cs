@@ -45,6 +45,14 @@ public class MixerInteractivity : ModuleRules
 			PublicAdditionalLibraries.Add("Interactivity.Xbox.Cpp.lib");
 			PublicAdditionalLibraries.Add("casablanca140.xbox.lib");
 		}
+		else if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
+			PublicAdditionalLibraries.Add("Interactivity.UWP.Cpp.lib");
+			PublicAdditionalLibraries.Add("cpprest140_uwp_2_9.lib");
+
+			PrivateDependencyModuleNames.Add("OnlineSubsystemUtils");
+		}
 		else
 		{
 			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=0");

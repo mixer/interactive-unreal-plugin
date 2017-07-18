@@ -28,6 +28,12 @@
 #include "Future.h"
 #include <memory>
 
+#define PLATFORM_NEEDS_OSS_LIVE !PLATFORM_XBOXONE && !PLATFORM_SUPPORTS_MIXER_OAUTH
+
+#if PLATFORM_NEEDS_OSS_LIVE
+#include "OnlineSubsystemTypes.h"
+#endif
+
 namespace Microsoft
 {
 	namespace mixer
@@ -98,6 +104,7 @@ class FMixerInteractivityModule :
 {
 public:
 	virtual void StartupModule() override;
+	virtual void ShutdownModule() override;
 
 public:
 	virtual bool LoginSilently(TSharedPtr<const FUniqueNetId> UserId);
@@ -174,6 +181,10 @@ private:
 	TFuture<Windows::Xbox::System::User^> PlatformUser;
 	Windows::Foundation::IAsyncOperation<Windows::Xbox::System::GetTokenAndSignatureResult^>^ GetXTokenOperation;
 	void TickXboxLogin();
+
+#elif !PLATFORM_SUPPORTS_MIXER_OAUTH
+	void OnXTokenRetrievalComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& ErrorMessage);
+	FDelegateHandle LoginCompleteDelegateHandle[MAX_LOCAL_PLAYERS];
 #endif
 
 	TSharedPtr<SWindow> LoginWindow;
