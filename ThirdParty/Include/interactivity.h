@@ -514,6 +514,11 @@ public:
     /// </summary>
     _MIXERIMP const string_t& control_id() const;
 
+    /// <summary>
+    /// Returns the list of meta properties for the control
+    ///</summary>
+    _MIXERIMP const std::map<string_t, string_t>& meta_properties() const;
+
 protected:
 
     /// <summary>
@@ -558,6 +563,7 @@ protected:
     string_t m_controlId;
     bool m_disabled;
     string_t m_etag;
+    std::map<string_t, string_t> m_metaProperties;
 
     friend interactive_control_builder;
     friend interactivity_manager_impl;
@@ -607,7 +613,6 @@ public:
     /// Time remaining (in milliseconds) before the button can be triggered again.
     /// </summary>
     _MIXERIMP std::chrono::milliseconds remaining_cooldown() const;
-
 
     /// <summary>
     /// Current progress of the button control.
