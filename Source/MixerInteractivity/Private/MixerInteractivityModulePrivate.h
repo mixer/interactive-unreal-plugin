@@ -172,6 +172,8 @@ private:
 
 #if PLATFORM_XBOXONE
 	TFuture<Windows::Xbox::System::User^> PlatformUser;
+	Windows::Foundation::IAsyncOperation<Windows::Xbox::System::GetTokenAndSignatureResult^>^ GetXTokenOperation;
+	void TickXboxLogin();
 #endif
 
 	TSharedPtr<SWindow> LoginWindow;

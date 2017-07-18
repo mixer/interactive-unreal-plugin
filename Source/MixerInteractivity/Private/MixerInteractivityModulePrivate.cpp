@@ -86,7 +86,6 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 	}
 
 	FString Xuid = UserId->ToString();
-	UserAuthState = EMixerLoginState::Logging_In;
 
 	// Go async to avoid blocking the game thread on the cross-OS call
 	PlatformUser = Async<Windows::Xbox::System::User^>(EAsyncExecution::ThreadPool,
@@ -102,7 +101,6 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 		}
 		return nullptr;
 	});
-	return true;
 #else
 	if (UserAuthState == EMixerLoginState::Logged_In)
 	{
@@ -115,6 +113,8 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 		Microsoft::mixer::interactivity_manager::get_singleton_instance()->set_oauth_token(*UserSettings->AccessToken);
 		if (Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false))
 		{
+			// Set this immediately so that polling for state matches the event
+			ClientLibraryState = Microsoft::mixer::initializing;
 			OnLoginStateChanged().Broadcast(EMixerLoginState::Logging_In);
 			return true;
 		}
@@ -153,13 +153,13 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 	{
 		return false;
 	}
+#endif
 
 	NetId = UserId;
 	UserAuthState = EMixerLoginState::Logging_In;
 	OnLoginStateChanged().Broadcast(EMixerLoginState::Logging_In);
 
 	return true;
-#endif
 }
 
 bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserId)
@@ -440,31 +440,7 @@ void FMixerInteractivityModule::OnBrowserWindowClosed(const TSharedRef<SWindow>&
 bool FMixerInteractivityModule::Tick(float DeltaTime)
 {
 #if PLATFORM_XBOXONE
-	if (UserAuthState == EMixerLoginState::Logging_In)
-	{
-		if (PlatformUser.IsReady())
-		{
-			Windows::Xbox::System::User^ ResolvedUser = PlatformUser.Get();
-			if (ResolvedUser != nullptr)
-			{
-				CurrentUser = MakeShareable(new FMixerLocalUserJsonSerializable());
-				
-				// Not good, could be cross-OS too if this info has changed.
-				CurrentUser->Name = ResolvedUser->DisplayInfo->GameDisplayName->Data();
-				UserAuthState = EMixerLoginState::Logged_In;
-				Microsoft::mixer::interactivity_manager::get_singleton_instance()->set_local_user(PlatformUser.Get());
-				const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-				if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false))
-				{
-					LoginAttemptFinished(false);
-				}
-			}
-			else
-			{
-				LoginAttemptFinished(false);
-			}
-		}
-	}
+	TickXboxLogin();
 #endif
 
 	TickParticipantCacheMaintenance();
@@ -759,6 +735,7 @@ void FMixerInteractivityModule::OnTokenRequestComplete(FHttpRequestPtr HttpReque
 				if (GotAccessToken)
 				{
 					UserSettings->SaveConfig();
+					Microsoft::mixer::interactivity_manager::get_singleton_instance()->set_oauth_token(*UserSettings->AccessToken);
 				}
 			}
 		}
@@ -788,9 +765,6 @@ void FMixerInteractivityModule::OnTokenRequestComplete(FHttpRequestPtr HttpReque
 
 void FMixerInteractivityModule::OnUserRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
 {
-	check(PLATFORM_SUPPORTS_MIXER_OAUTH);
-
-#if PLATFORM_SUPPORTS_MIXER_OAUTH
 	if (bSucceeded && HttpResponse.IsValid())
 	{
 		if (EHttpResponseCodes::IsOk(HttpResponse->GetResponseCode()))
@@ -810,11 +784,14 @@ void FMixerInteractivityModule::OnUserRequestComplete(FHttpRequestPtr HttpReques
 		if (NeedsClientLibraryActive())
 		{
 			const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-			const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
-			Microsoft::mixer::interactivity_manager::get_singleton_instance()->set_oauth_token(*UserSettings->AccessToken);
 			if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false))
 			{
 				LoginAttemptFinished(false);
+			}
+			else
+			{
+				// Set this immediately to avoid a temporary pop to Not_Logged_In
+				ClientLibraryState = Microsoft::mixer::initializing;
 			}
 		}
 		else
@@ -826,7 +803,6 @@ void FMixerInteractivityModule::OnUserRequestComplete(FHttpRequestPtr HttpReques
 	{
 		LoginAttemptFinished(false);
 	}
-#endif
 }
 
 void FMixerInteractivityModule::StartInteractivity()
@@ -1317,6 +1293,71 @@ FString FMixerInteractivityModule::GetRedirectUri()
 
 	return RedirectUri;
 }
+
+#if PLATFORM_XBOXONE
+void FMixerInteractivityModule::TickXboxLogin()
+{
+	if (UserAuthState == EMixerLoginState::Logging_In)
+	{
+		bool LoginError = false;
+		if (GetXTokenOperation != nullptr)
+		{
+			if (GetXTokenOperation->Status != Windows::Foundation::AsyncStatus::Started)
+			{
+				if (GetXTokenOperation->Status == Windows::Foundation::AsyncStatus::Completed)
+				{
+					TSharedRef<IHttpRequest> UserRequest = FHttpModule::Get().CreateRequest();
+					UserRequest->SetVerb(TEXT("GET"));
+					UserRequest->SetURL(TEXT("https://mixer.com/api/v1/users/current"));
+					UserRequest->SetHeader(TEXT("Authorization"), GetXTokenOperation->Token->ToString()->Data());
+					UserRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnUserRequestComplete);
+					if (!UserRequest->ProcessRequest())
+					{
+						LoginError = true;
+					}
+				}
+				else
+				{
+					LoginError = true;
+				}
+
+				GetXTokenOperation = nullptr;
+			}
+		}
+		else  if (PlatformUser.IsReady())
+		{
+			Windows::Xbox::System::User^ ResolvedUser = PlatformUser.Get();
+			if (ResolvedUser != nullptr)
+			{
+				Microsoft::mixer::interactivity_manager::get_singleton_instance()->set_local_user(PlatformUser.Get());
+
+				try
+				{
+					GetXTokenOperation = ResolvedUser->GetTokenAndSignatureAsync(L"POST", L"https://mixer.com", L"");
+				}
+				catch (...)
+				{
+					LoginError = true;
+				}
+			}
+			else
+			{
+				LoginError = true;
+			}
+
+			PlatformUser = TFuture<Windows::Xbox::System::User^>();
+		}
+
+		if (LoginError)
+		{
+			check(!GetXTokenOperation);
+			NetId.Reset();
+			UserAuthState = EMixerLoginState::Not_Logged_In;
+			LoginAttemptFinished(false);
+		}
+	}
+}
+#endif
 
 FMixerRemoteUserCached::FMixerRemoteUserCached(std::shared_ptr<Microsoft::mixer::interactive_participant> InParticipant)
 	: SourceParticipant(InParticipant)
