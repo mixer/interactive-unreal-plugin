@@ -1309,7 +1309,7 @@ void FMixerInteractivityModule::TickXboxLogin()
 					TSharedRef<IHttpRequest> UserRequest = FHttpModule::Get().CreateRequest();
 					UserRequest->SetVerb(TEXT("GET"));
 					UserRequest->SetURL(TEXT("https://mixer.com/api/v1/users/current"));
-					UserRequest->SetHeader(TEXT("Authorization"), GetXTokenOperation->Token->ToString()->Data());
+					UserRequest->SetHeader(TEXT("Authorization"), GetXTokenOperation->GetResults()->Token->ToString()->Data());
 					UserRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnUserRequestComplete);
 					if (!UserRequest->ProcessRequest())
 					{
