@@ -53,6 +53,7 @@
 #define _NO_MIXERIMP
 #pragma warning(push)
 #pragma warning(disable:4628)
+#pragma warning(disable:4596)
 #include <interactivity_types.h>
 #include <interactivity.h>
 #pragma warning(pop)
