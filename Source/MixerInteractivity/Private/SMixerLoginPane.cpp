@@ -4,6 +4,7 @@
 #include "MixerInteractivityTypes.h"
 #include "MixerInteractivitySettings.h"
 
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
 #include "HttpModule.h"
 #include "PlatformHttp.h"
 
@@ -17,22 +18,26 @@
 #include "SBox.h"
 
 static const FString EmptyUrl = TEXT("ue4-mixer://default");
+#endif
 
 void SMixerLoginPane::Construct(const FArguments& InArgs)
 {
 	BoundUserId = InArgs._UserId;
+	bAllowSilentLogin = InArgs._AllowSilentLogin;
+
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
 	OnAuthCodeReady = InArgs._OnAuthCodeReady;
 	OnUIFlowFinished = InArgs._OnUIFlowFinished;
 	BackgroundColor = InArgs._BackgroundColor;
 	bShowInitialThrobber = InArgs._ShowInitialThrobber;
-	bAllowSilentLogin = InArgs._AllowSilentLogin;
-	bAttemptedSilentLogin = false;
 
 	ChildSlot
 	[
 		SAssignNew(OverlayWidget, SOverlay)
 	];
+#endif
 
+	bAttemptedSilentLogin = false;
 	IMixerInteractivityModule& InteractivityModule = IMixerInteractivityModule::Get();
 
 	InteractivityModule.OnLoginStateChanged().AddSP(this, &SMixerLoginPane::OnLoginStateChanged);
@@ -54,6 +59,7 @@ void SMixerLoginPane::StartLoginFlow()
 		}
 	}
 
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
 	if (!BrowserWidget.IsValid())
 	{
 		SAssignNew(BrowserWidget, SWebBrowser)
@@ -85,25 +91,30 @@ void SMixerLoginPane::StartLoginFlow()
 			Pinned->StartLoginFlowAfterCookiesDeleted();
 		}
 	});
+#else
+
+#endif
 }
 
 void SMixerLoginPane::StopLoginFlowAndHide()
 {
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
 	if (BrowserWidget.IsValid())
 	{
 		OnUIFlowFinished.ExecuteIfBound(false);
 		OverlayWidget->ClearChildren();
 		BrowserWidget.Reset();
-		bAttemptedSilentLogin = false;
 	}
+#endif
+	bAttemptedSilentLogin = false;
 }
 
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
 
 void SMixerLoginPane::StartLoginFlowAfterCookiesDeleted()
 {
 	if (BrowserWidget.IsValid())
 	{
-
 #if WITH_EDITOR
 		static const FString OAuthScope = GIsEditor ? "interactive:manage:self interactive:robot:self" : "interactive:robot:self";
 #else
@@ -236,6 +247,7 @@ bool SMixerLoginPane::OnBrowserRequestClosePopupWindow(const TWeakPtr<IWebBrowse
 	}
 	return false;
 }
+#endif
 
 FVector2D SMixerLoginPane::ComputeDesiredSize(float) const
 {
@@ -251,8 +263,10 @@ void SMixerLoginPane::OnLoginStateChanged(EMixerLoginState NewState)
 		break;
 
 	case EMixerLoginState::Logged_In:
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
 		OverlayWidget->ClearChildren();
 		BrowserWidget.Reset();
+#endif
 		bAttemptedSilentLogin = false;
 		break;
 

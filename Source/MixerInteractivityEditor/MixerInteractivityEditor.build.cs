@@ -14,6 +14,7 @@ public class MixerInteractivityEditor : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"MixerInteractivity",
+				"MixerInteractivityBlueprintNodes",
 				"PropertyEditor",
 				"SlateCore",
 				"Slate",

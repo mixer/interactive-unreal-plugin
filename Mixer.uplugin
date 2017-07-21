@@ -18,13 +18,18 @@
 		{
 			"Name": "MixerInteractivity",
 			"Type": "Runtime",
-            "LoadingPhase": "Default",
+			"LoadingPhase": "Default",
 			"WhitelistPlatforms" : [ "Win32", "Win64", "XboxOne" ]
 		},
 		{
 			"Name": "MixerInteractivityEditor",
 			"Type": "Editor",
-            "LoadingPhase": "Default"
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "MixerInteractivityBlueprintNodes",
+			"Type": "Developer",
+			"LoadingPhase": "Default"
 		}
 	]
 }
