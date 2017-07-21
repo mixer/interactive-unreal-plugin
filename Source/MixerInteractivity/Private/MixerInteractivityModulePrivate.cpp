@@ -32,10 +32,7 @@
 #include "Engine/Engine.h"
 
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
-#include "WebBrowserModule.h"
-#include "IWebBrowserSingleton.h"
-#include "IWebBrowserCookieManager.h"
-#include "SWebBrowser.h"
+#include "SMixerLoginPane.h"
 #endif
 
 #if PLATFORM_WINDOWS
@@ -138,7 +135,7 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 	JsonWriter->WriteObjectStart();
 	JsonWriter->WriteValue(TEXT("grant_type"), TEXT("refresh_token"));
 	JsonWriter->WriteValue(TEXT("refresh_token"), UserSettings->RefreshToken);
-	JsonWriter->WriteValue(TEXT("redirect_uri"), GetRedirectUri());
+	JsonWriter->WriteValue(TEXT("redirect_uri"), Settings->GetResolvedRedirectUri());
 	JsonWriter->WriteValue(TEXT("client_id"), Settings->ClientId);
 	JsonWriter->WriteObjectEnd();
 	JsonWriter->Close();
@@ -182,23 +179,12 @@ bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserI
 		return true;
 	}
 
-#if WITH_EDITOR
-	static const FString OAuthScope = "interactive:manage:self interactive:robot:self";
-#else
-	static const FString OAuthScope = "interactive:robot:self user:details:self";
-#endif
-
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	FString SandboxName = Settings->Sandbox;
-	if (SandboxName.IsEmpty())
-	{
-		SandboxName = "RETAIL";
-	}
-
-	FString Command = FString::Printf(TEXT("https://mixer.com/oauth/authorize?redirect_uri=%s&client_id=%s&scope=%s&response_type=code&sandbox=%s"),
-		*FPlatformHttp::UrlEncode(GetRedirectUri()), *FPlatformHttp::UrlEncode(Settings->ClientId), *FPlatformHttp::UrlEncode(OAuthScope), *FPlatformHttp::UrlEncode(SandboxName));
-
-	const FText TitleText = FText::Format(NSLOCTEXT("MixerInteractivity", "LoginWindowTitle_Sandbox", "Login to Mixer - XBL Sandbox {0}"), FText::FromString(SandboxName));
+#if WITH_EDITOR
+	const FText TitleText = FText::Format(NSLOCTEXT("MixerInteractivity", "LoginWindowTitle_Sandbox", "Login to Mixer - XBL Sandbox {0}"), FText::FromString(Settings->GetSandboxForOAuth()));
+#else
+	const FText TitleText = NSLOCTEXT("MixerInteractivity", "LoginWindowTitle", "Login to Mixer");
+#endif
 	LoginWindow = SNew(SWindow)
 		.Title(TitleText)
 		.SizingRule(ESizingRule::FixedSize)
@@ -207,34 +193,19 @@ bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserI
 		.SupportsMinimize(false)
 		.SupportsMaximize(false);
 
-	LoginWindow->SetOnWindowClosed(FOnWindowClosed::CreateRaw(this, &FMixerInteractivityModule::OnBrowserWindowClosed));
-
-	TSharedRef<SWebBrowser> BrowserWidget = SNew(SWebBrowser)
-		.InitialURL(Command)
-		.ShowControls(false)
-		.ShowAddressBar(false)
-		.OnUrlChanged_Raw(this, &FMixerInteractivityModule::OnBrowserUrlChanged)
-		.OnCreateWindow_Raw(this, &FMixerInteractivityModule::OnBrowserPopupWindow)
-		.OnCloseWindow_Lambda([this](const TWeakPtr<IWebBrowserWindow>& BrowserWindowPtr)
-	{
-		TSharedRef<SWindow> WindowToClose = LoginWindow.ToSharedRef();
-		FSlateApplication::Get().RequestDestroyWindow(WindowToClose);
-		return true;
-	});
+	LoginWindow->SetOnWindowClosed(FOnWindowClosed::CreateRaw(this, &FMixerInteractivityModule::OnLoginWindowClosed));
 	
+	LoginWindow->SetContent(
+		SNew(SMixerLoginPane)
+		.AllowSilentLogin(false)
+		.OnAuthCodeReady_Raw(this, &FMixerInteractivityModule::OnAuthCodeReady)
+		.OnUIFlowFinished_Raw(this, &FMixerInteractivityModule::OnLoginUIFlowFinished)
+	);
 
-	SAssignNew(LoginBrowserPanes, SOverlay) +
-		SOverlay::Slot()
-		[
-			BrowserWidget
-		];
-
-	LoginWindow->SetContent(LoginBrowserPanes.ToSharedRef());
 	TSharedPtr<SWindow> RootWindow = FGlobalTabmanager::Get()->GetRootWindow();
 	if (RootWindow.IsValid())
 	{
 		FSlateApplication::Get().AddWindowAsNativeChild(LoginWindow.ToSharedRef(), RootWindow.ToSharedRef());
-		//AddModalWindow
 	}
 	else
 	{
@@ -251,6 +222,39 @@ bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserI
 	return false;
 
 #endif
+}
+
+void FMixerInteractivityModule::OnAuthCodeReady(const FString& AuthCode)
+{
+	if (!LoginWithAuthCodeInternal(AuthCode, NetId))
+	{
+		TSharedRef<SWindow> WindowToClose = LoginWindow.ToSharedRef();
+		FSlateApplication::Get().RequestDestroyWindow(WindowToClose);
+	}
+}
+
+void FMixerInteractivityModule::OnLoginUIFlowFinished(bool WasSuccessful)
+{
+	if (LoginWindow.IsValid())
+	{
+		if (WasSuccessful)
+		{
+			LoginWindow->SetOnWindowClosed(FOnWindowClosed());
+		}
+
+		TSharedRef<SWindow> WindowToClose = LoginWindow.ToSharedRef();
+		FSlateApplication::Get().RequestDestroyWindow(WindowToClose);
+	}
+}
+
+void FMixerInteractivityModule::OnLoginWindowClosed(const TSharedRef<SWindow>&)
+{
+	if (LoginWindow.IsValid())
+	{
+		// Closed before we were done.
+		LoginAttemptFinished(false);
+		LoginWindow.Reset();
+	}
 }
 
 bool FMixerInteractivityModule::LoginWithAuthCode(const FString& AuthCode, TSharedPtr<const FUniqueNetId> UserId)
@@ -288,18 +292,9 @@ bool FMixerInteractivityModule::Logout()
 	UserSettings->AccessToken = TEXT("");
 	UserSettings->RefreshToken = TEXT("");
 	UserSettings->SaveConfig();
-	UserAuthState = EMixerLoginState::Logging_Out;
-	OnLoginStateChanged().Broadcast(EMixerLoginState::Logging_Out);
-	IWebBrowserModule::Get().GetSingleton()->GetCookieManager()->DeleteCookies(TEXT(""), TEXT(""),
-		[this](int)
-	{
-		UserAuthState = EMixerLoginState::Not_Logged_In;
-		OnLoginStateChanged().Broadcast(EMixerLoginState::Not_Logged_In);
-	});
-#else
+#endif
 	UserAuthState = EMixerLoginState::Not_Logged_In;
 	OnLoginStateChanged().Broadcast(EMixerLoginState::Not_Logged_In);
-#endif
 
 	return true;
 }
@@ -346,95 +341,6 @@ EMixerLoginState FMixerInteractivityModule::GetLoginState()
 		// Internal error in Mixer plugin state management
 		check(false);
 		return EMixerLoginState::Not_Logged_In;
-	}
-}
-
-#if PLATFORM_SUPPORTS_MIXER_OAUTH
-void FMixerInteractivityModule::OnBrowserUrlChanged(const FText& NewUrl)
-{
-	FString NewUrlString = NewUrl.ToString();
-	bool IsAuthFlowFinished = false;
-	bool IsAuthFlowSuccessful = false;
-	FString AuthCode;
-
-	// Check first for known done-with-OAuth query parameters.  This should cover us
-	// in the case that the redirect uri is on mixer.com
-	if (FParse::Value(*NewUrlString, TEXT("code="), AuthCode))
-	{
-		IsAuthFlowFinished = true;
-		if (!AuthCode.IsEmpty())
-		{
-			// strip off any url parameters and just keep the token itself
-			FString AuthCodeOnly;
-			if (AuthCode.Split(TEXT("&"), &AuthCodeOnly, NULL))
-			{
-				AuthCode = AuthCodeOnly;
-				IsAuthFlowSuccessful = LoginWithAuthCodeInternal(AuthCode, NetId);
-			}
-		}
-	}
-	else if (FParse::Value(*NewUrlString, TEXT("error="), AuthCode))
-	{
-		IsAuthFlowFinished = true;
-		IsAuthFlowSuccessful = false;
-	}
-	else
-	{
-		// Failsafe - if we've left mixer.com we're definitely finished.
-		FString Protocol;
-		FParse::SchemeNameFromURI(*NewUrlString, Protocol);
-		NewUrlString = NewUrlString.RightChop(Protocol.Len() + 3);
-		FString Host;
-		FString PathAndQuery;
-
-		NewUrlString.Split(TEXT("/"), &Host, &PathAndQuery);
-		IsAuthFlowFinished = !Host.EndsWith(TEXT("mixer.com"));
-		IsAuthFlowSuccessful = false;
-	}
-
-	if (IsAuthFlowFinished)
-	{
-		if (!IsAuthFlowSuccessful)
-		{
-			LoginAttemptFinished(false);
-		}
-
-		LoginWindow->SetOnWindowClosed(FOnWindowClosed());
-		TSharedRef<SWindow> WindowToClose = LoginWindow.ToSharedRef();
-		LoginWindow.Reset();
-		LoginBrowserPanes.Reset();
-		FSlateApplication::Get().RequestDestroyWindow(WindowToClose);
-	}
-}
-
-bool FMixerInteractivityModule::OnBrowserPopupWindow(const TWeakPtr<IWebBrowserWindow>& NewBrowserWindow, const TWeakPtr<IWebBrowserPopupFeatures>& PopupFeatures)
-{
-	TSharedRef<SWebBrowser> BrowserWidget = SNew(SWebBrowser, NewBrowserWindow.Pin())
-		.ShowControls(false)
-		.ShowAddressBar(false)
-		.OnCloseWindow_Lambda([this](const TWeakPtr<IWebBrowserWindow>& BrowserWindowPtr)
-	{
-		// Assume it's the last one that needs to come off.  May need to be more thorough
-		LoginBrowserPanes->RemoveSlot();
-		return true;
-	});
-
-	LoginBrowserPanes->AddSlot()
-		[
-			BrowserWidget
-		];
-
-	return true;
-}
-
-#endif
-
-void FMixerInteractivityModule::OnBrowserWindowClosed(const TSharedRef<SWindow>&)
-{
-	if (LoginWindow.IsValid())
-	{
-		// Closed before we were done.
-		LoginAttemptFinished(false);
 	}
 }
 
@@ -487,19 +393,9 @@ void FMixerInteractivityModule::TickClientLibrary()
 		switch (MixerEvent.event_type())
 		{
 		case interactive_event_type::error:
-			switch (GetLoginState())
-			{
-			case EMixerLoginState::Logging_In:
-				LoginAttemptFinished(false);
-				break;
-
-			case EMixerLoginState::Logged_In:
-				Logout();
-				break;
-
-			default:
-				break;
-			}
+			// Errors that impact our login state are accompanied by an interactivity_state_changed event, so
+			// dealing with them here is just double counting.  Stick to outputting the message.
+			UE_LOG(LogMixerInteractivity, Warning, TEXT("%s"), MixerEvent.err_message().c_str());
 			break;
 
 		case interactive_event_type::interactivity_state_changed:
@@ -688,7 +584,7 @@ bool FMixerInteractivityModule::LoginWithAuthCodeInternal(const FString& AuthCod
 	TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&ContentString);
 	JsonWriter->WriteObjectStart();
 	JsonWriter->WriteValue(TEXT("grant_type"), TEXT("authorization_code"));
-	JsonWriter->WriteValue(TEXT("redirect_uri"), GetRedirectUri());
+	JsonWriter->WriteValue(TEXT("redirect_uri"), Settings->GetResolvedRedirectUri());
 	JsonWriter->WriteValue(TEXT("client_id"), Settings->ClientId);
 	JsonWriter->WriteValue(TEXT("code"), AuthCode);
 	JsonWriter->WriteObjectEnd();
@@ -1135,33 +1031,23 @@ void FMixerInteractivityModule::LoginAttemptFinished(bool Success)
 	else
 	{
 		CurrentUser.Reset();
+		UserAuthState = EMixerLoginState::Not_Logged_In;
 
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
 		UMixerInteractivityUserSettings* UserSettings = GetMutableDefault<UMixerInteractivityUserSettings>();
 		UserSettings->AccessToken = TEXT("");
 		UserSettings->RefreshToken = TEXT("");
 		UserSettings->SaveConfig();
-		
-		IWebBrowserModule::Get().GetSingleton()->GetCookieManager()->DeleteCookies(TEXT(""), TEXT(""),
-			[this](int)
-		{
-			if (RetryLoginWithUI)
-			{
-				LoginWithUI(NetId);
-			}
-			else
-			{
-				NetId.Reset();
-				UserAuthState = EMixerLoginState::Not_Logged_In;
-				OnLoginStateChanged().Broadcast(EMixerLoginState::Not_Logged_In);
-			}
-		});
-#else
-		NetId.Reset();
-		UserAuthState = EMixerLoginState::Not_Logged_In;
-		OnLoginStateChanged().Broadcast(EMixerLoginState::Not_Logged_In);
 #endif
-
+		if (RetryLoginWithUI)
+		{
+			LoginWithUI(NetId);
+		}
+		else
+		{
+			NetId.Reset();
+			OnLoginStateChanged().Broadcast(EMixerLoginState::Not_Logged_In);
+		}
 	}
 }
 
@@ -1279,21 +1165,6 @@ void FMixerInteractivityModule::InitDesignTimeGroups()
 	}
 }
 
-FString FMixerInteractivityModule::GetRedirectUri()
-{
-	// Deal with any wildcards and ensure protocol is on the front.  This is helpful to
-	// allow the 'Hosts' entry from the Mixer OAuth Clients page to just be directly reused.
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	FString RedirectUri = Settings->RedirectUri;
-	RedirectUri = RedirectUri.Replace(TEXT(".*."), TEXT("."));
-	if (!RedirectUri.StartsWith(TEXT("http")))
-	{
-		RedirectUri = FString(TEXT("http://")) + RedirectUri;
-	}
-	RedirectUri = RedirectUri.Replace(TEXT("/*."), TEXT("/www."));
-
-	return RedirectUri;
-}
 
 #if PLATFORM_XBOXONE
 void FMixerInteractivityModule::TickXboxLogin()

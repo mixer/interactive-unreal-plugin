@@ -83,4 +83,27 @@ public:
 
 	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta = (DisplayName = "Groups"))
 	TArray<FMixerPredefinedGroup> DesignTimeGroups;
+
+public:
+	FString GetResolvedRedirectUri() const
+	{
+		FString ResolvedRedirectUri = RedirectUri;
+		ResolvedRedirectUri = ResolvedRedirectUri.Replace(TEXT(".*."), TEXT("."));
+		if (!ResolvedRedirectUri.StartsWith(TEXT("http")))
+		{
+			ResolvedRedirectUri = FString(TEXT("http://")) + ResolvedRedirectUri;
+		}
+		ResolvedRedirectUri = ResolvedRedirectUri.Replace(TEXT("/*."), TEXT("/www."));
+
+		return ResolvedRedirectUri;
+	}
+
+	FString GetSandboxForOAuth() const
+	{
+#if WITH_EDITOR
+		return Sandbox.IsEmpty() ? TEXT("RETAIL") : Sandbox;
+#else
+		return TEXT("RETAIL");
+#endif
+	}
 };
