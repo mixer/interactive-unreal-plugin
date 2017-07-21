@@ -156,9 +156,9 @@ private:
 	void OnUserRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
 	void OnUserMaintenanceRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
 
-	void OnBrowserUrlChanged(const FText& NewUrl);
-	void OnBrowserWindowClosed(const TSharedRef<SWindow>&);
-	bool OnBrowserPopupWindow(const TWeakPtr<IWebBrowserWindow>& NewBrowserWindow, const TWeakPtr<IWebBrowserPopupFeatures>& PopupFeatures);
+	void OnAuthCodeReady(const FString& AuthCode);
+	void OnLoginUIFlowFinished(bool WasSuccessful);
+	void OnLoginWindowClosed(const TSharedRef<SWindow>&);
 
 	bool NeedsClientLibraryActive();
 	void InitDesignTimeGroups();
@@ -172,8 +172,6 @@ private:
 	void TickLocalUserMaintenance();
 
 	void LoginAttemptFinished(bool Success);
-
-	FString GetRedirectUri();
 
 private:
 

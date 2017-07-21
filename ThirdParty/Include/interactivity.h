@@ -434,7 +434,7 @@ public:
     /// <summary>
     /// Constructor for the interactive button event args object.
     /// </summary>
-    interactive_button_event_args::interactive_button_event_args(
+    interactive_button_event_args(
         _In_ string_t controlId,
         _In_ string_t transaction_id,
         _In_ uint32_t cost,
