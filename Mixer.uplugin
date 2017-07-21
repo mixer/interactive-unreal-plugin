@@ -19,7 +19,7 @@
 			"Name": "MixerInteractivity",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
-			"WhitelistPlatforms" : [ "Win32", "Win64", "XboxOne" ]
+			"WhitelistPlatforms" : [ "Win32", "Win64", "XboxOne", "UWP64", "UWP32" ]
 		},
 		{
 			"Name": "MixerInteractivityEditor",
