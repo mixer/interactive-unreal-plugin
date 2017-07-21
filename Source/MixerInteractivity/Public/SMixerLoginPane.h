@@ -43,9 +43,11 @@ public:
 	virtual FVector2D ComputeDesiredSize(float) const override;
 
 private:
-
 	void OnLoginStateChanged(EMixerLoginState NewState);
 
+	TAttribute<TSharedPtr<const FUniqueNetId>> BoundUserId;
+
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
 	bool OnBrowserBeforeNavigation(const FString& NewUrlString, const FWebNavigationRequest& Request);
 	bool OnBrowserPopupWindow(const TWeakPtr<IWebBrowserWindow>& NewBrowserWindow, const TWeakPtr<IWebBrowserPopupFeatures>& PopupFeatures);
 	bool OnBrowserRequestCloseBaseWindow(const TWeakPtr<IWebBrowserWindow>& BrowserWindowPtr);
@@ -55,11 +57,12 @@ private:
 
 	TSharedPtr<SOverlay> OverlayWidget;
 	TSharedPtr<SWebBrowser> BrowserWidget;
-	TAttribute<TSharedPtr<const FUniqueNetId>> BoundUserId;
 	FOnMixerAuthCodeReady OnAuthCodeReady;
 	FOnMixerLoginUIFlowFinished OnUIFlowFinished;
 	FColor BackgroundColor;
 	bool bShowInitialThrobber;
+#endif
+
 	bool bAllowSilentLogin;
 	bool bAttemptedSilentLogin;
 };
