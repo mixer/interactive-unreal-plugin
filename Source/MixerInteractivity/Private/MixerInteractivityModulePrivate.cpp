@@ -259,6 +259,7 @@ bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserI
 	LoginWindow->SetContent(
 		SNew(SMixerLoginPane)
 		.AllowSilentLogin(false)
+		.BackgroundColor(FColor(255, 255, 255, 255))
 		.OnAuthCodeReady_Raw(this, &FMixerInteractivityModule::OnAuthCodeReady)
 		.OnUIFlowFinished_Raw(this, &FMixerInteractivityModule::OnLoginUIFlowFinished)
 	);
@@ -285,13 +286,15 @@ bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserI
 #endif
 }
 
-void FMixerInteractivityModule::OnAuthCodeReady(const FString& AuthCode)
+FReply FMixerInteractivityModule::OnAuthCodeReady(const FString& AuthCode)
 {
 	if (!LoginWithAuthCodeInternal(AuthCode, NetId))
 	{
 		TSharedRef<SWindow> WindowToClose = LoginWindow.ToSharedRef();
 		FSlateApplication::Get().RequestDestroyWindow(WindowToClose);
 	}
+
+	return FReply::Handled();
 }
 
 void FMixerInteractivityModule::OnLoginUIFlowFinished(bool WasSuccessful)

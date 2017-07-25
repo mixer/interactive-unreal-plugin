@@ -1,3 +1,12 @@
+//*********************************************************
+//
+// Copyright (c) Microsoft. All rights reserved.
+// THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF
+// ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY
+// IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR
+// PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
+//
+//*********************************************************
 #include "SMixerLoginPane.h"
 
 #include "MixerInteractivityModule.h"
@@ -12,12 +21,13 @@
 #include "IWebBrowserSingleton.h"
 #include "IWebBrowserCookieManager.h"
 #include "IWebBrowserWindow.h"
-#include "SWebBrowser.h"
+#include "SWebBrowserView.h"
 #include "SOverlay.h"
-#include "SScaleBox.h"
-#include "SBox.h"
+#include "PlatformProcess.h"
+#include "MixerInteractivityLog.h"
 
-static const FString EmptyUrl = TEXT("ue4-mixer://default");
+
+static const FString EmptyUrl = TEXT("");
 #endif
 
 void SMixerLoginPane::Construct(const FArguments& InArgs)
@@ -29,7 +39,6 @@ void SMixerLoginPane::Construct(const FArguments& InArgs)
 	OnAuthCodeReady = InArgs._OnAuthCodeReady;
 	OnUIFlowFinished = InArgs._OnUIFlowFinished;
 	BackgroundColor = InArgs._BackgroundColor;
-	bShowInitialThrobber = InArgs._ShowInitialThrobber;
 
 	ChildSlot
 	[
@@ -62,15 +71,13 @@ void SMixerLoginPane::StartLoginFlow()
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
 	if (!BrowserWidget.IsValid())
 	{
-		SAssignNew(BrowserWidget, SWebBrowser)
+		SAssignNew(BrowserWidget, SWebBrowserView)
 			.ContentsToLoad(FString(TEXT("")))
 			.InitialURL(EmptyUrl)
-			.ShowControls(false)
-			.ShowAddressBar(false)
-			.ShowInitialThrobber(bShowInitialThrobber)
 			.BackgroundColor(BackgroundColor)
+			.SupportsTransparency(true)
 			.OnBeforeNavigation(this, &SMixerLoginPane::OnBrowserBeforeNavigation)
-			.OnCreateWindow(this, &SMixerLoginPane::OnBrowserPopupWindow)
+			.OnCreateWindow(this, &SMixerLoginPane::OnBrowserPopupWindow, false)
 			.OnCloseWindow(this, &SMixerLoginPane::OnBrowserRequestCloseBaseWindow);
 
 		OverlayWidget->AddSlot()
@@ -79,7 +86,7 @@ void SMixerLoginPane::StartLoginFlow()
 		];
 	}
 
-	BrowserWidget->LoadString(TEXT(""), EmptyUrl);
+	BrowserWidget->LoadString(TEXT(""), TEXT(""));
 
 	TWeakPtr<SMixerLoginPane> WeakThisForCallback = SharedThis(this);
 	IWebBrowserModule::Get().GetSingleton()->GetCookieManager()->DeleteCookies(TEXT(""), TEXT(""),
@@ -133,7 +140,7 @@ void SMixerLoginPane::StartLoginFlowAfterCookiesDeleted()
 
 bool SMixerLoginPane::OnBrowserBeforeNavigation(const FString& NewUrlString, const FWebNavigationRequest& Request)
 {
-	if (NewUrlString == EmptyUrl || !Request.bIsMainFrame || !BrowserWidget.IsValid())
+	if (NewUrlString.IsEmpty() || !Request.bIsMainFrame || !BrowserWidget.IsValid())
 	{
 		return false;
 	}
@@ -181,11 +188,13 @@ bool SMixerLoginPane::OnBrowserBeforeNavigation(const FString& NewUrlString, con
 	{
 		if (IsAuthFlowSuccessful)
 		{
+			FReply Reply = FReply::Unhandled();
 			if (OnAuthCodeReady.IsBound())
 			{
-				OnAuthCodeReady.Execute(AuthCode);
+				Reply = OnAuthCodeReady.Execute(AuthCode);
 			}
-			else
+			
+			if (!Reply.IsEventHandled())
 			{
 				IMixerInteractivityModule::Get().LoginWithAuthCode(AuthCode, BoundUserId.Get());
 			}
@@ -203,14 +212,13 @@ bool SMixerLoginPane::OnBrowserBeforeNavigation(const FString& NewUrlString, con
 	return false;
 }
 
-bool SMixerLoginPane::OnBrowserPopupWindow(const TWeakPtr<IWebBrowserWindow>& NewBrowserWindow, const TWeakPtr<IWebBrowserPopupFeatures>& PopupFeatures)
+bool SMixerLoginPane::OnBrowserPopupWindow(const TWeakPtr<IWebBrowserWindow>& NewBrowserWindow, const TWeakPtr<IWebBrowserPopupFeatures>& PopupFeatures, bool IsSecondaryPopup)
 {
 	if (BrowserWidget.IsValid())
 	{
-		TSharedRef<SWebBrowser> PopupBrowserWidget = SNew(SWebBrowser, NewBrowserWindow.Pin())
-			.ShowControls(false)
-			.ShowAddressBar(false)
-			.ShowInitialThrobber(bShowInitialThrobber)
+		TSharedRef<SWebBrowserView> PopupBrowserWidget = SNew(SWebBrowserView, NewBrowserWindow.Pin())
+			.OnCreateWindow(this, &SMixerLoginPane::OnBrowserPopupWindow, true)
+			.OnBeforeNavigation(this, &SMixerLoginPane::OnPopupBeforeNavigation, IsSecondaryPopup)
 			.BackgroundColor(BackgroundColor)
 			.OnCloseWindow(this, &SMixerLoginPane::OnBrowserRequestClosePopupWindow);
 
@@ -242,6 +250,22 @@ bool SMixerLoginPane::OnBrowserRequestClosePopupWindow(const TWeakPtr<IWebBrowse
 	if (BrowserWidget.IsValid() && OverlayWidget->GetNumWidgets() > 1)
 	{
 		// Assume it's the last one that needs to come off.  May need to be more thorough
+		OverlayWidget->RemoveSlot();
+		return true;
+	}
+	return false;
+}
+
+bool SMixerLoginPane::OnPopupBeforeNavigation(const FString& NewUrlString, const FWebNavigationRequest& Request, bool IsSecondaryPopup)
+{
+	if (Request.bIsMainFrame && (IsSecondaryPopup || !NewUrlString.Contains(TEXT("oauth"))))
+	{
+		// We've wandered out of the core oauth flow.  Break out into the platform browser if possible
+		// and close things down - we don't want to end up wandering around the web inside this control
+		if (PLATFORM_WINDOWS || FPlatformProcess::CanLaunchURL(*NewUrlString))
+		{
+			FPlatformProcess::LaunchURL(*NewUrlString, nullptr, nullptr);
+		}
 		OverlayWidget->RemoveSlot();
 		return true;
 	}
