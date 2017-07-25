@@ -15,6 +15,9 @@ public class MixerInteractivity : ModuleRules
 				"Engine",
 				"HTTP",
 				"Json",
+				"SlateCore",
+				"Slate",
+				"UMG"
 			});
 
 		string ThirdPartyFolder = Path.Combine(ModuleDirectory, "..", "..", "ThirdParty");
@@ -28,8 +31,6 @@ public class MixerInteractivity : ModuleRules
 				new string[]
 				{
 					"WebBrowser",
-					"SlateCore",
-					"Slate",
 				});
 
 			PublicAdditionalLibraries.Add("Interactivity.Win32.Cpp.lib");

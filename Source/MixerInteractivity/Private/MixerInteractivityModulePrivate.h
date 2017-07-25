@@ -149,7 +149,7 @@ private:
 	void OnUserRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
 	void OnUserMaintenanceRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
 
-	void OnAuthCodeReady(const FString& AuthCode);
+	FReply OnAuthCodeReady(const FString& AuthCode);
 	void OnLoginUIFlowFinished(bool WasSuccessful);
 	void OnLoginWindowClosed(const TSharedRef<SWindow>&);
 
