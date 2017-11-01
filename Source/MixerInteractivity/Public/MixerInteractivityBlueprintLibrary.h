@@ -18,7 +18,7 @@
 
 #include "MixerInteractivityBlueprintLibrary.generated.h"
 
-USTRUCT()
+USTRUCT(BlueprintType)
 struct MIXERINTERACTIVITY_API FMixerObjectReference
 {
 public:
