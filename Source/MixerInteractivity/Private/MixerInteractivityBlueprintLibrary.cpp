@@ -14,6 +14,7 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "MessageLog.h"
+#include "Resources/Version.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
@@ -56,9 +57,18 @@ public:
 #endif
 };
 
+static UWorld* GetWorldFromContextObject_EngineVersionHelper(UObject* WorldContextObject)
+{
+#if ENGINE_MINOR_VERSION >= 17
+	return GEngine->GetWorldFromContextObjectChecked(WorldContextObject);
+#else
+	return GEngine->GetWorldFromContextObject(WorldContextObject);
+#endif
+}
+
 void UMixerInteractivityBlueprintLibrary::StartInteractivityLatent(UObject* WorldContextObject, FLatentActionInfo LatentInfo)
 {
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject))
+	if (UWorld* World = GetWorldFromContextObject_EngineVersionHelper(WorldContextObject))
 	{
 		FLatentActionManager& LatentActionManager = World->GetLatentActionManager();
 		if (LatentActionManager.FindExistingAction<FMixerInteractivityChangeAction>(LatentInfo.CallbackTarget, LatentInfo.UUID) == nullptr)
@@ -71,7 +81,7 @@ void UMixerInteractivityBlueprintLibrary::StartInteractivityLatent(UObject* Worl
 
 void UMixerInteractivityBlueprintLibrary::StopInteractivityLatent(UObject* WorldContextObject, FLatentActionInfo LatentInfo)
 {
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject))
+	if (UWorld* World = GetWorldFromContextObject_EngineVersionHelper(WorldContextObject))
 	{
 		FLatentActionManager& LatentActionManager = World->GetLatentActionManager();
 		if (LatentActionManager.FindExistingAction<FMixerInteractivityChangeAction>(LatentInfo.CallbackTarget, LatentInfo.UUID) == nullptr)
@@ -130,7 +140,7 @@ void UMixerInteractivityBlueprintLibrary::LoginSilently(UObject* WorldContextObj
 		NetId = PlayerState->UniqueId.GetUniqueNetId();
 	}
 
-	if (UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject))
+	if (UWorld* World = GetWorldFromContextObject_EngineVersionHelper(WorldContextObject))
 	{
 		FLatentActionManager& LatentActionManager = World->GetLatentActionManager();
 		if (LatentActionManager.FindExistingAction<FMixerLoginAction>(LatentInfo.CallbackTarget, LatentInfo.UUID) == nullptr)
