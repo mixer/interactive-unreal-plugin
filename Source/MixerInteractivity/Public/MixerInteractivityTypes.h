@@ -95,6 +95,7 @@ public:
 	virtual const FMixerChannel& GetChannel() const = 0;
 
 	FMixerLocalUser();
+	virtual ~FMixerLocalUser() {}
 };
 
 /** Represents a remote user participating in a Mixer interactive session */

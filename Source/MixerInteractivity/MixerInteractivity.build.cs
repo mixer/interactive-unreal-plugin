@@ -17,8 +17,11 @@ public class MixerInteractivity : ModuleRules
 				"Json",
 				"SlateCore",
 				"Slate",
-				"UMG"
+				"UMG",
 			});
+
+		// Need Version.h
+		PrivateIncludePathModuleNames.Add("Launch");
 
 		string ThirdPartyFolder = Path.Combine(ModuleDirectory, "..", "..", "ThirdParty");
 		PrivateIncludePaths.Add(Path.Combine(ThirdPartyFolder, "Include"));
