@@ -26,6 +26,7 @@
 #include "JsonSerializer.h"
 #include "JsonSerializerMacros.h"
 #include "Future.h"
+#include "Input/Reply.h"
 #include <memory>
 
 namespace Microsoft
