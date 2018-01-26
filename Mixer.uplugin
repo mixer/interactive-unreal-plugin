@@ -31,5 +31,11 @@
 			"Type": "Developer",
 			"LoadingPhase": "Default"
 		}
+	],
+	"Plugins": [
+		{
+			"Name": "OnlineSubsystemUtils",
+			"Enabled": true
+		},
 	]
 }
