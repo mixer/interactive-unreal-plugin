@@ -66,6 +66,7 @@ void FMixerInteractivityModule::StartupModule()
 {
 	UserAuthState = EMixerLoginState::Not_Logged_In;
 	InteractivityState = EMixerInteractivityState::Not_Interactive;
+	ClientLibraryState = Microsoft::mixer::not_initialized;
 	HasCreatedGroups = false;
 }
 
@@ -681,7 +682,7 @@ void FMixerInteractivityModule::OnUserRequestComplete(FHttpRequestPtr HttpReques
 	{
 		UserAuthState = EMixerLoginState::Logged_In;
 
-		if (NeedsClientLibraryActive())
+		if (NeedsClientLibraryActive() && ClientLibraryState == Microsoft::mixer::not_initialized)
 		{
 			const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 			if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false))
