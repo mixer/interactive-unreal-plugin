@@ -198,6 +198,9 @@ void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBui
 		]
 	];
 
+	TSharedRef<IPropertyHandle> ShareCodeProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, ShareCode));
+	GameBindingCategoryBuilder.AddProperty(ShareCodeProperty);
+
 	CachedButtonsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, CachedButtons));
 	DetailBuilder.HideProperty(CachedButtonsProperty);
 	CachedSticksProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, CachedSticks));
@@ -561,7 +564,7 @@ void FMixerInteractivitySettingsCustomization::GenerateWidgetForDesignTimeGroups
 {
 	if (ArrayIndex == 0)
 	{
-		ChildrenBuilder.AddChildContent(FText::GetEmpty())
+		ChildrenBuilder.AddCustomRow(FText::GetEmpty())
 			.NameContent()
 			.HAlign(HAlign_Right)
 			[
@@ -582,7 +585,7 @@ void FMixerInteractivitySettingsCustomization::GenerateWidgetForDesignTimeGroups
 	TSharedRef<IPropertyHandle> GroupNameProperty = StructProperty->GetChildHandle(FName("Name")).ToSharedRef();
 	TSharedRef<IPropertyHandle> InitialSceneProperty = StructProperty->GetChildHandle(FName("InitialScene")).ToSharedRef();
 	TSharedPtr<SComboBox<TSharedPtr<FName>>> InitialSceneCombo;
-	ChildrenBuilder.AddChildProperty(StructProperty).CustomWidget()
+	ChildrenBuilder.AddProperty(StructProperty).CustomWidget()
 		.NameContent()
 		.MinDesiredWidth(200.0f)
 		.MaxDesiredWidth(400.0f)
