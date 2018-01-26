@@ -26,6 +26,7 @@
 #include "JsonSerializer.h"
 #include "JsonSerializerMacros.h"
 #include "Future.h"
+#include "Input/Reply.h"
 #include <memory>
 
 #define PLATFORM_NEEDS_OSS_LIVE !PLATFORM_XBOXONE && !PLATFORM_SUPPORTS_MIXER_OAUTH

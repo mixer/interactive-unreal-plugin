@@ -1,7 +1,7 @@
 %~dp0\nuget restore %~dp0\interactive-cpp\cpprestsdk\release\src\build\vs14.static\packages.config -PackagesDirectory %~dp0\interactive-cpp\Tools\Packages
 
-msbuild %~dp0\interactive-cpp\cpprestsdk\release\src\build\vs14.static\casablanca140.static.vcxproj /p:Configuration=Release /p:Platform=x64 
-msbuild %~dp0\interactive-cpp\cpprestsdk\release\src\build\vs14.static\casablanca140.static.vcxproj /p:Configuration=Release /p:Platform=Win32
+msbuild %~dp0\interactive-cpp\cpprestsdk\release\src\build\vs14.static\casablanca140.static.vcxproj /p:Configuration=Release /p:Platform=x64 /p:ForceImportBeforeCppTargets="%~dp0\TurnOffLtcg.props"
+msbuild %~dp0\interactive-cpp\cpprestsdk\release\src\build\vs14.static\casablanca140.static.vcxproj /p:Configuration=Release /p:Platform=Win32 /p:ForceImportBeforeCppTargets="%~dp0\TurnOffLtcg.props
 
 msbuild %~dp0\interactive-cpp\Build\Interactivity.Win32.Cpp\Interactivity.Win32.Cpp.vcxproj /p:Configuration=Release /p:Platform=x64
 msbuild %~dp0\interactive-cpp\Build\Interactivity.Win32.Cpp\Interactivity.Win32.Cpp.vcxproj /p:Configuration=Release /p:Platform=Win32
