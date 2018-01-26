@@ -49,8 +49,11 @@
 #pragma warning(push)
 #pragma warning(disable:4628)
 #pragma warning(disable:4596)
+#pragma pack(push)
+#pragma pack(8)
 #include <interactivity_types.h>
 #include <interactivity.h>
+#pragma pack(pop)
 #pragma warning(pop)
 #if PLATFORM_WINDOWS
 #include "PostWindowsApi.h"
