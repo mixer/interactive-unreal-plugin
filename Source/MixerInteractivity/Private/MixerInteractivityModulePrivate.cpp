@@ -117,7 +117,7 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 		const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
 		Microsoft::mixer::interactivity_manager::get_singleton_instance()->set_oauth_token(*UserSettings->AccessToken);
-		if (Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false))
+		if (Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false, *Settings->ShareCode))
 		{
 			// Set this immediately so that polling for state matches the event
 			ClientLibraryState = Microsoft::mixer::initializing;
@@ -691,7 +691,7 @@ void FMixerInteractivityModule::OnUserRequestComplete(FHttpRequestPtr HttpReques
 		if (NeedsClientLibraryActive() && ClientLibraryState == Microsoft::mixer::not_initialized)
 		{
 			const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-			if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false))
+			if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false, *Settings->ShareCode))
 			{
 				LoginAttemptFinished(false);
 			}
