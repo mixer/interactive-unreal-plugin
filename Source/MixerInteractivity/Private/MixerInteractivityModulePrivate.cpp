@@ -653,11 +653,10 @@ void FMixerInteractivityModule::OnTokenRequestComplete(FHttpRequestPtr HttpReque
 	{
 		// Now get user info
 		const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
-		FString AuthZHeaderValue = FString::Printf(TEXT("Bearer %s"), *UserSettings->AccessToken);
 		TSharedRef<IHttpRequest> UserRequest = FHttpModule::Get().CreateRequest();
 		UserRequest->SetVerb(TEXT("GET"));
 		UserRequest->SetURL(TEXT("https://mixer.com/api/v1/users/current"));
-		UserRequest->SetHeader(TEXT("Authorization"), AuthZHeaderValue);
+		UserRequest->SetHeader(TEXT("Authorization"), UserSettings->GetAuthZHeaderValue());
 		UserRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnUserRequestComplete);
 		if (!UserRequest->ProcessRequest())
 		{
@@ -1193,10 +1192,13 @@ void FMixerInteractivityModule::TickXboxLogin()
 			{
 				if (GetXTokenOperation->Status == Windows::Foundation::AsyncStatus::Completed)
 				{
+					UMixerInteractivityUserSettings* UserSettings = GetMutableDefault<UMixerInteractivityUserSettings>();
+					UserSettings->AccessToken = GetXTokenOperation->GetResults()->Token->ToString()->Data();
+
 					TSharedRef<IHttpRequest> UserRequest = FHttpModule::Get().CreateRequest();
 					UserRequest->SetVerb(TEXT("GET"));
 					UserRequest->SetURL(TEXT("https://mixer.com/api/v1/users/current"));
-					UserRequest->SetHeader(TEXT("Authorization"), GetXTokenOperation->GetResults()->Token->ToString()->Data());
+					UserRequest->SetHeader(TEXT("Authorization"), UserSettings->GetAuthZHeaderValue());
 					UserRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnUserRequestComplete);
 					if (!UserRequest->ProcessRequest())
 					{

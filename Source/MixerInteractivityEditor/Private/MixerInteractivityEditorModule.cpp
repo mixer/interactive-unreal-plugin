@@ -100,12 +100,11 @@ bool FMixerInteractivityEditorModule::RequestAvailableInteractiveGames(FOnMixerI
 	TSharedPtr<const FMixerLocalUser> MixerUser = MixerRuntimeModule.GetCurrentUser();
 	check(MixerUser.IsValid());
 	FString GamesListUrl = FString::Printf(TEXT("https://mixer.com/api/v1/interactive/games/owned?user=%d"), MixerUser->Id);
-	FString AuthZHeaderValue = FString::Printf(TEXT("Bearer %s"), *UserSettings->AccessToken);
 
 	TSharedRef<IHttpRequest> GamesRequest = FHttpModule::Get().CreateRequest();
 	GamesRequest->SetVerb(TEXT("GET"));
 	GamesRequest->SetURL(GamesListUrl);
-	GamesRequest->SetHeader(TEXT("Authorization"), AuthZHeaderValue);
+	GamesRequest->SetHeader(TEXT("Authorization"), UserSettings->GetAuthZHeaderValue());
 	GamesRequest->OnProcessRequestComplete().BindLambda(
 		[OnFinished](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
 	{

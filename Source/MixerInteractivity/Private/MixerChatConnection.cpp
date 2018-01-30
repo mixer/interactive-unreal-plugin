@@ -46,20 +46,17 @@ void FMixerChatConnection::JoinDiscoveredChatChannel()
 	ChatRequest->SetVerb(TEXT("GET"));
 	ChatRequest->SetURL(FString::Printf(TEXT("https://mixer.com/api/v1/chats/%d?fields=id"), ChannelId));
 
-#if PLATFORM_SUPPORTS_MIXER_OAUTH
+	// Setting Authorization header to an empty string will just fail rather than perform anonymous auth.
 	const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
-	if (UserSettings->AccessToken.Len() > 0)
+	FString AuthZHeaderValue = UserSettings->GetAuthZHeaderValue();
+	if (AuthZHeaderValue.Len() > 0)
 	{
-		FString AuthZHeaderValue = FString::Printf(TEXT("Bearer %s"), *UserSettings->AccessToken);
 		ChatRequest->SetHeader(TEXT("Authorization"), AuthZHeaderValue);
 	}
 	else
 	{
-		UE_LOG(LogMixerChat, Warning, TEXT("No OAuth token found.  Chat connection will be anonymous and will not allow sending messages.  Sign in to Mixer to enable."));
+		UE_LOG(LogMixerChat, Warning, TEXT("No auth token found.  Chat connection will be anonymous and will not allow sending messages.  Sign in to Mixer to enable."));
 	}
-#else
-	UE_LOG(LogMixerChat, Warning, TEXT("Chat authentication is not yet supported on this platform.  Chat connection will be anonymous and will not allow sending messages."));
-#endif
 
 	ChatRequest->OnProcessRequestComplete().BindSP(this, &FMixerChatConnection::OnDiscoverChatServersComplete);
 	if (!ChatRequest->ProcessRequest())
@@ -413,14 +410,18 @@ bool FMixerChatConnection::SendWhisper(const FString& ToUser, const FString& Mes
 
 void FMixerChatConnection::OpenWebSocket()
 {
-	// Shouldn't ever get this far of we don't have a websocket implementation.
+	// Shouldn't ever get this far if we don't have a websocket implementation.
 	check(WITH_WEBSOCKETS != 0);
 	const FString& SelectedEndpoint = Endpoints[FMath::RandRange(0, Endpoints.Num() - 1)];
 	UE_LOG(LogMixerChat, Verbose, TEXT("Opening web socket to %s for chat room %s"), *SelectedEndpoint, *RoomId);
 
 	// Regardless, CreateWebSocket won't compile on all platforms.
 #if WITH_WEBSOCKETS
-	WebSocket = FModuleManager::LoadModuleChecked<FWebSocketsModule>("WebSockets").CreateWebSocket(SelectedEndpoint);
+	// Explicitly list protocols for the benefit of Xbox
+	TArray<FString> Protocols;
+	Protocols.Add(TEXT("wss"));
+	Protocols.Add(TEXT("ws"));
+	WebSocket = FModuleManager::LoadModuleChecked<FWebSocketsModule>("WebSockets").CreateWebSocket(SelectedEndpoint, Protocols);
 #endif
 
 	if (WebSocket.IsValid())
