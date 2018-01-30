@@ -12,6 +12,7 @@
 #include "MixerInteractivityUserSettings.h"
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivityLog.h"
+#include "OnlineChatMixer.h"
 
 #include "HttpModule.h"
 #include "PlatformHttp.h"
@@ -30,6 +31,7 @@
 #include "SlateApplication.h"
 #include "App.h"
 #include "Engine/Engine.h"
+#include "OnlineSubsystemTypes.h"
 
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
 #include "SMixerLoginPane.h"
@@ -71,6 +73,8 @@ void FMixerInteractivityModule::StartupModule()
 	InteractivityState = EMixerInteractivityState::Not_Interactive;
 	ClientLibraryState = Microsoft::mixer::not_initialized;
 	HasCreatedGroups = false;
+
+	ChatInterface = MakeShared<FOnlineChatMixer>();
 }
 
 bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> UserId)
@@ -1172,6 +1176,10 @@ void FMixerInteractivityModule::InitDesignTimeGroups()
 	}
 }
 
+TSharedPtr<IOnlineChat> FMixerInteractivityModule::GetChatInterface()
+{
+	return ChatInterface;
+}
 
 #if PLATFORM_XBOXONE
 void FMixerInteractivityModule::TickXboxLogin()

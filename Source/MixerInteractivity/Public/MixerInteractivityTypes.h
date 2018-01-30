@@ -38,6 +38,9 @@ public:
 	/** A name for the channel, suitable for display in game UI */
 	FString Name;
 
+	/** Unique identifier, for internal use */
+	int32 Id;
+
 	/** 
 	* The number of users currently viewing this channel 
 	* Note: this value is periodically updated from the Mixer service.

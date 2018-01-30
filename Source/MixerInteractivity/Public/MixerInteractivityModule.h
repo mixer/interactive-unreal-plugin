@@ -274,6 +274,14 @@ public:
 	*/
 	virtual void CaptureSparkTransaction(const FString& TransactionId) = 0;
 
+	/**
+	* Get access to Mixer chat via UE's standard IOnlineChat interface.
+	* Sending messages requires a logged in user and is not yet supported on all platforms.
+	*
+	* @Return					See FOnlineChatMixer.
+	*/
+	virtual TSharedPtr<class IOnlineChat> GetChatInterface() = 0;
+
 	// Events
 	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnLoginStateChanged, EMixerLoginState);
 	virtual FOnLoginStateChanged& OnLoginStateChanged() = 0;
