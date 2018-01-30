@@ -13,7 +13,9 @@ public:
 	FMixerChatConnection(const FUniqueNetId& UserId, const FChatRoomId& InRoomId)
 		: User(UserId.AsShared())
 		, RoomId(InRoomId)
+		, ChannelId(0)
 		, MessageId(0)
+		, bIsReady(false)
 	{
 	}
 
