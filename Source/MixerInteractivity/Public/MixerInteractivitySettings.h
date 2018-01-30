@@ -69,6 +69,14 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Game Binding")
 	int32 GameVersionId;
 
+	/**
+	* The Share Code for the bound game and version (if configured).  Used to allow
+	* Mixer users other than the author to broadcast the interactive project before
+	* it is published.  See https://dev.mixer.com/reference/interactive/index.html#sharing-your-project
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = "Game Binding")
+	FString ShareCode;
+
 	/** Collection of buttons, saved into the Unreal project and used to populate UI in the Blueprint Editor. */
 	UPROPERTY(EditAnywhere, Config, Category= "Game Binding", meta = (DisplayName = "Buttons"))
 	TArray<FName> CachedButtons;
