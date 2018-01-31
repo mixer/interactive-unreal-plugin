@@ -165,5 +165,5 @@ bool FOnlineChatMixer::WillJoinAnonymously() const
 	TSharedPtr<const FMixerLocalUser> CurrentUser = IMixerInteractivityModule::Get().GetCurrentUser();
 	// @TODO: currently chat auth assumes the presence of an oauth token.
 	// Update once we also support xtoken.
-	return !CurrentUser.IsValid() || !PLATFORM_SUPPORTS_MIXER_OAUTH;
+	return !CurrentUser.IsValid();
 }
