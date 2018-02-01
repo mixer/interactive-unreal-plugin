@@ -61,6 +61,10 @@ namespace MixerChatStringConstants
 		const FString Whisper = TEXT("whisper");
 		const FString Method = TEXT("method");
 		const FString Arguments = TEXT("arguments");
+		const FString Error = TEXT("error");
+		const FString Text = TEXT("text");
+		const FString Endpoints = TEXT("endpoints");
+		const FString AuthKey = TEXT("authkey");
 	}
 }
 
@@ -183,7 +187,7 @@ void FMixerChatConnection::OnGetChannelInfoForRoomIdComplete(FHttpRequestPtr Htt
 			if (FJsonSerializer::Deserialize(JsonReader, JsonObject) &&
 				JsonObject.IsValid())
 			{
-				JsonObject->TryGetNumberField(TEXT("id"), ChannelId);
+				JsonObject->TryGetNumberField(MixerChatStringConstants::FieldNames::Id, ChannelId);
 			}
 		}
 	}
@@ -213,14 +217,14 @@ void FMixerChatConnection::OnDiscoverChatServersComplete(FHttpRequestPtr HttpReq
 				JsonObject.IsValid())
 			{
 				const TArray<TSharedPtr<FJsonValue>> *JsonEndpoints;
-				if (JsonObject->TryGetArrayField(TEXT("endpoints"), JsonEndpoints))
+				if (JsonObject->TryGetArrayField(MixerChatStringConstants::FieldNames::Endpoints, JsonEndpoints))
 				{
 					for (const TSharedPtr<FJsonValue>& Endpoint : *JsonEndpoints)
 					{
 						Endpoints.Add(Endpoint->AsString());
 					}
 
-					JsonObject->TryGetStringField(TEXT("authkey"), AuthKey);
+					JsonObject->TryGetStringField(MixerChatStringConstants::FieldNames::AuthKey, AuthKey);
 					OpenWebSocket();
 				}
 			}
@@ -288,12 +292,12 @@ void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
 		JsonObject.IsValid())
 	{
 		FString MessageType;
-		if (JsonObject->TryGetStringField(TEXT("type"), MessageType))
+		if (JsonObject->TryGetStringField(MixerChatStringConstants::FieldNames::Type, MessageType))
 		{
-			if (MessageType == TEXT("reply"))
+			if (MessageType == MixerChatStringConstants::MessageTypes::Reply)
 			{
 				int32 ReplyingToMessageId;
-				if (!JsonObject->TryGetNumberField(TEXT("id"), ReplyingToMessageId))
+				if (!JsonObject->TryGetNumberField(MixerChatStringConstants::FieldNames::Id, ReplyingToMessageId))
 				{
 					UE_LOG(LogMixerChat, Error, TEXT("Missing id field for chat reply (full payload %s)"), *PacketJsonString);
 					return;
@@ -310,12 +314,12 @@ void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
 					UE_LOG(LogMixerChat, Error, TEXT("Received unexpected reply for unknown message id %d (full payload %s)"), ReplyingToMessageId, *PacketJsonString);
 				}
 			}
-			else if (MessageType == TEXT("event"))
+			else if (MessageType == MixerChatStringConstants::MessageTypes::Event)
 			{
 				FString EventType;
-				if (JsonObject->TryGetStringField(TEXT("event"), EventType))
+				if (JsonObject->TryGetStringField(MixerChatStringConstants::FieldNames::Event, EventType))
 				{
-					if (EventType == TEXT("WelcomeEvent"))
+					if (EventType == MixerChatStringConstants::EventTypes::Welcome)
 					{
 						// Welcomed by the server.  We are now fully connected.
 						// But we have not necessarily completed auth.  That means we should use the
@@ -327,7 +331,7 @@ void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
 					{
 						// Data field is important for all the following event types
 						const TSharedPtr<FJsonObject>* Data;
-						if (!JsonObject->TryGetObjectField(TEXT("data"), Data))
+						if (!JsonObject->TryGetObjectField(MixerChatStringConstants::FieldNames::Data, Data))
 						{
 							UE_LOG(LogMixerChat, Error, TEXT("Missing data field for chat event of type %s (full payload %s)"), *EventType, *PacketJsonString);
 							return;
@@ -336,14 +340,14 @@ void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
 						check(Data != nullptr);
 						check(Data->IsValid());
 
-						if (EventType == TEXT("ChatMessage"))
+						if (EventType == MixerChatStringConstants::EventTypes::ChatMessage)
 						{
 							HandleChatEventDataObject(Data->Get(), true);
 						}
-						else if (EventType == TEXT("UserJoin"))
+						else if (EventType == MixerChatStringConstants::EventTypes::UserJoin)
 						{
 							FString JoiningUser;
-							if ((*Data)->TryGetStringField(TEXT("username"), JoiningUser))
+							if ((*Data)->TryGetStringField(MixerChatStringConstants::FieldNames::UserNameNoUnderscore, JoiningUser))
 							{
 								UE_LOG(LogMixerChat, Log, TEXT("%s is joining %s's chat channel"), *JoiningUser, *RoomId);
 
@@ -352,10 +356,10 @@ void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
 								ChatInterface->TriggerOnChatRoomMemberJoinDelegates(*User, RoomId, *JoiningId);
 							}
 						}
-						else if (EventType == TEXT("UserLeave"))
+						else if (EventType == MixerChatStringConstants::EventTypes::UserLeave)
 						{
 							FString LeavingUser;
-							if ((*Data)->TryGetStringField(TEXT("username"), LeavingUser))
+							if ((*Data)->TryGetStringField(MixerChatStringConstants::FieldNames::UserNameNoUnderscore, LeavingUser))
 							{
 								UE_LOG(LogMixerChat, Log, TEXT("%s is leaving %s's chat channel"), *LeavingUser, *RoomId);
 
@@ -364,10 +368,10 @@ void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
 								ChatInterface->TriggerOnChatRoomMemberExitDelegates(*User, RoomId, *LaavingId);
 							}
 						}
-						else if (EventType == TEXT("DeleteMessage"))
+						else if (EventType == MixerChatStringConstants::EventTypes::DeleteMessage)
 						{
 							FString IdString;
-							if (!(*Data)->TryGetStringField(TEXT("id"), IdString))
+							if (!(*Data)->TryGetStringField(MixerChatStringConstants::FieldNames::Id, IdString))
 							{
 								UE_LOG(LogMixerChat, Error, TEXT("Missing id field for delete message event"));
 								return;
@@ -385,7 +389,7 @@ void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
 								return ChatMessage->MessageId == MessageId;
 							});
 						}
-						else if (EventType == TEXT("ClearMessages"))
+						else if (EventType == MixerChatStringConstants::EventTypes::ClearMessages)
 						{
 							DeleteFromChatHistoryIf([](TSharedPtr<FChatMessageMixerImpl>)
 							{
@@ -419,21 +423,21 @@ void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
 void FMixerChatConnection::HandleChatEventDataObject(FJsonObject* Payload, bool bSendEvents)
 {
 	FString FromUser;
-	if (!Payload->TryGetStringField(TEXT("user_name"), FromUser))
+	if (!Payload->TryGetStringField(MixerChatStringConstants::FieldNames::UserNameWithUnderscore, FromUser))
 	{
 		UE_LOG(LogMixerChat, Error, TEXT("Missing user_name field for chat event"));
 		return;
 	}
 
 	const TSharedPtr<FJsonObject>* MessageObject;
-	if (!Payload->TryGetObjectField(TEXT("message"), MessageObject))
+	if (!Payload->TryGetObjectField(MixerChatStringConstants::FieldNames::Message, MessageObject))
 	{
 		UE_LOG(LogMixerChat, Error, TEXT("Missing message field for chat event"));
 		return;
 	}
 
 	FString IdString;
-	if (!Payload->TryGetStringField(TEXT("id"), IdString))
+	if (!Payload->TryGetStringField(MixerChatStringConstants::FieldNames::Id, IdString))
 	{
 		UE_LOG(LogMixerChat, Error, TEXT("Missing id field for chat event"));
 		return;
@@ -449,10 +453,10 @@ void FMixerChatConnection::HandleChatEventDataObject(FJsonObject* Payload, bool 
 	const TSharedPtr<FJsonObject>* Metadata;
 	bool bIsWhisper = false;
 	bool bIsAction = false;
-	if ((*MessageObject)->TryGetObjectField(TEXT("meta"), Metadata))
+	if ((*MessageObject)->TryGetObjectField(MixerChatStringConstants::FieldNames::Meta, Metadata))
 	{
-		(*Metadata)->TryGetBoolField(TEXT("whisper"), bIsWhisper);
-		(*Metadata)->TryGetBoolField(TEXT("me"), bIsAction);
+		(*Metadata)->TryGetBoolField(MixerChatStringConstants::FieldNames::Whisper, bIsWhisper);
+		(*Metadata)->TryGetBoolField(MixerChatStringConstants::FieldNames::Me, bIsAction);
 	}
 
 	FString MessageString;
@@ -462,7 +466,7 @@ void FMixerChatConnection::HandleChatEventDataObject(FJsonObject* Payload, bool 
 	}
 
 	const TArray<TSharedPtr<FJsonValue>>* MessageFragmentArray;
-	if (!(*MessageObject)->TryGetArrayField(TEXT("message"), MessageFragmentArray))
+	if (!(*MessageObject)->TryGetArrayField(MixerChatStringConstants::FieldNames::Message, MessageFragmentArray))
 	{
 		UE_LOG(LogMixerChat, Error, TEXT("Missing message.message array for chat event"));
 		return;
@@ -524,7 +528,7 @@ void FMixerChatConnection::HandleChatEventDataObject(FJsonObject* Payload, bool 
 void FMixerChatConnection::HandleChatEventMessageFragment(FString& MessageSoFar, FJsonObject* Fragment)
 {
 	FString FragmentType;
-	if (!Fragment->TryGetStringField(TEXT("type"), FragmentType))
+	if (!Fragment->TryGetStringField(MixerChatStringConstants::FieldNames::Type, FragmentType))
 	{
 		UE_LOG(LogMixerChat, Error, TEXT("Missing type field for chat message fragment."));
 		return;
@@ -533,7 +537,7 @@ void FMixerChatConnection::HandleChatEventMessageFragment(FString& MessageSoFar,
 	// For now just always append the fragment text no matter the type.
 	// In the future we could perhaps add markup?
 	FString FragmentText;
-	if (!Fragment->TryGetStringField(TEXT("text"), FragmentText))
+	if (!Fragment->TryGetStringField(MixerChatStringConstants::FieldNames::Text, FragmentText))
 	{
 		UE_LOG(LogMixerChat, Error, TEXT("Missing text field for chat message fragment."));
 		return;
@@ -713,10 +717,10 @@ void FMixerChatConnection::DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<
 void FMixerChatConnection::HandleAuthReply(FJsonObject* Payload)
 {
 	const TSharedPtr<FJsonObject>* Error;
-	if (Payload->TryGetObjectField(TEXT("error"), Error))
+	if (Payload->TryGetObjectField(MixerChatStringConstants::FieldNames::Error, Error))
 	{
 		FString ErrorMessage;
-		(*Error)->TryGetStringField(TEXT("message"), ErrorMessage);
+		(*Error)->TryGetStringField(MixerChatStringConstants::FieldNames::Message, ErrorMessage);
 		ChatInterface->ConnectAttemptFinished(*User, RoomId, false, ErrorMessage);
 
 		// Note: we have probably self-destructed at this point
@@ -737,7 +741,7 @@ void FMixerChatConnection::HandleAuthReply(FJsonObject* Payload)
 void FMixerChatConnection::HandleHistoryReply(FJsonObject* Payload)
 {
 	const TArray<TSharedPtr<FJsonValue>>* Data;
-	if (Payload->TryGetArrayField(TEXT("data"), Data))
+	if (Payload->TryGetArrayField(MixerChatStringConstants::FieldNames::Data, Data))
 	{
 		// Stash the current history and then clear member pointers.
 		// We'll splice what we have back on the front of the history
