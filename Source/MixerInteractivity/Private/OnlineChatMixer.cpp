@@ -23,7 +23,6 @@ bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoo
 			if (DefaultChatConnection->IsAnonymous() && !WillJoinAnonymously())
 			{
 				// Allow upgrade to an auth'd connection.
-				DefaultChatConnection->Cleanup();
 			}
 			else
 			{
@@ -35,7 +34,7 @@ bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoo
 
 		TSharedPtr<const FMixerLocalUser> CurrentUser = IMixerInteractivityModule::Get().GetCurrentUser();
 		check(CurrentUser.IsValid());
-		NewConnection = DefaultChatConnection = MakeShared<FMixerChatConnection>(UserId, CurrentUser->Name, ChatRoomConfig);
+		NewConnection = DefaultChatConnection = MakeShared<FMixerChatConnection>(this, UserId, CurrentUser->Name, ChatRoomConfig);
 	}
 	else
 	{
@@ -52,8 +51,7 @@ bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoo
 				if (Connection->IsAnonymous() && !WillJoinAnonymously())
 				{
 					// Allow upgrade to an auth'd connection.
-					Connection->Cleanup();
-					NewConnection = Connection = MakeShared<FMixerChatConnection>(UserId, RoomId, ChatRoomConfig);
+					NewConnection = Connection = MakeShared<FMixerChatConnection>(this, UserId, RoomId, ChatRoomConfig);
 					break;
 				}
 				else
@@ -66,7 +64,7 @@ bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoo
 
 		if (!NewConnection.IsValid())
 		{
-			NewConnection = MakeShared<FMixerChatConnection>(UserId, RoomId, ChatRoomConfig);
+			NewConnection = MakeShared<FMixerChatConnection>(this, UserId, RoomId, ChatRoomConfig);
 			AdditionalChatConnections.Add(NewConnection.ToSharedRef());
 		}
 	}
@@ -75,7 +73,6 @@ bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoo
 	if (!bStartedConnection)
 	{
 		UE_LOG(LogMixerChat, Warning, TEXT("Error initializing connection sequence for room %s."), *RoomId);
-		NewConnection->Cleanup();
 		if (NewConnection == DefaultChatConnection)
 		{
 			DefaultChatConnection.Reset();
@@ -91,28 +88,7 @@ bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoo
 
 bool FOnlineChatMixer::ExitRoom(const FUniqueNetId& UserId, const FChatRoomId& RoomId)
 {
-	bool bExited = false;
-
-	if (IsDefaultChatRoom(RoomId))
-	{
-		DefaultChatConnection->Cleanup();
-		DefaultChatConnection.Reset();
-		return true;
-	}
-	else
-	{
-		for (int32 i = 0; i < AdditionalChatConnections.Num(); ++i)
-		{
-			if (AdditionalChatConnections[i]->GetRoom() == RoomId)
-			{
-				AdditionalChatConnections[i]->Cleanup();
-				AdditionalChatConnections.RemoveAtSwap(i);
-				return true;
-			}
-		}
-	}
-
-	return false;
+	return ExitRoomWithReason(UserId, RoomId, true, TEXT("Called ExitRoom"));
 }
 
 bool FOnlineChatMixer::SendRoomChat(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& MsgBody)
@@ -177,6 +153,34 @@ TSharedPtr<FChatRoomInfo> FOnlineChatMixer::GetRoomInfo(const FUniqueNetId& User
 	return nullptr;
 }
 
+bool FOnlineChatMixer::GetLastMessages(const FUniqueNetId& UserId, const FChatRoomId& RoomId, int32 NumMessages, TArray< TSharedRef<FChatMessage> >& OutMessages)
+{
+	if (IsDefaultChatRoom(RoomId))
+	{
+		if (DefaultChatConnection.IsValid())
+		{
+			DefaultChatConnection->GetMessageHistory(NumMessages, OutMessages);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	for (TSharedRef<FMixerChatConnection>& Connection : AdditionalChatConnections)
+	{
+		if (Connection->GetRoom() == RoomId)
+		{
+			Connection->GetMessageHistory(NumMessages, OutMessages);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
 bool FOnlineChatMixer::IsDefaultChatRoom(const FChatRoomId& RoomId) const
 {
 	TSharedPtr<const FMixerLocalUser> CurrentUser = IMixerInteractivityModule::Get().GetCurrentUser();
@@ -197,4 +201,50 @@ bool FOnlineChatMixer::WillJoinAnonymously() const
 {
 	TSharedPtr<const FMixerLocalUser> CurrentUser = IMixerInteractivityModule::Get().GetCurrentUser();
 	return !CurrentUser.IsValid();
+}
+
+void FOnlineChatMixer::ConnectAttemptFinished(const FUniqueNetId& UserId, const FChatRoomId& RoomId, bool bSuccess, const FString& ErrorMessage)
+{
+	if (!bSuccess)
+	{
+		RemoveConnectionForRoom(RoomId);
+	}
+
+	TriggerOnChatRoomJoinPublicDelegates(UserId, RoomId, bSuccess, ErrorMessage);
+}
+
+bool FOnlineChatMixer::ExitRoomWithReason(const FUniqueNetId& UserId, const FChatRoomId& RoomId, bool bIsClean, const FString& Reason)
+{
+	bool bExited = RemoveConnectionForRoom(RoomId);
+
+	if (bExited)
+	{
+		TriggerOnChatRoomExitDelegates(UserId, RoomId, bIsClean, Reason);
+	}
+
+	return bExited;
+}
+
+bool FOnlineChatMixer::RemoveConnectionForRoom(const FChatRoomId& RoomId)
+{
+	bool bFound = false;
+
+	if (IsDefaultChatRoom(RoomId))
+	{
+		DefaultChatConnection.Reset();
+		bFound = true;
+	}
+	else
+	{
+		for (int32 i = 0; i < AdditionalChatConnections.Num(); ++i)
+		{
+			if (AdditionalChatConnections[i]->GetRoom() == RoomId)
+			{
+				AdditionalChatConnections.RemoveAtSwap(i);
+				bFound = true;
+			}
+		}
+	}
+
+	return bFound;
 }

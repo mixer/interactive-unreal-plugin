@@ -25,7 +25,7 @@ public:
 
 	}
 
-private:
+protected:
 	TSharedRef<const FUniqueNetId> FromUser;
 	FString FromUserName;
 	FString MessageText;
@@ -64,14 +64,19 @@ public:
 
 	virtual TSharedPtr<FChatRoomMember> GetMember(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FUniqueNetId& MemberId) override { return false; }
 
-	virtual bool GetLastMessages(const FUniqueNetId& UserId, const FChatRoomId& RoomId, int32 NumMessages, TArray< TSharedRef<FChatMessage> >& OutMessages) { return false; }
+	virtual bool GetLastMessages(const FUniqueNetId& UserId, const FChatRoomId& RoomId, int32 NumMessages, TArray< TSharedRef<FChatMessage> >& OutMessages) override;
 
 	virtual void DumpChatState() const override {}
+
+public:
+	void ConnectAttemptFinished(const FUniqueNetId& UserId, const FChatRoomId& RoomId, bool bSuccess, const FString& ErrorMessage);
+	bool ExitRoomWithReason(const FUniqueNetId& UserId, const FChatRoomId& RoomId, bool bIsClean, const FString& Reason);
 
 private:
 
 	bool IsDefaultChatRoom(const FChatRoomId& RoomId) const;
 	bool WillJoinAnonymously() const;
+	bool RemoveConnectionForRoom(const FChatRoomId& RoomId);
 
 	/**
 	* Connection to the default chat channel for the current Mixer session -
