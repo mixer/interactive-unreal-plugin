@@ -35,7 +35,7 @@ bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoo
 
 		TSharedPtr<const FMixerLocalUser> CurrentUser = IMixerInteractivityModule::Get().GetCurrentUser();
 		check(CurrentUser.IsValid());
-		NewConnection = DefaultChatConnection = MakeShared<FMixerChatConnection>(UserId, CurrentUser->Name);
+		NewConnection = DefaultChatConnection = MakeShared<FMixerChatConnection>(UserId, CurrentUser->Name, ChatRoomConfig);
 	}
 	else
 	{
@@ -53,7 +53,7 @@ bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoo
 				{
 					// Allow upgrade to an auth'd connection.
 					Connection->Cleanup();
-					NewConnection = Connection = MakeShared<FMixerChatConnection>(UserId, RoomId);
+					NewConnection = Connection = MakeShared<FMixerChatConnection>(UserId, RoomId, ChatRoomConfig);
 					break;
 				}
 				else
@@ -66,7 +66,7 @@ bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoo
 
 		if (!NewConnection.IsValid())
 		{
-			NewConnection = MakeShared<FMixerChatConnection>(UserId, RoomId);
+			NewConnection = MakeShared<FMixerChatConnection>(UserId, RoomId, ChatRoomConfig);
 			AdditionalChatConnections.Add(NewConnection.ToSharedRef());
 		}
 	}

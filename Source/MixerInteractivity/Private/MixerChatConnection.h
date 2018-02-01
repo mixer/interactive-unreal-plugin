@@ -10,12 +10,13 @@ DECLARE_LOG_CATEGORY_EXTERN(LogMixerChat, Log, All);
 class FMixerChatConnection : public TSharedFromThis<FMixerChatConnection>
 {
 public:
-	FMixerChatConnection(const FUniqueNetId& UserId, const FChatRoomId& InRoomId)
+	FMixerChatConnection(const FUniqueNetId& UserId, const FChatRoomId& InRoomId, const FChatRoomConfig& Config)
 		: User(UserId.AsShared())
 		, RoomId(InRoomId)
 		, ChannelId(0)
 		, MessageId(0)
 		, bIsReady(false)
+		, bRejoinOnDisconnect(Config.bRejoinOnDisconnect)
 	{
 	}
 
@@ -25,8 +26,10 @@ public:
 	bool SendChatMessage(const FString& MessageBody);
 	bool SendWhisper(const FString& ToUser, const FString& MessageBody);
 
-	const FChatRoomId& GetRoom() const		{ return RoomId; }
-	bool IsAnonymous() const				{ return AuthKey.IsEmpty(); }
+	const FChatRoomId& GetRoom() const			{ return RoomId; }
+	bool IsAnonymous() const					{ return AuthKey.IsEmpty(); }
+
+	void SetRejoinOnDisconnect(bool bInRejoin)	{ bRejoinOnDisconnect = bInRejoin; }
 
 private:
 
@@ -54,4 +57,5 @@ private:
 	int32 ChannelId;
 	int32 MessageId;
 	bool bIsReady;
+	bool bRejoinOnDisconnect;
 };

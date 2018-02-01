@@ -37,7 +37,14 @@ bool FMixerChatConnection::Init()
 
 void FMixerChatConnection::Cleanup()
 {
+	bool bWasConnected = WebSocket.IsValid() && WebSocket->IsConnected();
+
 	CloseWebSocket();
+
+	if (bWasConnected)
+	{
+		IMixerInteractivityModule::Get().GetChatInterface()->TriggerOnChatRoomExitDelegates(*User, RoomId, true, TEXT(""));
+	}
 }
 
 void FMixerChatConnection::JoinDiscoveredChatChannel()
@@ -167,11 +174,19 @@ void FMixerChatConnection::OnChatSocketClosed(int32 StatusCode, const FString& R
 	// This should be a remote close since we unhook event handlers before closing on our end.
 	// Do a full close and re-open of the websocket so as to (potentially) hit a different endpoint, per Mixer guidance.
 
-	UE_LOG(LogMixerChat, Warning, TEXT("Chat websocket closed with reason '%s'.  Attempting to reconnect."), *Reason);
+	UE_LOG(LogMixerChat, Warning, TEXT("Chat websocket closed with reason '%s'."), *Reason);
 
 	CloseWebSocket();
 
-	OpenWebSocket();
+	if (bRejoinOnDisconnect)
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("Attempting automatic reconnect to %s."), *RoomId);
+		OpenWebSocket();
+	}
+	else
+	{
+		IMixerInteractivityModule::Get().GetChatInterface()->TriggerOnChatRoomExitDelegates(*User, RoomId, bWasClean, Reason);
+	}
 }
 
 void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
