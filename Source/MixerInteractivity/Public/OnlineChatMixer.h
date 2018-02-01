@@ -40,7 +40,7 @@ private:
 class FOnlineChatMixer : public IOnlineChat, public TSharedFromThis<FOnlineChatMixer>
 {
 public:
-	virtual bool CreateRoom(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& Nickname, const FChatRoomConfig& ChatRoomConfig) override { return false; }
+	virtual bool CreateRoom(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& Nickname, const FChatRoomConfig& ChatRoomConfig) override;
 
 	virtual bool ConfigureRoom(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FChatRoomConfig& ChatRoomConfig) override { return false; }
 
@@ -48,7 +48,7 @@ public:
 
 	virtual bool JoinPrivateRoom(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& Nickname, const FChatRoomConfig& ChatRoomConfig) override { return false; }
 
-	virtual bool ExitRoom(const FUniqueNetId& UserId, const FChatRoomId& RoomId) override { return false; }
+	virtual bool ExitRoom(const FUniqueNetId& UserId, const FChatRoomId& RoomId) override;
 
 	virtual bool SendRoomChat(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& MsgBody) override;
 

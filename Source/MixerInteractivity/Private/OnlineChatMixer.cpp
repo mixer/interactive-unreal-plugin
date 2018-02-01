@@ -5,6 +5,13 @@
 #include "MixerInteractivityUserSettings.h"
 #include "MixerChatConnection.h"
 
+bool FOnlineChatMixer::CreateRoom(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& Nickname, const FChatRoomConfig& ChatRoomConfig)
+{
+	// Based on the usage in UChatroom::CreateOrJoinChatRoom it appears that the expectation is that this falls back to a join operation
+	UE_LOG(LogMixerChat, Warning, TEXT("Creation of new rooms not supported.  Treating as JoinPublicRoom"));
+	return JoinPublicRoom(UserId, RoomId, Nickname, ChatRoomConfig);
+}
+
 bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& Nickname, const FChatRoomConfig& ChatRoomConfig)
 {
 	TSharedPtr<FMixerChatConnection> NewConnection;
@@ -80,6 +87,32 @@ bool FOnlineChatMixer::JoinPublicRoom(const FUniqueNetId& UserId, const FChatRoo
 	}
 
 	return bStartedConnection;
+}
+
+bool FOnlineChatMixer::ExitRoom(const FUniqueNetId& UserId, const FChatRoomId& RoomId)
+{
+	bool bExited = false;
+
+	if (IsDefaultChatRoom(RoomId))
+	{
+		DefaultChatConnection->Cleanup();
+		DefaultChatConnection.Reset();
+		return true;
+	}
+	else
+	{
+		for (int32 i = 0; i < AdditionalChatConnections.Num(); ++i)
+		{
+			if (AdditionalChatConnections[i]->GetRoom() == RoomId)
+			{
+				AdditionalChatConnections[i]->Cleanup();
+				AdditionalChatConnections.RemoveAtSwap(i);
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 bool FOnlineChatMixer::SendRoomChat(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& MsgBody)
