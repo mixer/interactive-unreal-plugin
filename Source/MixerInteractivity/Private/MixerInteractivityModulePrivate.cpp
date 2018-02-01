@@ -685,17 +685,30 @@ void FMixerInteractivityModule::OnUserRequestComplete(FHttpRequestPtr HttpReques
 	{
 		UserAuthState = EMixerLoginState::Logged_In;
 
-		if (NeedsClientLibraryActive() && ClientLibraryState == Microsoft::mixer::not_initialized)
+		if (NeedsClientLibraryActive())
 		{
 			const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-			if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false, *Settings->ShareCode))
+			switch (ClientLibraryState)
 			{
-				LoginAttemptFinished(false);
-			}
-			else
-			{
-				// Set this immediately to avoid a temporary pop to Not_Logged_In
-				ClientLibraryState = Microsoft::mixer::initializing;
+			case Microsoft::mixer::not_initialized:
+				if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false, *Settings->ShareCode))
+				{
+					LoginAttemptFinished(false);
+				}
+				else
+				{
+					// Set this immediately to avoid a temporary pop to Not_Logged_In
+					ClientLibraryState = Microsoft::mixer::initializing;
+				}
+				break;
+
+			case Microsoft::mixer::initializing:
+				// Should naturally progress and we'll handle it in Tick
+				break;
+
+			default:
+				// We're already logged in
+				LoginAttemptFinished(true);
 			}
 		}
 		else
