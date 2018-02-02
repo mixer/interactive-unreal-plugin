@@ -29,6 +29,16 @@ public:
 	int32 Level;
 
 	FMixerUser();
+
+	bool operator==(const FMixerUser& Other) const
+	{
+		return Id == Other.Id;
+	}
+
+	bool operator!=(const FMixerUser& Other) const
+	{
+		return Id != Other.Id;
+	}
 };
 
 /** Information about a channel owned by a user on Mixer */

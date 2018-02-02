@@ -4,6 +4,7 @@
 #include "Interfaces/OnlineChatInterface.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
+#include "MixerInteractivityModulePrivate.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMixerChat, Log, All);
 
@@ -52,21 +53,37 @@ private:
 	void OnChatPacket(const FString& PacketJsonString);
 	void OnChatSocketClosed(int32 StatusCode, const FString& Reason, bool bWasClean);
 
-	void HandleChatEventDataObject(class FJsonObject* Payload, bool bSendEvents);
-	void HandleChatEventMessageFragment(FString& MessageSoFar, class FJsonObject* Fragment);
+	bool OnChatPacketInternal(class FJsonObject* JsonObj);
 
+	bool HandleWelcomeEvent(class FJsonObject* JsonObj);
+	bool HandleChatMessageEvent(class FJsonObject* JsonObj);
+	bool HandleUserJoinEvent(class FJsonObject* JsonObj);
+	bool HandleUserLeaveEvent(class FJsonObject* JsonObj);
+	bool HandleDeleteMessageEvent(class FJsonObject* JsonObj);
+	bool HandleClearMessagesEvent(class FJsonObject* JsonObj);
+	bool HandlePurgeMessageEvent(class FJsonObject* JsonObj);
+	bool HandlePollStartEvent(class FJsonObject* JsonObj, TSharedPtr<struct FChatMessageMixerImpl>& OutMessage);
+	bool HandlePollEndEvent(class FJsonObject* JsonObj, TSharedPtr<struct FChatMessageMixerImpl>& OutMessage);
+
+	bool HandleChatMessageEventInternal(class FJsonObject* JsonObj, TSharedPtr<struct FChatMessageMixerImpl>& OutMessage);
+	bool HandleChatMessageEventMessageObject(class FJsonObject* JsonObj, struct FChatMessageMixerImpl* ChatMessage);
+	bool HandleChatMessageEventMessageArrayEntry(class FJsonObject* JsonObj, struct FChatMessageMixerImpl* ChatMessage);
+
+	void AddMessageToChatHistory(TSharedRef<struct FChatMessageMixerImpl> ChatMessage);
 	void DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<struct FChatMessageMixerImpl>)> Predicate);
 
 private:
-	typedef void (FMixerChatConnection::*FReplyHandler)(class FJsonObject*);
+	typedef bool (FMixerChatConnection::*FServerMessageHandler)(class FJsonObject*);
 
 	void SendAuth(int32 ChannelId, const struct FMixerLocalUser* User, const FString& AuthKey);
-	void HandleAuthReply(class FJsonObject* Payload);
-
 	void SendHistory(int32 MessageCount);
-	void HandleHistoryReply(class FJsonObject* Payload);
 
-	void SendMethodPacket(const FString& Payload, FReplyHandler Handler);
+	bool HandleAuthReply(class FJsonObject* JsonObj);
+	bool HandleHistoryReply(class FJsonObject* JsonObj);
+
+	void SendMethodPacket(const FString& Payload, FServerMessageHandler Handler);
+
+	FServerMessageHandler GetEventHandler(const FString& EventType);
 
 private:
 	class FOnlineChatMixer* ChatInterface;
@@ -75,7 +92,8 @@ private:
 	FString AuthKey;
 	TArray<FString> Endpoints;
 	TSharedPtr<class IWebSocket> WebSocket;
-	TMap<int32, FReplyHandler> ReplyHandlers;
+	TMap<FUniqueNetIdMixer, TSharedPtr<struct FMixerChatUser>> CachedUsers;
+	TMap<int32, FServerMessageHandler> ReplyHandlers;
 	TSharedPtr<struct FChatMessageMixerImpl> ChatHistoryNewest;
 	TSharedPtr<struct FChatMessageMixerImpl> ChatHistoryOldest;
 	int32 ChatHistoryNum;

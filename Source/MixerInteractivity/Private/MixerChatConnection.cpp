@@ -65,8 +65,23 @@ namespace MixerChatStringConstants
 		const FString Text = TEXT("text");
 		const FString Endpoints = TEXT("endpoints");
 		const FString AuthKey = TEXT("authkey");
+		const FString UserId = TEXT("user_id");
+		const FString UserLevel = TEXT("user_level");
 	}
 }
+
+#define GET_JSON_FIELD_RETURN_FAILURE(JsonType, JsonNameConstant, UEType, UEName) \
+UEType UEName; \
+if (!JsonObj->TryGet##JsonType##Field(MixerChatStringConstants::FieldNames::##JsonNameConstant, UEName)) \
+{ \
+	UE_LOG(LogMixerChat, Error, TEXT("Missing required %s field in json payload"), *MixerChatStringConstants::FieldNames::##JsonNameConstant); \
+	return false; \
+}
+
+#define GET_JSON_STRING_RETURN_FAILURE(JsonNameConstant, UEName)	GET_JSON_FIELD_RETURN_FAILURE(String, JsonNameConstant, FString, UEName)
+#define GET_JSON_INT_RETURN_FAILURE(JsonNameConstant, UEName)		GET_JSON_FIELD_RETURN_FAILURE(Number, JsonNameConstant, int32, UEName)
+#define GET_JSON_OBJECT_RETURN_FAILURE(JsonNameConstant, UEName)	GET_JSON_FIELD_RETURN_FAILURE(Object, JsonNameConstant, const TSharedPtr<FJsonObject>*, UEName)
+#define GET_JSON_ARRAY_RETURN_FAILURE(JsonNameConstant, UEName)		GET_JSON_FIELD_RETURN_FAILURE(Array, JsonNameConstant, const TArray<TSharedPtr<FJsonValue>> *, UEName)
 
 namespace
 {
@@ -102,24 +117,89 @@ namespace
 	}
 }
 
+struct FMixerChatUser : public FMixerUser
+{
+public:
+	FMixerChatUser(const FString& InName, int32 InId)
+		: NetId(MakeShared<FUniqueNetIdMixer>(Id))
+	{
+		Name = InName;
+		Id = InId;
+		Level = 0;
+	}
+
+	const FUniqueNetIdMixer& GetUniqueNetId() const { return static_cast<FUniqueNetIdMixer&>(NetId.Get()); }
+
+	// FChatMessage wants a old-fashioned shared ref to a net id.  Most other OSS types operate in terms
+	// of native references these days.  Look for opportunities to remove this method if things change.
+	const TSharedRef<const FUniqueNetId>& GetUniqueNetIdForChatMessage() const { return NetId; }
+
+private:
+	TSharedRef<FUniqueNetId> NetId;
+};
 
 struct FChatMessageMixerImpl : public FChatMessageMixer
 {
 public:
-	FChatMessageMixerImpl(const FGuid& InMessageId, TSharedRef<const FUniqueNetId> InUser, const FString& InText)
-		: FChatMessageMixer(InUser, InText)
-		, MessageId(InMessageId)
+	FChatMessageMixerImpl(const FGuid& InMessageId, TSharedRef<const FMixerChatUser> InFromUser)
+		: MessageId(InMessageId)
+		, FromUser(InFromUser)
+		, Timestamp(FDateTime::Now())
+		, bIsWhisper(false)
+		, bIsAction(false)
+		, bIsModerated(false)
 	{
 	}
+
+	// FChatMessage methods
+	virtual const TSharedRef<const FUniqueNetId>& GetUserId() const override	{ return FromUser->GetUniqueNetIdForChatMessage(); }
+	virtual const FString& GetNickname() const override							{ return FromUser->Name; }
+	virtual const FString& GetBody() const override								{ return Body; }
+	virtual const FDateTime& GetTimestamp() const override						{ return Timestamp; }
+
+	// FChatMessageMixer methods
+	virtual bool IsWhisper() override		{ return bIsWhisper; }
+	virtual bool IsAction() override		{ return bIsAction; }
+	virtual bool IsModerated() override		{ return bIsModerated; }
+
+	const FMixerChatUser& GetSender() { return FromUser.Get(); }
+	const FGuid& GetMessageId() { return MessageId; }
 
 	void FlagAsDeleted()
 	{
-		MessageText.Empty();
+		Body.Empty();
+		bIsModerated = true;
 	}
 
-public:
-	FGuid MessageId;
+	void AppendBodyFragment(const FString& InBodyFragment)
+	{
+		Body += InBodyFragment;
+	}
 
+	void FlagAsWhisper()
+	{
+		bIsWhisper = true;
+	}
+
+	void FlagAsAction()
+	{
+		if (!bIsAction)
+		{
+			bIsAction = true;
+			Body = FromUser->Name + TEXT(" ") + Body;
+		}
+	}
+
+private:
+	FGuid MessageId;
+	TSharedRef<const FMixerChatUser> FromUser;
+	FString Body;
+	FDateTime Timestamp;
+	bool bIsWhisper;
+	bool bIsAction;
+	bool bIsModerated;
+
+public:
 	// Intrusive list to avoid double allocation for chat history
 	// Would be nice to use TIntrusiveList, but that doesn't support
 	// TSharedPtr as the link type, and IOnlineChat enforces that the
@@ -286,264 +366,276 @@ void FMixerChatConnection::OnChatSocketClosed(int32 StatusCode, const FString& R
 
 void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
 {
+	bool bHandled = false;
 	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(PacketJsonString);
-	TSharedPtr<FJsonObject> JsonObject;
-	if (FJsonSerializer::Deserialize(JsonReader, JsonObject) &&
-		JsonObject.IsValid())
+	TSharedPtr<FJsonObject> JsonObj;
+	if (FJsonSerializer::Deserialize(JsonReader, JsonObj) && JsonObj.IsValid())
 	{
-		FString MessageType;
-		if (JsonObject->TryGetStringField(MixerChatStringConstants::FieldNames::Type, MessageType))
-		{
-			if (MessageType == MixerChatStringConstants::MessageTypes::Reply)
-			{
-				int32 ReplyingToMessageId;
-				if (!JsonObject->TryGetNumberField(MixerChatStringConstants::FieldNames::Id, ReplyingToMessageId))
-				{
-					UE_LOG(LogMixerChat, Error, TEXT("Missing id field for chat reply (full payload %s)"), *PacketJsonString);
-					return;
-				}
+		bHandled = OnChatPacketInternal(JsonObj.Get());
+	}
 
-				FReplyHandler Handler;
-				if (ReplyHandlers.RemoveAndCopyValue(ReplyingToMessageId, Handler))
-				{
-					check(Handler != nullptr);
-					(this->*Handler)(JsonObject.Get());
-				}
-				else
-				{
-					UE_LOG(LogMixerChat, Error, TEXT("Received unexpected reply for unknown message id %d (full payload %s)"), ReplyingToMessageId, *PacketJsonString);
-				}
-			}
-			else if (MessageType == MixerChatStringConstants::MessageTypes::Event)
-			{
-				FString EventType;
-				if (JsonObject->TryGetStringField(MixerChatStringConstants::FieldNames::Event, EventType))
-				{
-					if (EventType == MixerChatStringConstants::EventTypes::Welcome)
-					{
-						// Welcomed by the server.  We are now fully connected.
-						// But we have not necessarily completed auth.  That means we should use the
-						// reply to the auth method call (which occurs even for anonymous connections)
-						// to trigger the join event, otherwise callers might initially see operations
-						// that require auth fail.
-					}
-					else
-					{
-						// Data field is important for all the following event types
-						const TSharedPtr<FJsonObject>* Data;
-						if (!JsonObject->TryGetObjectField(MixerChatStringConstants::FieldNames::Data, Data))
-						{
-							UE_LOG(LogMixerChat, Error, TEXT("Missing data field for chat event of type %s (full payload %s)"), *EventType, *PacketJsonString);
-							return;
-						}
-
-						check(Data != nullptr);
-						check(Data->IsValid());
-
-						if (EventType == MixerChatStringConstants::EventTypes::ChatMessage)
-						{
-							HandleChatEventDataObject(Data->Get(), true);
-						}
-						else if (EventType == MixerChatStringConstants::EventTypes::UserJoin)
-						{
-							FString JoiningUser;
-							if ((*Data)->TryGetStringField(MixerChatStringConstants::FieldNames::UserNameNoUnderscore, JoiningUser))
-							{
-								UE_LOG(LogMixerChat, Log, TEXT("%s is joining %s's chat channel"), *JoiningUser, *RoomId);
-
-								// @TODO: we should probably create a derived FUniqueNetId for Mixer.
-								TSharedRef<FUniqueNetId> JoiningId = MakeShared<FUniqueNetIdString>(JoiningUser);
-								ChatInterface->TriggerOnChatRoomMemberJoinDelegates(*User, RoomId, *JoiningId);
-							}
-						}
-						else if (EventType == MixerChatStringConstants::EventTypes::UserLeave)
-						{
-							FString LeavingUser;
-							if ((*Data)->TryGetStringField(MixerChatStringConstants::FieldNames::UserNameNoUnderscore, LeavingUser))
-							{
-								UE_LOG(LogMixerChat, Log, TEXT("%s is leaving %s's chat channel"), *LeavingUser, *RoomId);
-
-								// @TODO: we should probably create a derived FUniqueNetId for Mixer.
-								TSharedRef<FUniqueNetId> LaavingId = MakeShared<FUniqueNetIdString>(LeavingUser);
-								ChatInterface->TriggerOnChatRoomMemberExitDelegates(*User, RoomId, *LaavingId);
-							}
-						}
-						else if (EventType == MixerChatStringConstants::EventTypes::DeleteMessage)
-						{
-							FString IdString;
-							if (!(*Data)->TryGetStringField(MixerChatStringConstants::FieldNames::Id, IdString))
-							{
-								UE_LOG(LogMixerChat, Error, TEXT("Missing id field for delete message event"));
-								return;
-							}
-
-							FGuid MessageId;
-							if (!FGuid::Parse(IdString, MessageId))
-							{
-								UE_LOG(LogMixerChat, Error, TEXT("id field %s for delete message event was not in the expected format (guid)"), *IdString);
-								return;
-							}
-
-							DeleteFromChatHistoryIf([&MessageId](TSharedPtr<FChatMessageMixerImpl> ChatMessage)
-							{
-								return ChatMessage->MessageId == MessageId;
-							});
-						}
-						else if (EventType == MixerChatStringConstants::EventTypes::ClearMessages)
-						{
-							DeleteFromChatHistoryIf([](TSharedPtr<FChatMessageMixerImpl>)
-							{
-								return true;
-							});
-
-							check(ChatHistoryNum == 0);
-							check(!ChatHistoryNewest.IsValid());
-							check(!ChatHistoryOldest.IsValid());
-						}
-					}
-				}
-				else
-				{
-					UE_LOG(LogMixerChat, Error, TEXT("Missing event (type) field for chat event (full payload %s)"), *PacketJsonString);
-				}
-			}
-			else
-			{
-				// Unknown message type
-				UE_LOG(LogMixerChat, Error, TEXT("Unknown message of type %s on chat socket (full payload %s)"), *MessageType, *PacketJsonString);
-			}
-		}
-		else
-		{
-			UE_LOG(LogMixerChat, Error, TEXT("Missing type field for chat socket message (full payload %s)"), *PacketJsonString);
-		}
+	if (!bHandled)
+	{
+		UE_LOG(LogMixerChat, Error, TEXT("Failed to handle chat packet from server: %s"), *PacketJsonString);
 	}
 }
 
-void FMixerChatConnection::HandleChatEventDataObject(FJsonObject* Payload, bool bSendEvents)
+bool FMixerChatConnection::OnChatPacketInternal(FJsonObject* JsonObj)
 {
-	FString FromUser;
-	if (!Payload->TryGetStringField(MixerChatStringConstants::FieldNames::UserNameWithUnderscore, FromUser))
+	bool bHandled = false;
+	GET_JSON_STRING_RETURN_FAILURE(Type, MessageType);
+	if (MessageType == MixerChatStringConstants::MessageTypes::Reply)
 	{
-		UE_LOG(LogMixerChat, Error, TEXT("Missing user_name field for chat event"));
-		return;
+		GET_JSON_INT_RETURN_FAILURE(Id, ReplyingToMessageId);
+
+		FServerMessageHandler Handler;
+		if (ReplyHandlers.RemoveAndCopyValue(ReplyingToMessageId, Handler))
+		{
+			if (Handler != nullptr)
+			{
+				(this->*Handler)(JsonObj);
+			}
+			bHandled = true;
+		}
+		else
+		{
+			UE_LOG(LogMixerChat, Error, TEXT("Received unexpected reply for unknown message id %d"), ReplyingToMessageId);
+		}
+	}
+	else if (MessageType == MixerChatStringConstants::MessageTypes::Event)
+	{
+		GET_JSON_STRING_RETURN_FAILURE(Event, EventType);
+		GET_JSON_OBJECT_RETURN_FAILURE(Data, Data);
+
+		FServerMessageHandler Handler = GetEventHandler(EventType);
+		if (Handler != nullptr)
+		{
+			(this->*Handler)(Data->Get());
+			bHandled = true;
+		}
+		else
+		{
+			UE_LOG(LogMixerChat, Warning, TEXT("Received event type %s which is not handled in the current implementation."), *EventType);
+		}
 	}
 
-	const TSharedPtr<FJsonObject>* MessageObject;
-	if (!Payload->TryGetObjectField(MixerChatStringConstants::FieldNames::Message, MessageObject))
+	return bHandled;
+}
+
+bool FMixerChatConnection::HandleWelcomeEvent(class FJsonObject* JsonObj)
+{
+	// Welcomed by the server.  We are now fully connected.
+	// But we have not necessarily completed auth.  That means we should use the
+	// reply to the auth method call (which occurs even for anonymous connections)
+	// to trigger the join event, otherwise callers might initially see operations
+	// that require auth fail.
+
+	UE_LOG(LogMixerChat, Log, TEXT("Welcomed by chat server for %s"), *RoomId);
+
+	// Currently that means there's nothing to do here.
+	return true;
+}
+
+
+bool FMixerChatConnection::HandleChatMessageEvent(FJsonObject* JsonObj)
+{
+	TSharedPtr<FChatMessageMixerImpl> ChatMessage;
+	bool bHandled = HandleChatMessageEventInternal(JsonObj, ChatMessage);
+
+	if (bHandled)
 	{
-		UE_LOG(LogMixerChat, Error, TEXT("Missing message field for chat event"));
-		return;
+		check(ChatMessage.IsValid());
+		if (ChatMessage->IsWhisper())
+		{
+			UE_LOG(LogMixerChat, Verbose, TEXT("Private message from %s: %s"), *ChatMessage->GetNickname(), *ChatMessage->GetBody());
+			ChatInterface->TriggerOnChatPrivateMessageReceivedDelegates(*User, ChatMessage.ToSharedRef());
+		}
+		else
+		{
+			UE_LOG(LogMixerChat, Verbose, TEXT("Chat message from %s in room %s: %s"), *ChatMessage->GetNickname(), *RoomId, *ChatMessage->GetBody());
+			AddMessageToChatHistory(ChatMessage.ToSharedRef());
+			ChatInterface->TriggerOnChatRoomMessageReceivedDelegates(*User, RoomId, ChatMessage.ToSharedRef());
+		}
 	}
 
-	FString IdString;
-	if (!Payload->TryGetStringField(MixerChatStringConstants::FieldNames::Id, IdString))
-	{
-		UE_LOG(LogMixerChat, Error, TEXT("Missing id field for chat event"));
-		return;
-	}
+	return bHandled;
+}
+
+bool FMixerChatConnection::HandleChatMessageEventInternal(FJsonObject* JsonObj, TSharedPtr<FChatMessageMixerImpl>& OutChatMessage)
+{
+	GET_JSON_STRING_RETURN_FAILURE(UserNameWithUnderscore, FromUserName);
+	GET_JSON_INT_RETURN_FAILURE(UserId, FromUserIdRaw);
+	GET_JSON_OBJECT_RETURN_FAILURE(Message, MessageJson);
+	GET_JSON_STRING_RETURN_FAILURE(Id, IdString);
 
 	FGuid MessageId;
 	if (!FGuid::Parse(IdString, MessageId))
 	{
 		UE_LOG(LogMixerChat, Error, TEXT("id field %s for chat event was not in the expected format (guid)"), *IdString);
-		return;
+		return false;
 	}
 
-	const TSharedPtr<FJsonObject>* Metadata;
-	bool bIsWhisper = false;
-	bool bIsAction = false;
-	if ((*MessageObject)->TryGetObjectField(MixerChatStringConstants::FieldNames::Meta, Metadata))
+	FUniqueNetIdMixer FromNetIdLocal = FUniqueNetIdMixer(FromUserIdRaw);
+	TSharedPtr<FMixerChatUser>* FromUserObject = CachedUsers.Find(FromNetIdLocal);
+	bool bSendJoinEvent = false;
+	if (FromUserObject == nullptr)
 	{
-		(*Metadata)->TryGetBoolField(MixerChatStringConstants::FieldNames::Whisper, bIsWhisper);
-		(*Metadata)->TryGetBoolField(MixerChatStringConstants::FieldNames::Me, bIsAction);
+		TSharedRef<FMixerChatUser> NewUser = MakeShared<FMixerChatUser>(FromUserName, FromUserIdRaw);
+		FromUserObject = &CachedUsers.Add(FromNetIdLocal, NewUser);
+
+		// We haven't seen this user before - send a just-in-time join event,
+		// but wait until after we have resolved the user level
+		bSendJoinEvent = true;
+	}
+	check(FromUserObject);
+	if (!JsonObj->TryGetNumberField(MixerChatStringConstants::FieldNames::UserLevel, (*FromUserObject)->Level))
+	{
+		// This one's less serious.
+		UE_LOG(LogMixerChat, Warning, TEXT("Missing user_level field for chat event"));
 	}
 
-	FString MessageString;
-	if (bIsAction)
+	if (bSendJoinEvent)
 	{
-		MessageString = FromUser + TEXT(" ");
+		UE_LOG(LogMixerChat, Log, TEXT("%s is joining %s's chat channel"), *(*FromUserObject)->Name, *RoomId);
+
+		ChatInterface->TriggerOnChatRoomMemberJoinDelegates(*User, RoomId, (*FromUserObject)->GetUniqueNetId());
 	}
 
-	const TArray<TSharedPtr<FJsonValue>>* MessageFragmentArray;
-	if (!(*MessageObject)->TryGetArrayField(MixerChatStringConstants::FieldNames::Message, MessageFragmentArray))
-	{
-		UE_LOG(LogMixerChat, Error, TEXT("Missing message.message array for chat event"));
-		return;
-	}
+	OutChatMessage = MakeShared<FChatMessageMixerImpl>(MessageId, FromUserObject->ToSharedRef());
+	return HandleChatMessageEventMessageObject(MessageJson->Get(), OutChatMessage.Get());
+}
+
+bool FMixerChatConnection::HandleChatMessageEventMessageObject(FJsonObject* JsonObj, FChatMessageMixerImpl* ChatMessage)
+{
+	GET_JSON_ARRAY_RETURN_FAILURE(Message, MessageFragmentArray);
 
 	for (const TSharedPtr<FJsonValue>& Fragment : *MessageFragmentArray)
 	{
 		const TSharedPtr<FJsonObject>* FragmentObj;
 		if (Fragment->TryGetObject(FragmentObj))
 		{
-			HandleChatEventMessageFragment(MessageString, FragmentObj->Get());
+			HandleChatMessageEventMessageArrayEntry(FragmentObj->Get(), ChatMessage);
 		}
 	}
 
-	// @TODO: we should probably create a derived FUniqueNetId for Mixer.
-	TSharedRef<FChatMessageMixerImpl> ChatMessageObject = MakeShared<FChatMessageMixerImpl>(MessageId, MakeShared<FUniqueNetIdString>(FromUser), MessageString);
-	if (bIsWhisper && bSendEvents)
+	// These are not required.
+	const TSharedPtr<FJsonObject>* Metadata;
+	bool bIsWhisper = false;
+	bool bIsAction = false;
+	if (JsonObj->TryGetObjectField(MixerChatStringConstants::FieldNames::Meta, Metadata))
 	{
-		UE_LOG(LogMixerChat, Verbose, TEXT("Private message from %s: %s"), *FromUser, *MessageString);
-		ChatInterface->TriggerOnChatPrivateMessageReceivedDelegates(*User, ChatMessageObject);
+		JsonObj->TryGetBoolField(MixerChatStringConstants::FieldNames::Whisper, bIsWhisper);
+		JsonObj->TryGetBoolField(MixerChatStringConstants::FieldNames::Me, bIsAction);
 	}
-	else
+
+	if (bIsWhisper)
 	{
-		UE_LOG(LogMixerChat, Verbose, TEXT("Chat message from %s: %s"), *FromUser, *MessageString);
-
-		if (ChatHistoryMax > 0)
-		{
-			ChatMessageObject->NextLink = ChatHistoryNewest;
-			if (ChatHistoryNewest.IsValid())
-			{
-				ChatHistoryNewest->PrevLink = ChatMessageObject;
-			}
-			ChatHistoryNewest = ChatMessageObject;
-			++ChatHistoryNum;
-			if (!ChatHistoryOldest.IsValid())
-			{
-				ChatHistoryOldest = ChatMessageObject;
-			}
-			else if (ChatHistoryNum > ChatHistoryMax)
-			{
-				ChatHistoryOldest = ChatHistoryOldest->PrevLink;
-				if (ChatHistoryOldest.IsValid())
-				{
-					check(ChatHistoryOldest->NextLink.IsValid());
-					ChatHistoryOldest->NextLink->PrevLink.Reset();
-					ChatHistoryOldest->NextLink.Reset();				
-				}
-				--ChatHistoryNum;
-			}
-		}
-
-		if (bSendEvents)
-		{
-			ChatInterface->TriggerOnChatRoomMessageReceivedDelegates(*User, RoomId, ChatMessageObject);
-		}
+		ChatMessage->FlagAsWhisper();
 	}
+
+	if (bIsAction)
+	{
+		ChatMessage->FlagAsAction();
+	}
+
+	return true;
 }
 
-void FMixerChatConnection::HandleChatEventMessageFragment(FString& MessageSoFar, FJsonObject* Fragment)
+bool FMixerChatConnection::HandleChatMessageEventMessageArrayEntry(FJsonObject* JsonObj, FChatMessageMixerImpl* ChatMessage)
 {
-	FString FragmentType;
-	if (!Fragment->TryGetStringField(MixerChatStringConstants::FieldNames::Type, FragmentType))
-	{
-		UE_LOG(LogMixerChat, Error, TEXT("Missing type field for chat message fragment."));
-		return;
-	}
+	GET_JSON_STRING_RETURN_FAILURE(Type, FragmentType);
+	GET_JSON_STRING_RETURN_FAILURE(Text, FragmentText);
 
 	// For now just always append the fragment text no matter the type.
 	// In the future we could perhaps add markup?
-	FString FragmentText;
-	if (!Fragment->TryGetStringField(MixerChatStringConstants::FieldNames::Text, FragmentText))
+	ChatMessage->AppendBodyFragment(FragmentText);
+	return true;
+}
+
+bool FMixerChatConnection::HandleUserJoinEvent(FJsonObject* JsonObj)
+{
+	GET_JSON_INT_RETURN_FAILURE(Id, JoiningUserIdRaw);
+
+	FUniqueNetIdMixer JoiningNetId = FUniqueNetIdMixer(JoiningUserIdRaw);
+	TSharedPtr<FMixerChatUser>* CachedUser = CachedUsers.Find(JoiningNetId);
+
+	// If the user was already in the cache then we triggered a join event at the
+	// point of addition (presumably a chat message reached us before join?).  Don't
+	// send another.
+	if (CachedUser == nullptr)
 	{
-		UE_LOG(LogMixerChat, Error, TEXT("Missing text field for chat message fragment."));
-		return;
+		GET_JSON_STRING_RETURN_FAILURE(UserNameNoUnderscore, JoiningUserName);
+		CachedUser = &CachedUsers.Add(JoiningNetId, MakeShared<FMixerChatUser>(JoiningUserName, JoiningUserIdRaw));
+
+		UE_LOG(LogMixerChat, Log, TEXT("%s is joining %s's chat channel"), *(*CachedUser)->Name, *RoomId);
+		ChatInterface->TriggerOnChatRoomMemberJoinDelegates(*User, RoomId, (*CachedUser)->GetUniqueNetId());
 	}
 
-	MessageSoFar += FragmentText;
+	return true;
+}
+
+bool FMixerChatConnection::HandleUserLeaveEvent(FJsonObject* JsonObj)
+{
+	GET_JSON_INT_RETURN_FAILURE(Id, LeavingUserIdRaw);
+
+	FUniqueNetIdMixer LeavingNetId = FUniqueNetIdMixer(LeavingUserIdRaw);
+	TSharedPtr<FMixerChatUser> LeavingUser;
+
+	// If we never cached the user then we never triggered a join event, in which
+	// case we shouldn't trigger leave either.
+	if (CachedUsers.RemoveAndCopyValue(LeavingNetId, LeavingUser))
+	{
+		UE_LOG(LogMixerChat, Log, TEXT("%s is exiting %s's chat channel"), *LeavingUser->Name, *RoomId);
+
+		ChatInterface->TriggerOnChatRoomMemberExitDelegates(*User, RoomId, LeavingUser->GetUniqueNetId());
+	}
+
+	return true;
+}
+
+bool FMixerChatConnection::HandleDeleteMessageEvent(FJsonObject* JsonObj)
+{
+	GET_JSON_STRING_RETURN_FAILURE(Id, IdString);
+
+	FGuid MessageId;
+	if (!FGuid::Parse(IdString, MessageId))
+	{
+		UE_LOG(LogMixerChat, Error, TEXT("id field %s for delete message event was not in the expected format (guid)"), *IdString);
+		return false;
+	}
+
+	DeleteFromChatHistoryIf([&MessageId](TSharedPtr<FChatMessageMixerImpl> ChatMessage)
+	{
+		return ChatMessage->GetMessageId() == MessageId;
+	});
+
+	return true;
+}
+
+bool FMixerChatConnection::HandleClearMessagesEvent(FJsonObject* JsonObj)
+{
+	DeleteFromChatHistoryIf([](TSharedPtr<FChatMessageMixerImpl>)
+	{
+		return true;
+	});
+
+	check(ChatHistoryNum == 0);
+	check(!ChatHistoryNewest.IsValid());
+	check(!ChatHistoryOldest.IsValid());
+
+	return true;
+}
+
+bool FMixerChatConnection::HandlePurgeMessageEvent(FJsonObject* JsonObj)
+{
+	GET_JSON_INT_RETURN_FAILURE(UserId, UserId);
+
+	DeleteFromChatHistoryIf([UserId](TSharedPtr<FChatMessageMixerImpl> ChatMessage)
+	{
+		return ChatMessage->GetSender().Id == UserId;
+	});
+
+	return true;
 }
 
 bool FMixerChatConnection::SendChatMessage(const FString& MessageBody)
@@ -611,7 +703,7 @@ void FMixerChatConnection::SendHistory(int32 MessageCount)
 	SendMethodPacket(MethodPacket, &FMixerChatConnection::HandleHistoryReply);
 }
 
-void FMixerChatConnection::SendMethodPacket(const FString& Payload, FReplyHandler Handler)
+void FMixerChatConnection::SendMethodPacket(const FString& Payload, FServerMessageHandler Handler)
 {
 	check(!ReplyHandlers.Contains(MessageId));
 	ReplyHandlers.Add(MessageId, Handler);
@@ -679,6 +771,35 @@ void FMixerChatConnection::CloseWebSocket()
 	}
 }
 
+void FMixerChatConnection::AddMessageToChatHistory(TSharedRef<FChatMessageMixerImpl> ChatMessage)
+{
+	if (ChatHistoryMax > 0 && !ChatMessage->IsWhisper())
+	{
+		ChatMessage->NextLink = ChatHistoryNewest;
+		if (ChatHistoryNewest.IsValid())
+		{
+			ChatHistoryNewest->PrevLink = ChatMessage;
+		}
+		ChatHistoryNewest = ChatMessage;
+		++ChatHistoryNum;
+		if (!ChatHistoryOldest.IsValid())
+		{
+			ChatHistoryOldest = ChatMessage;
+		}
+		else if (ChatHistoryNum > ChatHistoryMax)
+		{
+			ChatHistoryOldest = ChatHistoryOldest->PrevLink;
+			if (ChatHistoryOldest.IsValid())
+			{
+				check(ChatHistoryOldest->NextLink.IsValid());
+				ChatHistoryOldest->NextLink->PrevLink.Reset();
+				ChatHistoryOldest->NextLink.Reset();
+			}
+			--ChatHistoryNum;
+		}
+	}
+}
+
 void FMixerChatConnection::DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<FChatMessageMixerImpl>)> Predicate)
 {
 	// @TODO - pass moderator here when available
@@ -714,16 +835,17 @@ void FMixerChatConnection::DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<
 }
 
 
-void FMixerChatConnection::HandleAuthReply(FJsonObject* Payload)
+bool FMixerChatConnection::HandleAuthReply(FJsonObject* JsonObj)
 {
 	const TSharedPtr<FJsonObject>* Error;
-	if (Payload->TryGetObjectField(MixerChatStringConstants::FieldNames::Error, Error))
+	if (JsonObj->TryGetObjectField(MixerChatStringConstants::FieldNames::Error, Error))
 	{
 		FString ErrorMessage;
 		(*Error)->TryGetStringField(MixerChatStringConstants::FieldNames::Message, ErrorMessage);
 		ChatInterface->ConnectAttemptFinished(*User, RoomId, false, ErrorMessage);
 
 		// Note: we have probably self-destructed at this point
+		return false;
 	}
 	else
 	{
@@ -735,80 +857,101 @@ void FMixerChatConnection::HandleAuthReply(FJsonObject* Payload)
 		// Maybe we have some interest in roles?
 
 		ChatInterface->ConnectAttemptFinished(*User, RoomId, true, FString());
+
+		return true;
 	}
 }
 
-void FMixerChatConnection::HandleHistoryReply(FJsonObject* Payload)
+bool FMixerChatConnection::HandleHistoryReply(FJsonObject* JsonObj)
 {
-	const TArray<TSharedPtr<FJsonValue>>* Data;
-	if (Payload->TryGetArrayField(MixerChatStringConstants::FieldNames::Data, Data))
+	GET_JSON_ARRAY_RETURN_FAILURE(Data, Data);
+
+	// Stash the current history and then clear member pointers.
+	// We'll splice what we have back on the front of the history
+	// reported by the server.
+	TSharedPtr<FChatMessageMixerImpl> LocalHistoryNewest = ChatHistoryNewest;
+	TSharedPtr<FChatMessageMixerImpl> LocalHistoryOldest = ChatHistoryOldest;
+	int32 LocalHistoryNum = ChatHistoryNum;
+	int32 LocalHistoryMax = ChatHistoryMax;
+	ChatHistoryNewest.Reset();
+	ChatHistoryOldest.Reset();
+	ChatHistoryNum = 0;
+	ChatHistoryMax = LocalHistoryMax - LocalHistoryNum;
+
+	// Oldest entry is at index 0 as reported by Mixer
+	// Whereas we keep the newest entry at the head of the list,
+	// which is where HandleChatMessagePacket pushes.
+	for (const TSharedPtr<FJsonValue> HistoryEntry : *Data)
 	{
-		// Stash the current history and then clear member pointers.
-		// We'll splice what we have back on the front of the history
-		// reported by the server.
-		TSharedPtr<FChatMessageMixerImpl> LocalHistoryNewest = ChatHistoryNewest;
-		TSharedPtr<FChatMessageMixerImpl> LocalHistoryOldest = ChatHistoryOldest;
-		int32 LocalHistoryNum = ChatHistoryNum;
-		int32 LocalHistoryMax = ChatHistoryMax;
-		ChatHistoryNewest.Reset();
-		ChatHistoryOldest.Reset();
-		ChatHistoryNum = 0;
-		ChatHistoryMax = LocalHistoryMax - LocalHistoryNum;
-
-		// Oldest entry is at index 0 as reported by Mixer
-		// Whereas we keep the newest entry at the head of the list,
-		// which is where HandleChatMessagePacket pushes.
-		for (const TSharedPtr<FJsonValue> HistoryEntry : *Data)
+		TSharedPtr<FChatMessageMixerImpl> ChatMessage;
+		if (HandleChatMessageEventInternal(HistoryEntry->AsObject().Get(), ChatMessage))
 		{
-			HandleChatEventDataObject(HistoryEntry->AsObject().Get(), false);
-		}
-
-		// Relink the history we'd already accumulated.
-		// Possibly our history request crossed paths with some
-		// new messages and we could have some dupes?
-		if (!ChatHistoryNewest.IsValid())
-		{
-			ChatHistoryNewest = LocalHistoryNewest;
-			ChatHistoryOldest = LocalHistoryOldest;
-		}
-		else if (LocalHistoryOldest.IsValid())
-		{
-			int32 DupeCount = 0;
-			FGuid IdToCheckForDupes = LocalHistoryOldest->MessageId;
-			TSharedPtr<FChatMessageMixerImpl> ServerHistoryMessage = ChatHistoryNewest;
-			while (ServerHistoryMessage.IsValid())
-			{
-				++DupeCount;
-				if (ServerHistoryMessage->MessageId == IdToCheckForDupes)
-				{
-					break;
-				}
-				ServerHistoryMessage = ServerHistoryMessage->NextLink;
-			}
-
-			if (ServerHistoryMessage.IsValid())
-			{
-				LocalHistoryOldest->NextLink = ServerHistoryMessage->NextLink;
-				if (ServerHistoryMessage->NextLink.IsValid())
-				{
-					ServerHistoryMessage->NextLink->PrevLink = LocalHistoryOldest;
-				}
-				ChatHistoryNum -= DupeCount;
-			}
-			else
-			{
-				LocalHistoryOldest->NextLink = ChatHistoryNewest;
-				ChatHistoryNewest->PrevLink = LocalHistoryOldest;
-			}
-
-			ChatHistoryNewest = LocalHistoryNewest;
-			ChatHistoryNum += LocalHistoryNum;
-			ChatHistoryMax = LocalHistoryMax;
+			check(!ChatMessage->IsWhisper());
+			AddMessageToChatHistory(ChatMessage.ToSharedRef());
 		}
 	}
-	else
+
+	// Relink the history we'd already accumulated.
+	// Possibly our history request crossed paths with some
+	// new messages and we could have some dupes?
+	if (!ChatHistoryNewest.IsValid())
 	{
+		ChatHistoryNewest = LocalHistoryNewest;
+		ChatHistoryOldest = LocalHistoryOldest;
 	}
+	else if (LocalHistoryOldest.IsValid())
+	{
+		int32 DupeCount = 0;
+		FGuid IdToCheckForDupes = LocalHistoryOldest->GetMessageId();
+		TSharedPtr<FChatMessageMixerImpl> ServerHistoryMessage = ChatHistoryNewest;
+		while (ServerHistoryMessage.IsValid())
+		{
+			++DupeCount;
+			if (ServerHistoryMessage->GetMessageId() == IdToCheckForDupes)
+			{
+				break;
+			}
+			ServerHistoryMessage = ServerHistoryMessage->NextLink;
+		}
+
+		if (ServerHistoryMessage.IsValid())
+		{
+			LocalHistoryOldest->NextLink = ServerHistoryMessage->NextLink;
+			if (ServerHistoryMessage->NextLink.IsValid())
+			{
+				ServerHistoryMessage->NextLink->PrevLink = LocalHistoryOldest;
+			}
+			ChatHistoryNum -= DupeCount;
+		}
+		else
+		{
+			LocalHistoryOldest->NextLink = ChatHistoryNewest;
+			ChatHistoryNewest->PrevLink = LocalHistoryOldest;
+		}
+
+		ChatHistoryNewest = LocalHistoryNewest;
+		ChatHistoryNum += LocalHistoryNum;
+		ChatHistoryMax = LocalHistoryMax;
+	}
+
+	return true;
+}
+
+FMixerChatConnection::FServerMessageHandler FMixerChatConnection::GetEventHandler(const FString& EventType)
+{
+	static TMap<const FString, FServerMessageHandler> EventHandlers;
+	if (EventHandlers.Num() == 0)
+	{
+		EventHandlers.Add(MixerChatStringConstants::EventTypes::Welcome, &FMixerChatConnection::HandleWelcomeEvent);
+		EventHandlers.Add(MixerChatStringConstants::EventTypes::ChatMessage, &FMixerChatConnection::HandleChatMessageEvent);
+		EventHandlers.Add(MixerChatStringConstants::EventTypes::UserJoin, &FMixerChatConnection::HandleUserJoinEvent);
+		EventHandlers.Add(MixerChatStringConstants::EventTypes::UserLeave, &FMixerChatConnection::HandleUserLeaveEvent);
+		EventHandlers.Add(MixerChatStringConstants::EventTypes::DeleteMessage, &FMixerChatConnection::HandleDeleteMessageEvent);
+		EventHandlers.Add(MixerChatStringConstants::EventTypes::ClearMessages, &FMixerChatConnection::HandleClearMessagesEvent);
+	}
+
+	FServerMessageHandler* Handler = EventHandlers.Find(EventType);
+	return Handler != nullptr ? *Handler : nullptr;
 }
 
 

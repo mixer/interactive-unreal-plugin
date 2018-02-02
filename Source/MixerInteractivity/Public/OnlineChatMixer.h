@@ -11,25 +11,9 @@
 struct FChatMessageMixer : public FChatMessage
 {
 public:
-	virtual const TSharedRef<const FUniqueNetId>& GetUserId() const override { return FromUser; }
-	virtual const FString& GetNickname() const override { return FromUserName; }
-	virtual const FString& GetBody() const override { return MessageText; }
-	virtual const FDateTime& GetTimestamp() const override { return ReceivedAt; }
-
-	FChatMessageMixer(TSharedRef<const FUniqueNetId> InUser, const FString& InText)
-		: FromUser(InUser)
-		, FromUserName(InUser->ToString())
-		, ReceivedAt(FDateTime::Now())
-		, MessageText(InText)
-	{
-
-	}
-
-protected:
-	TSharedRef<const FUniqueNetId> FromUser;
-	FString FromUserName;
-	FString MessageText;
-	FDateTime ReceivedAt;
+	virtual bool IsWhisper() = 0;
+	virtual bool IsAction() = 0;
+	virtual bool IsModerated() = 0;
 };
 
 /**
