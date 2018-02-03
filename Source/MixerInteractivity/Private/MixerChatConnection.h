@@ -36,7 +36,11 @@ public:
 
 	void SetRejoinOnDisconnect(bool bInRejoin)	{ bRejoinOnDisconnect = bInRejoin; }
 
-	void GetMessageHistory(int32 NumMessages, TArray<TSharedRef<FChatMessage>>& OutMessages);
+	void GetMessageHistory(int32 NumMessages, TArray<TSharedRef<FChatMessage>>& OutMessages) const;
+
+	void GetAllCachedUsers(TArray< TSharedRef<FChatRoomMember> >& OutUsers) const;
+
+	TSharedPtr<FMixerChatUser> FindUser(const FUniqueNetId& UserId) const;
 
 private:
 
@@ -62,20 +66,20 @@ private:
 	bool HandleDeleteMessageEvent(class FJsonObject* JsonObj);
 	bool HandleClearMessagesEvent(class FJsonObject* JsonObj);
 	bool HandlePurgeMessageEvent(class FJsonObject* JsonObj);
-	bool HandlePollStartEvent(class FJsonObject* JsonObj, TSharedPtr<struct FChatMessageMixerImpl>& OutMessage);
-	bool HandlePollEndEvent(class FJsonObject* JsonObj, TSharedPtr<struct FChatMessageMixerImpl>& OutMessage);
+	bool HandlePollStartEvent(class FJsonObject* JsonObj, TSharedPtr<FChatMessageMixerImpl>& OutMessage);
+	bool HandlePollEndEvent(class FJsonObject* JsonObj, TSharedPtr<FChatMessageMixerImpl>& OutMessage);
 
-	bool HandleChatMessageEventInternal(class FJsonObject* JsonObj, TSharedPtr<struct FChatMessageMixerImpl>& OutMessage);
-	bool HandleChatMessageEventMessageObject(class FJsonObject* JsonObj, struct FChatMessageMixerImpl* ChatMessage);
-	bool HandleChatMessageEventMessageArrayEntry(class FJsonObject* JsonObj, struct FChatMessageMixerImpl* ChatMessage);
+	bool HandleChatMessageEventInternal(class FJsonObject* JsonObj, TSharedPtr<FChatMessageMixerImpl>& OutMessage);
+	bool HandleChatMessageEventMessageObject(class FJsonObject* JsonObj, FChatMessageMixerImpl* ChatMessage);
+	bool HandleChatMessageEventMessageArrayEntry(class FJsonObject* JsonObj, FChatMessageMixerImpl* ChatMessage);
 
 	void AddMessageToChatHistory(TSharedRef<struct FChatMessageMixerImpl> ChatMessage);
-	void DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<struct FChatMessageMixerImpl>)> Predicate);
+	void DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<FChatMessageMixerImpl>)> Predicate);
 
 private:
 	typedef bool (FMixerChatConnection::*FServerMessageHandler)(class FJsonObject*);
 
-	void SendAuth(int32 ChannelId, const struct FMixerLocalUser* User, const FString& AuthKey);
+	void SendAuth(int32 ChannelId, const FMixerLocalUser* User, const FString& AuthKey);
 	void SendHistory(int32 MessageCount);
 
 	bool HandleAuthReply(class FJsonObject* JsonObj);
@@ -92,7 +96,7 @@ private:
 	FString AuthKey;
 	TArray<FString> Endpoints;
 	TSharedPtr<class IWebSocket> WebSocket;
-	TMap<FUniqueNetIdMixer, TSharedPtr<struct FMixerChatUser>> CachedUsers;
+	TMap<FUniqueNetIdMixer, TSharedPtr<FMixerChatUser>> CachedUsers;
 	TMap<int32, FServerMessageHandler> ReplyHandlers;
 	TSharedPtr<struct FChatMessageMixerImpl> ChatHistoryNewest;
 	TSharedPtr<struct FChatMessageMixerImpl> ChatHistoryOldest;

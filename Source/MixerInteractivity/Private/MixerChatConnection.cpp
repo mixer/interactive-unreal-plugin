@@ -627,7 +627,7 @@ void FMixerChatConnection::SendMethodPacket(const FString& Payload, FServerMessa
 	WebSocket->Send(Payload);
 }
 
-void FMixerChatConnection::GetMessageHistory(int32 NumMessages, TArray< TSharedRef<FChatMessage> >& OutMessages)
+void FMixerChatConnection::GetMessageHistory(int32 NumMessages, TArray< TSharedRef<FChatMessage> >& OutMessages) const
 {
 	TSharedPtr<FChatMessageMixerImpl> ChatMessage = ChatHistoryNewest;
 	while (ChatMessage.IsValid() &&
@@ -870,4 +870,17 @@ FMixerChatConnection::FServerMessageHandler FMixerChatConnection::GetEventHandle
 	return Handler != nullptr ? *Handler : nullptr;
 }
 
+void FMixerChatConnection::GetAllCachedUsers(TArray< TSharedRef<FChatRoomMember> >& OutUsers) const
+{
+	for (TMap<FUniqueNetIdMixer, TSharedPtr<FMixerChatUser>>::TConstIterator It(CachedUsers); It; ++It)
+	{
+		OutUsers.Add(It->Value.ToSharedRef());
+	}
+}
+
+TSharedPtr<FMixerChatUser> FMixerChatConnection::FindUser(const FUniqueNetId& UserId) const
+{
+	const TSharedPtr<FMixerChatUser>* User = CachedUsers.Find(FUniqueNetIdMixer(UserId));
+	return User != nullptr ? *User : nullptr;
+}
 

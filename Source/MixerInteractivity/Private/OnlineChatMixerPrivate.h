@@ -13,6 +13,14 @@ public:
 
 	}
 
+	explicit FUniqueNetIdMixer(const FUniqueNetId& Src)
+	{
+		if (Src.GetSize() == sizeof(MixerId))
+		{
+			MixerId = static_cast<const FUniqueNetIdMixer&>(Src).MixerId;
+		}
+	}
+
 	virtual const uint8* GetBytes() const override
 	{
 		return reinterpret_cast<const uint8*>(&MixerId);
@@ -47,7 +55,7 @@ private:
 	int32 MixerId;
 };
 
-struct FMixerChatUser : public FMixerUser
+struct FMixerChatUser : public FMixerUser, public FChatRoomMember
 {
 public:
 	FMixerChatUser(const FString& InName, int32 InId)
@@ -58,11 +66,11 @@ public:
 		Level = 0;
 	}
 
-	const FUniqueNetIdMixer& GetUniqueNetId() const { return static_cast<const FUniqueNetIdMixer&>(NetId.Get()); }
+	// FChatRoomMember interface
+	virtual const TSharedRef<const FUniqueNetId>& GetUserId() const		{ return NetId; }
+	virtual const FString& GetNickname() const							{ return Name; }
 
-	// FChatMessage wants a old-fashioned shared ref to a net id.  Most other OSS types operate in terms
-	// of native references these days.  Look for opportunities to remove this method if things change.
-	const TSharedRef<const FUniqueNetId>& GetUniqueNetIdForChatMessage() const { return NetId; }
+	const FUniqueNetIdMixer& GetUniqueNetId() const						{ return static_cast<const FUniqueNetIdMixer&>(NetId.Get()); }
 
 private:
 	TSharedRef<const FUniqueNetId> NetId;
@@ -82,7 +90,7 @@ public:
 	}
 
 	// FChatMessage methods
-	virtual const TSharedRef<const FUniqueNetId>& GetUserId() const override	{ return FromUser->GetUniqueNetIdForChatMessage(); }
+	virtual const TSharedRef<const FUniqueNetId>& GetUserId() const override	{ return FromUser->GetUserId(); }
 	virtual const FString& GetNickname() const override							{ return FromUser->Name; }
 	virtual const FString& GetBody() const override								{ return Body; }
 	virtual const FDateTime& GetTimestamp() const override						{ return Timestamp; }
@@ -161,9 +169,9 @@ public:
 
 	virtual TSharedPtr<FChatRoomInfo> GetRoomInfo(const FUniqueNetId& UserId, const FChatRoomId& RoomId) override;
 
-	virtual bool GetMembers(const FUniqueNetId& UserId, const FChatRoomId& RoomId, TArray< TSharedRef<FChatRoomMember> >& OutMembers) override { return false; }
+	virtual bool GetMembers(const FUniqueNetId& UserId, const FChatRoomId& RoomId, TArray< TSharedRef<FChatRoomMember> >& OutMembers) override;
 
-	virtual TSharedPtr<FChatRoomMember> GetMember(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FUniqueNetId& MemberId) override { return false; }
+	virtual TSharedPtr<FChatRoomMember> GetMember(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FUniqueNetId& MemberId) override;
 
 	virtual bool GetLastMessages(const FUniqueNetId& UserId, const FChatRoomId& RoomId, int32 NumMessages, TArray< TSharedRef<FChatMessage> >& OutMessages) override;
 
@@ -178,6 +186,8 @@ private:
 	bool IsDefaultChatRoom(const FChatRoomId& RoomId) const;
 	bool WillJoinAnonymously() const;
 	bool RemoveConnectionForRoom(const FChatRoomId& RoomId);
+
+	TSharedPtr<class FMixerChatConnection> FindConnectionForRoomId(const FChatRoomId& RoomId);
 
 	/**
 	* Connection to the default chat channel for the current Mixer session -

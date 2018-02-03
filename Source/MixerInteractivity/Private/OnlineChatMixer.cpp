@@ -93,24 +93,15 @@ bool FOnlineChatMixer::ExitRoom(const FUniqueNetId& UserId, const FChatRoomId& R
 
 bool FOnlineChatMixer::SendRoomChat(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& MsgBody)
 {
-	if (IsDefaultChatRoom(RoomId))
+	TSharedPtr<FMixerChatConnection> Connection = FindConnectionForRoomId(RoomId);
+	if (Connection.IsValid())
 	{
-		if (DefaultChatConnection.IsValid())
-		{
-			return DefaultChatConnection->SendChatMessage(MsgBody);
-		}
-		else
-		{
-			return false;
-		}
+		Connection->SendChatMessage(MsgBody);
+		return true;
 	}
-
-	for (TSharedRef<FMixerChatConnection>& Connection : AdditionalChatConnections)
+	else
 	{
-		if (Connection->GetRoom() == RoomId)
-		{
-			return Connection->SendChatMessage(MsgBody);
-		}
+		return false;
 	}
 
 	return false;
@@ -153,31 +144,39 @@ TSharedPtr<FChatRoomInfo> FOnlineChatMixer::GetRoomInfo(const FUniqueNetId& User
 	return nullptr;
 }
 
+bool FOnlineChatMixer::GetMembers(const FUniqueNetId& UserId, const FChatRoomId& RoomId, TArray< TSharedRef<FChatRoomMember> >& OutMembers)
+{
+	TSharedPtr<FMixerChatConnection> Connection = FindConnectionForRoomId(RoomId);
+	if (Connection.IsValid())
+	{
+		Connection->GetAllCachedUsers(OutMembers);
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+TSharedPtr<FChatRoomMember> FOnlineChatMixer::GetMember(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FUniqueNetId& MemberId)
+{
+	TSharedPtr<FMixerChatConnection> Connection = FindConnectionForRoomId(RoomId);
+	return Connection.IsValid() ? Connection->FindUser(MemberId) : nullptr;
+}
+
+
 bool FOnlineChatMixer::GetLastMessages(const FUniqueNetId& UserId, const FChatRoomId& RoomId, int32 NumMessages, TArray< TSharedRef<FChatMessage> >& OutMessages)
 {
-	if (IsDefaultChatRoom(RoomId))
+	TSharedPtr<FMixerChatConnection> Connection = FindConnectionForRoomId(RoomId);
+	if (Connection.IsValid())
 	{
-		if (DefaultChatConnection.IsValid())
-		{
-			DefaultChatConnection->GetMessageHistory(NumMessages, OutMessages);
-			return true;
-		}
-		else
-		{
-			return false;
-		}
+		Connection->GetMessageHistory(NumMessages, OutMessages);
+		return true;
 	}
-
-	for (TSharedRef<FMixerChatConnection>& Connection : AdditionalChatConnections)
+	else
 	{
-		if (Connection->GetRoom() == RoomId)
-		{
-			Connection->GetMessageHistory(NumMessages, OutMessages);
-			return true;
-		}
+		return false;
 	}
-
-	return false;
 }
 
 
@@ -247,4 +246,24 @@ bool FOnlineChatMixer::RemoveConnectionForRoom(const FChatRoomId& RoomId)
 	}
 
 	return bFound;
+}
+
+TSharedPtr<FMixerChatConnection> FOnlineChatMixer::FindConnectionForRoomId(const FChatRoomId& RoomId)
+{
+	if (IsDefaultChatRoom(RoomId))
+	{
+		return DefaultChatConnection;
+	}
+	else
+	{
+		for (TSharedRef<FMixerChatConnection>& Connection : AdditionalChatConnections)
+		{
+			if (Connection->GetRoom() == RoomId)
+			{
+				return Connection;
+			}
+		}
+
+		return nullptr;
+	}
 }
