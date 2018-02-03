@@ -4,6 +4,7 @@
 #include "MixerInteractivityTypes.h"
 #include "MixerInteractivityUserSettings.h"
 #include "OnlineChatMixer.h"
+#include "OnlineChatMixerPrivate.h"
 
 #include "HttpModule.h"
 #include "PlatformHttp.h"
@@ -117,97 +118,6 @@ namespace
 		return MethodPacketString;
 	}
 }
-
-struct FMixerChatUser : public FMixerUser
-{
-public:
-	FMixerChatUser(const FString& InName, int32 InId)
-		: NetId(MakeShared<FUniqueNetIdMixer>(Id))
-	{
-		Name = InName;
-		Id = InId;
-		Level = 0;
-	}
-
-	const FUniqueNetIdMixer& GetUniqueNetId() const { return static_cast<FUniqueNetIdMixer&>(NetId.Get()); }
-
-	// FChatMessage wants a old-fashioned shared ref to a net id.  Most other OSS types operate in terms
-	// of native references these days.  Look for opportunities to remove this method if things change.
-	const TSharedRef<const FUniqueNetId>& GetUniqueNetIdForChatMessage() const { return NetId; }
-
-private:
-	TSharedRef<FUniqueNetId> NetId;
-};
-
-struct FChatMessageMixerImpl : public FChatMessageMixer
-{
-public:
-	FChatMessageMixerImpl(const FGuid& InMessageId, TSharedRef<const FMixerChatUser> InFromUser)
-		: MessageId(InMessageId)
-		, FromUser(InFromUser)
-		, Timestamp(FDateTime::Now())
-		, bIsWhisper(false)
-		, bIsAction(false)
-		, bIsModerated(false)
-	{
-	}
-
-	// FChatMessage methods
-	virtual const TSharedRef<const FUniqueNetId>& GetUserId() const override	{ return FromUser->GetUniqueNetIdForChatMessage(); }
-	virtual const FString& GetNickname() const override							{ return FromUser->Name; }
-	virtual const FString& GetBody() const override								{ return Body; }
-	virtual const FDateTime& GetTimestamp() const override						{ return Timestamp; }
-
-	// FChatMessageMixer methods
-	virtual bool IsWhisper() override		{ return bIsWhisper; }
-	virtual bool IsAction() override		{ return bIsAction; }
-	virtual bool IsModerated() override		{ return bIsModerated; }
-
-	const FMixerChatUser& GetSender() { return FromUser.Get(); }
-	const FGuid& GetMessageId() { return MessageId; }
-
-	void FlagAsDeleted()
-	{
-		Body.Empty();
-		bIsModerated = true;
-	}
-
-	void AppendBodyFragment(const FString& InBodyFragment)
-	{
-		Body += InBodyFragment;
-	}
-
-	void FlagAsWhisper()
-	{
-		bIsWhisper = true;
-	}
-
-	void FlagAsAction()
-	{
-		if (!bIsAction)
-		{
-			bIsAction = true;
-			Body = FromUser->Name + TEXT(" ") + Body;
-		}
-	}
-
-private:
-	FGuid MessageId;
-	TSharedRef<const FMixerChatUser> FromUser;
-	FString Body;
-	FDateTime Timestamp;
-	bool bIsWhisper;
-	bool bIsAction;
-	bool bIsModerated;
-
-public:
-	// Intrusive list to avoid double allocation for chat history
-	// Would be nice to use TIntrusiveList, but that doesn't support
-	// TSharedPtr as the link type, and IOnlineChat enforces that the
-	// lifetime is managed by TSharedPtr
-	TSharedPtr<FChatMessageMixerImpl> NextLink;
-	TSharedPtr<FChatMessageMixerImpl> PrevLink;
-};
 
 FMixerChatConnection::~FMixerChatConnection()
 {
@@ -624,6 +534,8 @@ bool FMixerChatConnection::HandleClearMessagesEvent(FJsonObject* JsonObj)
 	check(!ChatHistoryNewest.IsValid());
 	check(!ChatHistoryOldest.IsValid());
 
+	ChatInterface->TriggerOnChatRoomMessagesClearedDelegates(*User, RoomId);
+
 	return true;
 }
 
@@ -635,6 +547,8 @@ bool FMixerChatConnection::HandlePurgeMessageEvent(FJsonObject* JsonObj)
 	{
 		return ChatMessage->GetSender().Id == UserId;
 	});
+
+	ChatInterface->TriggerOnChatRoomUserPurgedDelegates(*User, RoomId, FUniqueNetIdMixer(UserId));
 
 	return true;
 }

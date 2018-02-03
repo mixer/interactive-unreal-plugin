@@ -1180,6 +1180,11 @@ TSharedPtr<IOnlineChat> FMixerInteractivityModule::GetChatInterface()
 	return ChatInterface;
 }
 
+TSharedPtr<IOnlineChatMixer> FMixerInteractivityModule::GetExtendedChatInterface()
+{
+	return ChatInterface;
+}
+
 #if PLATFORM_XBOXONE
 void FMixerInteractivityModule::TickXboxLogin()
 {

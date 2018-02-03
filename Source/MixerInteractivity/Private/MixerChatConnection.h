@@ -4,7 +4,7 @@
 #include "Interfaces/OnlineChatInterface.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
-#include "MixerInteractivityModulePrivate.h"
+#include "OnlineChatMixerPrivate.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMixerChat, Log, All);
 

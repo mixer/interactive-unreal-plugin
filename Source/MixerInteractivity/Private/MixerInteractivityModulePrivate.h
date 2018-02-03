@@ -77,49 +77,6 @@ public:
 	}
 };
 
-class FUniqueNetIdMixer : public FUniqueNetId
-{
-public:
-	FUniqueNetIdMixer(int32 InMixerId)
-		: MixerId(InMixerId)
-	{
-
-	}
-
-	virtual const uint8* GetBytes() const override
-	{
-		return reinterpret_cast<const uint8*>(&MixerId);
-	}
-
-	virtual int32 GetSize() const override
-	{
-		return sizeof(MixerId);
-	}
-
-	virtual bool IsValid() const override
-	{
-		return MixerId != 0;
-	}
-
-	virtual FString ToString() const
-	{
-		return FString::Printf(TEXT("%d"), MixerId);
-	}
-
-	virtual FString ToDebugString() const override
-	{
-		return FString::Printf(TEXT("MixerId: %d"), MixerId);
-	}
-
-	friend uint32 GetTypeHash(const FUniqueNetIdMixer& Unid)
-	{
-		return GetTypeHash(Unid.MixerId);
-	}
-
-private:
-	int32 MixerId;
-};
-
 struct FMixerRemoteUserCached : public FMixerRemoteUser
 {
 public:
@@ -177,7 +134,8 @@ public:
 	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId);
 	virtual void CaptureSparkTransaction(const FString& TransactionId);
 
-	virtual TSharedPtr<IOnlineChat> GetChatInterface();
+	virtual TSharedPtr<class IOnlineChat> GetChatInterface();
+	virtual TSharedPtr<class IOnlineChatMixer> GetExtendedChatInterface();
 
 	virtual FOnLoginStateChanged& OnLoginStateChanged()						{ return LoginStateChanged; }
 	virtual FOnInteractivityStateChanged& OnInteractivityStateChanged()		{ return InteractivityStateChanged; }

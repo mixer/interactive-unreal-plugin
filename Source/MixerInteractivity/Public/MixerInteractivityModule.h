@@ -276,11 +276,20 @@ public:
 
 	/**
 	* Get access to Mixer chat via UE's standard IOnlineChat interface.
-	* Sending messages requires a logged in user and is not yet supported on all platforms.
+	* Sending messages requires a logged in user.
 	*
-	* @Return					See FOnlineChatMixer.
+	* @Return					See IOnlineChat.
 	*/
 	virtual TSharedPtr<class IOnlineChat> GetChatInterface() = 0;
+
+	/**
+	* Get access to Mixer chat via IOnlineChatMixer which supports additional
+	* interactions that extend the standard IOnlineChat interface.
+	* Sending messages requires a logged in user.
+	*
+	* @Return					See IOnlineChatMixer.
+	*/
+	virtual TSharedPtr<class IOnlineChatMixer> GetExtendedChatInterface() = 0;
 
 	// Events
 	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnLoginStateChanged, EMixerLoginState);
