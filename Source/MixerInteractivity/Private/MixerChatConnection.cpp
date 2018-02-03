@@ -45,6 +45,7 @@ namespace MixerChatStringConstants
 		const FString UserLeave = TEXT("UserLeave");
 		const FString DeleteMessage = TEXT("DeleteMessage");
 		const FString ClearMessages = TEXT("ClearMessages");
+		const FString PurgeMessage = TEXT("PurgeMessage");
 	}
 
 	namespace FieldNames
@@ -806,6 +807,7 @@ void FMixerChatConnection::DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<
 	TSharedPtr<FChatMessageMixerImpl> ChatMessage = ChatHistoryNewest;
 	while (ChatMessage.IsValid())
 	{
+		TSharedPtr<FChatMessageMixerImpl> NextMessage = ChatMessage->NextLink;
 		if (Predicate(ChatMessage))
 		{
 			ChatMessage->FlagAsDeleted();
@@ -828,9 +830,8 @@ void FMixerChatConnection::DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<
 			ChatMessage->NextLink.Reset();
 			ChatMessage->PrevLink.Reset();
 			--ChatHistoryNum;
-			break;
 		}
-		ChatMessage = ChatMessage->NextLink;
+		ChatMessage = NextMessage;
 	}
 }
 
@@ -948,6 +949,7 @@ FMixerChatConnection::FServerMessageHandler FMixerChatConnection::GetEventHandle
 		EventHandlers.Add(MixerChatStringConstants::EventTypes::UserLeave, &FMixerChatConnection::HandleUserLeaveEvent);
 		EventHandlers.Add(MixerChatStringConstants::EventTypes::DeleteMessage, &FMixerChatConnection::HandleDeleteMessageEvent);
 		EventHandlers.Add(MixerChatStringConstants::EventTypes::ClearMessages, &FMixerChatConnection::HandleClearMessagesEvent);
+		EventHandlers.Add(MixerChatStringConstants::EventTypes::PurgeMessage, &FMixerChatConnection::HandlePurgeMessageEvent);
 	}
 
 	FServerMessageHandler* Handler = EventHandlers.Find(EventType);
