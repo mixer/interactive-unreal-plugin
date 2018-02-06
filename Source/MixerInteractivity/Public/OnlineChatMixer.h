@@ -1,3 +1,12 @@
+//*********************************************************
+//
+// Copyright (c) Microsoft. All rights reserved.
+// THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF
+// ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY
+// IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR
+// PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
+//
+//*********************************************************
 #pragma once
 
 #include "Interfaces/OnlineChatInterface.h"
@@ -9,21 +18,38 @@
 struct FChatMessageMixer : public FChatMessage
 {
 public:
+	/** Check whether this message object represents a whisper (private message) */ 
 	virtual bool IsWhisper() const = 0;
+
+	/** Check whether this message object represents an action (entered as /me {does something}) */
 	virtual bool IsAction() const = 0;
+
+	/** Check whether a moderator has removed this message after it was originally sent */
 	virtual bool IsModerated() const = 0;
 };
 
+/** Represents a vote taking place in a Mixer channel*/
 struct FChatPollMixer
 {
 public:
 	virtual ~FChatPollMixer() {}
 
+	/** Get an object representing the user who started the poll */
 	virtual TSharedRef<const FChatRoomMember> GetAskingUser() const = 0;
+
+	/** Get the question being asked */
 	virtual const FString& GetQuestion() const = 0;
+
+	/** Get the number of available answers to the poll question that users may vote on. */
 	virtual int32 GetNumAnswers() const = 0;
+
+	/** Get one of the available answers to the poll question */
 	virtual const FString& GetAnswer(int32 Index) const = 0;
+
+	/** Get the number of votes cast so far for a specific answer to the poll question */
 	virtual int32 GetNumVotersForAnswer(int32 Index) const = 0;
+
+	/** Get the server time at which this poll will end. */
 	virtual FDateTime GetEndTime() const = 0;
 };
 
@@ -83,9 +109,34 @@ typedef FOnChatRoomPollEnd::FDelegate FOnChatRoomPollEndDelegate;
 class IOnlineChatMixer : public IOnlineChat
 {
 public:
+	/**
+	* Attempt to start a poll in a given Mixer channel (room).  Note that starting polls requires
+	* a different permission to normal chat usage, and there may only be one poll active at a time
+	* per channel.
+	*
+	* @param UserId		id of the user starting the poll
+	* @param RoomId		id of the room in which the poll should be started.  For Mixer chat this is the owning user name.
+	* @param Question	string that should be displayed in the channel as the poll question.
+	* @param Answers	array of strings representing the possible answers to the question that users can vote on.
+	* @param Duration	length of time for which the poll should be active.  Once this time expires on the server the poll will automatically close and a poll end event will occur.
+	*
+	* @return			whether or not the poll request was sent to the server.  Will return false if the user does not have permission to start polls.
+	*/
 	virtual bool StartPoll(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& Question, const TArray<FString>& Answers, FTimespan Duration) = 0;
-	virtual bool VoteInPoll(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FChatPollMixer& Poll, int32 AnswerIndex) = 0;
 
+	/**
+	* Attempt to voote in a poll in a given Mixer channel (room).  Note that voting in polls requires
+	* a different permission to normal chat usage, you may only vote in an active poll, and there may
+	* only be one poll active at a time per channel.
+	*
+	* @param UserId			id of the user voting in the poll
+	* @param RoomId			id of the room in which the poll is active  For Mixer chat this is the owning user name.
+	* @param Poll			the poll in which to vote.  This should match the active poll in the channel.
+	* @param AnswerIndex	index into the poll's Answers collection for which the user wishes to cast a vote.
+	*
+	* @return				whether or not the vote was sent to the server.  Will return false if the user does not have permission to vote in polls.
+	*/
+	virtual bool VoteInPoll(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FChatPollMixer& Poll, int32 AnswerIndex) = 0;
 
 	DEFINE_ONLINE_DELEGATE_TWO_PARAM(OnChatRoomMessagesCleared, const FUniqueNetId&, const FChatRoomId&);
 	DEFINE_ONLINE_DELEGATE_THREE_PARAM(OnChatRoomUserPurged, const FUniqueNetId&, const FChatRoomId&, const FUniqueNetId&);
