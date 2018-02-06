@@ -402,7 +402,6 @@ bool FMixerChatConnection::HandleChatMessageEvent(FJsonObject* JsonObj)
 
 bool FMixerChatConnection::HandleChatMessageEventInternal(FJsonObject* JsonObj, TSharedPtr<FChatMessageMixerImpl>& OutChatMessage)
 {
-	GET_JSON_STRING_RETURN_FAILURE(UserNameWithUnderscore, FromUserName);
 	GET_JSON_INT_RETURN_FAILURE(UserId, FromUserIdRaw);
 	GET_JSON_OBJECT_RETURN_FAILURE(Message, MessageJson);
 	GET_JSON_STRING_RETURN_FAILURE(Id, IdString);
@@ -419,6 +418,8 @@ bool FMixerChatConnection::HandleChatMessageEventInternal(FJsonObject* JsonObj, 
 	bool bSendJoinEvent = false;
 	if (FromUserObject == nullptr)
 	{
+		GET_JSON_STRING_RETURN_FAILURE(UserNameWithUnderscore, FromUserName);
+
 		TSharedRef<FMixerChatUser> NewUser = MakeShared<FMixerChatUser>(FromUserName, FromUserIdRaw);
 		FromUserObject = &CachedUsers.Add(FromNetIdLocal, NewUser);
 
@@ -604,21 +605,34 @@ bool FMixerChatConnection::HandlePollStartEvent(FJsonObject* JsonObj)
 		GET_JSON_OBJECT_RETURN_FAILURE(Author, Author);
 		GET_JSON_ARRAY_RETURN_FAILURE(Answers, Answers);
 
-		FString AskingUsername;
-		int32 AskingUserId;
-		bool bGotAuthor = (*Author)->TryGetStringField(MixerChatStringConstants::FieldNames::UserNameWithUnderscore, AskingUsername);
-		bGotAuthor &= (*Author)->TryGetNumberField(MixerChatStringConstants::FieldNames::UserId, AskingUserId);
-
-		if (!bGotAuthor)
+		int32 AskingUserIdRaw;
+		if (!(*Author)->TryGetNumberField(MixerChatStringConstants::FieldNames::UserId, AskingUserIdRaw))
 		{
-			UE_LOG(LogMixerChat, Error, TEXT("Failed to parse author for new poll"));
+			UE_LOG(LogMixerChat, Error, TEXT("Missing required %s field in json payload"), *MixerChatStringConstants::FieldNames::UserId);
 			return false;
 		}
 
-		TSharedRef<FMixerChatUser> AskingUser = MakeShared<FMixerChatUser>(AskingUsername, AskingUserId);
-		(*Author)->TryGetNumberField(MixerChatStringConstants::FieldNames::UserLevel, AskingUser->Level);
+		FUniqueNetIdMixer AskingUserId = FUniqueNetIdMixer(AskingUserIdRaw);
+		TSharedPtr<FMixerChatUser>* CachedUser = CachedUsers.Find(AskingUserId);
 
-		ActivePoll = MakeShared<FChatPollMixerImpl>(AskingUser, Question, EndsAt);
+		// If the user is not already in the cache then we'll inject a join event.
+		if (CachedUser == nullptr)
+		{
+			FString AskingUsername;
+			if (!(*Author)->TryGetStringField(MixerChatStringConstants::FieldNames::UserNameWithUnderscore, AskingUsername))
+			{
+				UE_LOG(LogMixerChat, Error, TEXT("Missing required %s field in json payload"), *MixerChatStringConstants::FieldNames::UserNameWithUnderscore);
+				return false;
+			}
+			CachedUser = &CachedUsers.Add(AskingUserId, MakeShared<FMixerChatUser>(AskingUsername, AskingUserIdRaw));
+
+			UE_LOG(LogMixerChat, Log, TEXT("%s is joining %s's chat channel"), *(*CachedUser)->Name, *RoomId);
+			ChatInterface->TriggerOnChatRoomMemberJoinDelegates(*User, RoomId, (*CachedUser)->GetUniqueNetId());
+		}
+
+		(*Author)->TryGetNumberField(MixerChatStringConstants::FieldNames::UserLevel, (*CachedUser)->Level);
+
+		ActivePoll = MakeShared<FChatPollMixerImpl>(CachedUser->ToSharedRef(), Question, EndsAt);
 		bIsNewPoll = true;
 
 		ActivePoll->Answers.SetNum(Answers->Num());
