@@ -421,7 +421,13 @@ void FMixerInteractivityModule::TickClientLibrary()
 				switch (PreviousLoginState)
 				{
 				case EMixerLoginState::Logging_In:
-					LoginAttemptFinished(false);
+					// On Xbox a pop to not_initialized is expected as a result of calling set_local_user when there
+					// was already a previous user.  In any case on all platforms we can safely postpone dealing with
+					// the client library state until user auth is finished.
+					if (UserAuthState != EMixerLoginState::Logging_In)
+					{
+						LoginAttemptFinished(false);
+					}
 					break;
 
 				case EMixerLoginState::Logged_In:
