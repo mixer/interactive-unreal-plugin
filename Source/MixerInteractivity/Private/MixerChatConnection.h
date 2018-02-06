@@ -11,19 +11,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogMixerChat, Log, All);
 class FMixerChatConnection : public TSharedFromThis<FMixerChatConnection>
 {
 public:
-	FMixerChatConnection(class FOnlineChatMixer* InChatInterface, const FUniqueNetId& UserId, const FChatRoomId& InRoomId, const FChatRoomConfig& Config)
-		: ChatInterface(InChatInterface)
-		, User(UserId.AsShared())
-		, RoomId(InRoomId)
-		, ChannelId(0)
-		, MessageId(0)
-		, ChatHistoryNum(0)
-		, ChatHistoryMax(10) // @TODO: pull from config once available
-		, bIsReady(false)
-		, bRejoinOnDisconnect(Config.bRejoinOnDisconnect)
-	{
-	}
-
+	FMixerChatConnection(class FOnlineChatMixer* InChatInterface, const FUniqueNetId& UserId, const FChatRoomId& InRoomId, const FChatRoomConfig& Config);
 	virtual ~FMixerChatConnection();
 
 	bool Init();
@@ -111,4 +99,16 @@ private:
 	int32 MessageId;
 	bool bIsReady;
 	bool bRejoinOnDisconnect;
+
+	struct
+	{
+		bool bConnect;
+		bool bChat;
+		bool bWhisper;
+		bool bPollStart;
+		bool bPollVote;
+		bool bClearMessages;
+		bool bPurge;
+		bool bGiveawayStart;
+	} Permissions;
 };

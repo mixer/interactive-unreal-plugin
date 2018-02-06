@@ -96,8 +96,7 @@ bool FOnlineChatMixer::SendRoomChat(const FUniqueNetId& UserId, const FChatRoomI
 	TSharedPtr<FMixerChatConnection> Connection = FindConnectionForRoomId(RoomId);
 	if (Connection.IsValid())
 	{
-		Connection->SendChatMessage(MsgBody);
-		return true;
+		return Connection->SendChatMessage(MsgBody);
 	}
 	else
 	{

@@ -79,6 +79,19 @@ namespace MixerChatStringConstants
 		const FString Answers = TEXT("answers");
 		const FString ResponsesByIndex = TEXT("responsesByIndex");
 		const FString Author = TEXT("author");
+		const FString Permissions = TEXT("permissions");
+	}
+
+	namespace Permissions
+	{
+		const FString Connect = TEXT("connect");
+		const FString Chat = TEXT("chat");
+		const FString Whisper = TEXT("whisper");
+		const FString PollStart = TEXT("poll_start");
+		const FString PollVote = TEXT("poll_vote");
+		const FString ClearMessages = TEXT("clear_messages");
+		const FString Purge = TEXT("purge");
+		const FString GiveawayStart = TEXT("giveaway_start");
 	}
 }
 
@@ -145,6 +158,20 @@ namespace
 
 		return MethodPacketString;
 	}
+}
+
+FMixerChatConnection::FMixerChatConnection(FOnlineChatMixer* InChatInterface, const FUniqueNetId& UserId, const FChatRoomId& InRoomId, const FChatRoomConfig& Config)
+: ChatInterface(InChatInterface)
+, User(UserId.AsShared())
+, RoomId(InRoomId)
+, ChannelId(0)
+, MessageId(0)
+, ChatHistoryNum(0)
+, ChatHistoryMax(10) // @TODO: pull from config once available
+, bIsReady(false)
+, bRejoinOnDisconnect(Config.bRejoinOnDisconnect)
+{
+	FMemory::Memzero(Permissions);
 }
 
 FMixerChatConnection::~FMixerChatConnection()
@@ -244,7 +271,20 @@ void FMixerChatConnection::OnDiscoverChatServersComplete(FHttpRequestPtr HttpReq
 					}
 
 					JsonObject->TryGetStringField(MixerChatStringConstants::FieldNames::AuthKey, AuthKey);
-					OpenWebSocket();
+					const TArray<TSharedPtr<FJsonValue>>* JsonPermissions;
+					if (JsonObject->TryGetArrayField(MixerChatStringConstants::FieldNames::Permissions, JsonPermissions))
+					{
+						Permissions.bConnect = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::Connect; });
+						Permissions.bChat = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::Chat; });
+						Permissions.bWhisper = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::Chat; });
+						Permissions.bPollStart = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::PollStart; });
+						Permissions.bPollVote = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::PollVote; });
+						Permissions.bClearMessages = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::ClearMessages; });
+						Permissions.bPurge = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::Purge; });
+						Permissions.bGiveawayStart = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::GiveawayStart; });
+
+						OpenWebSocket();
+					}
 				}
 			}
 		}
@@ -745,6 +785,12 @@ bool FMixerChatConnection::SendChatMessage(const FString& MessageBody)
 		return false;
 	}
 
+	if (!Permissions.bChat)
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("No permission to send chat in room %s."), *RoomId);
+		return false;
+	}
+
 	check(WebSocket.IsValid());
 	check(WebSocket->IsConnected());
 
@@ -768,6 +814,12 @@ bool FMixerChatConnection::SendWhisper(const FString& ToUser, const FString& Mes
 		return false;
 	}
 
+	if (!Permissions.bWhisper)
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("No permission to send whispers in room %s."), *RoomId);
+		return false;
+	}
+
 	FString MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::Whisper, MessageId, ToUser, MessageBody);
 	SendMethodPacket(MethodPacket, nullptr);
 
@@ -788,6 +840,12 @@ bool FMixerChatConnection::SendVoteStart(const FString& Question, const TArray<F
 		return false;
 	}
 
+	if (!Permissions.bPollStart)
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("No permission to start votes in room %s."), *RoomId);
+		return false;
+	}
+
 	FString MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::VoteStart, MessageId, Question, Answers, Duration.GetTotalSeconds());
 	SendMethodPacket(MethodPacket, nullptr);
 
@@ -805,6 +863,12 @@ bool FMixerChatConnection::SendVoteChoose(const FChatPollMixer& Poll, int32 Answ
 	if (IsAnonymous())
 	{
 		UE_LOG(LogMixerChat, Warning, TEXT("Attempt to vote in poll in room %s when connected anonymously."), *RoomId);
+		return false;
+	}
+
+	if (!Permissions.bPollVote)
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("No permission to cast votes in room %s."), *RoomId);
 		return false;
 	}
 
@@ -865,6 +929,12 @@ void FMixerChatConnection::GetMessageHistory(int32 NumMessages, TArray< TSharedR
 
 void FMixerChatConnection::OpenWebSocket()
 {
+	if (!Permissions.bConnect)
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("No permission to connect to room %s.  Web socket not opened."), *RoomId);
+		return;
+	}
+
 	// Shouldn't ever get this far if we don't have a websocket implementation.
 	check(WITH_WEBSOCKETS != 0);
 	const FString& SelectedEndpoint = Endpoints[FMath::RandRange(0, Endpoints.Num() - 1)];
