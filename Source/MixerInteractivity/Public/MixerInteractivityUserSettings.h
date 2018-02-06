@@ -24,4 +24,13 @@ public:
 
 	UPROPERTY(Transient)
 	FString AccessToken;
+
+public:
+
+	FString GetAuthZHeaderValue() const
+	{
+		return (!AccessToken.IsEmpty() && PLATFORM_SUPPORTS_MIXER_OAUTH)
+			? FString(TEXT("Bearer ")) + AccessToken
+			: AccessToken;
+	}
 };

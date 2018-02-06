@@ -29,6 +29,16 @@ public:
 	int32 Level;
 
 	FMixerUser();
+
+	bool operator==(const FMixerUser& Other) const
+	{
+		return Id == Other.Id;
+	}
+
+	bool operator!=(const FMixerUser& Other) const
+	{
+		return Id != Other.Id;
+	}
 };
 
 /** Information about a channel owned by a user on Mixer */
@@ -37,6 +47,9 @@ struct FMixerChannel
 public:
 	/** A name for the channel, suitable for display in game UI */
 	FString Name;
+
+	/** Unique identifier, for internal use */
+	int32 Id;
 
 	/** 
 	* The number of users currently viewing this channel 

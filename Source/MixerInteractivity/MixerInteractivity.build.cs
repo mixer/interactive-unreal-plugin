@@ -18,10 +18,12 @@ public class MixerInteractivity : ModuleRules
 				"SlateCore",
 				"Slate",
 				"UMG",
+				"WebSockets",
 			});
 
 		// Need Version.h
 		PrivateIncludePathModuleNames.Add("Launch");
+		PrivateIncludePathModuleNames.Add("OnlineSubsystem");
 
 		string ThirdPartyFolder = Path.Combine(ModuleDirectory, "..", "..", "ThirdParty");
 		PrivateIncludePaths.Add(Path.Combine(ThirdPartyFolder, "Include"));
