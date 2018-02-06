@@ -36,6 +36,8 @@ namespace MixerChatStringConstants
 		const FString Msg = TEXT("msg");
 		const FString Whisper = TEXT("whisper");
 		const FString History = TEXT("history");
+		const FString VoteStart = TEXT("vote:start");
+		const FString VoteChoose = TEXT("vote:choose");
 	}
 
 	namespace EventTypes
@@ -47,6 +49,8 @@ namespace MixerChatStringConstants
 		const FString DeleteMessage = TEXT("DeleteMessage");
 		const FString ClearMessages = TEXT("ClearMessages");
 		const FString PurgeMessage = TEXT("PurgeMessage");
+		const FString PollStart = TEXT("PollStart");
+		const FString PollEnd = TEXT("PollEnd");
 	}
 
 	namespace FieldNames
@@ -69,6 +73,12 @@ namespace MixerChatStringConstants
 		const FString AuthKey = TEXT("authkey");
 		const FString UserId = TEXT("user_id");
 		const FString UserLevel = TEXT("user_level");
+		const FString Q = TEXT("q");
+		const FString EndsAt = TEXT("endsAt");
+		const FString Voters = TEXT("voters");
+		const FString Answers = TEXT("answers");
+		const FString ResponsesByIndex = TEXT("responsesByIndex");
+		const FString Author = TEXT("author");
 	}
 }
 
@@ -82,22 +92,40 @@ if (!JsonObj->TryGet##JsonType##Field(MixerChatStringConstants::FieldNames::##Js
 
 #define GET_JSON_STRING_RETURN_FAILURE(JsonNameConstant, UEName)	GET_JSON_FIELD_RETURN_FAILURE(String, JsonNameConstant, FString, UEName)
 #define GET_JSON_INT_RETURN_FAILURE(JsonNameConstant, UEName)		GET_JSON_FIELD_RETURN_FAILURE(Number, JsonNameConstant, int32, UEName)
+#define GET_JSON_DOUBLE_RETURN_FAILURE(JsonNameConstant, UEName)	GET_JSON_FIELD_RETURN_FAILURE(Number, JsonNameConstant, double, UEName)
 #define GET_JSON_OBJECT_RETURN_FAILURE(JsonNameConstant, UEName)	GET_JSON_FIELD_RETURN_FAILURE(Object, JsonNameConstant, const TSharedPtr<FJsonObject>*, UEName)
 #define GET_JSON_ARRAY_RETURN_FAILURE(JsonNameConstant, UEName)		GET_JSON_FIELD_RETURN_FAILURE(Array, JsonNameConstant, const TArray<TSharedPtr<FJsonValue>> *, UEName)
 
 namespace
 {
+	template <class T>
+	void WriteSingleRemoteMethodParam(TJsonWriter<>& Writer, T Param1)
+	{
+		Writer.WriteValue(Param1);
+	}
+
+	template <class T>
+	void WriteSingleRemoteMethodParam(TJsonWriter<>& Writer, const TArray<T>& Param1)
+	{
+		Writer.WriteArrayStart();
+		for (const T& Val : Param1)
+		{
+			Writer.WriteValue(Val);
+		}
+		Writer.WriteArrayEnd();
+	}
+
 	template <class T, class ...ArgTypes>
 	void WriteRemoteMethodParams(TJsonWriter<>& Writer, T Param1, ArgTypes... AdditionalArgs)
 	{
-		Writer.WriteValue(Param1);
+		WriteSingleRemoteMethodParam(Writer, Param1);
 		WriteRemoteMethodParams(Writer, AdditionalArgs...);
 	}
 
 	template <class T>
 	void WriteRemoteMethodParams(TJsonWriter<>& Writer, T Param1)
 	{
-		Writer.WriteValue(Param1);
+		WriteSingleRemoteMethodParam(Writer, Param1);
 	}
 
 	template <class ... ArgTypes>
@@ -553,6 +581,142 @@ bool FMixerChatConnection::HandlePurgeMessageEvent(FJsonObject* JsonObj)
 	return true;
 }
 
+bool FMixerChatConnection::HandlePollStartEvent(FJsonObject* JsonObj)
+{
+	GET_JSON_DOUBLE_RETURN_FAILURE(EndsAt, EndsAtDouble);
+
+	// EndsAt is reported in ms since January 1 1970
+	FDateTime EndsAt = FDateTime::FromUnixTimestamp(static_cast<int64>(EndsAtDouble / 1000.0));
+
+	bool bIsNewPoll = false;
+	if (ActivePoll.IsValid())
+	{
+		// Sanity check that this message matches the ongoing poll in this channel.
+		if (ActivePoll->GetEndTime() != EndsAt)
+		{
+			UE_LOG(LogMixerChat, Error, TEXT("Received PollStart with end time different to current poll (new: %s, current %s); expected PollEnd event prior to poll change."), *EndsAt.ToString(), *ActivePoll->GetEndTime().ToString());
+			return false;
+		}
+	}
+	else
+	{
+		GET_JSON_STRING_RETURN_FAILURE(Q, Question);
+		GET_JSON_OBJECT_RETURN_FAILURE(Author, Author);
+		GET_JSON_ARRAY_RETURN_FAILURE(Answers, Answers);
+
+		FString AskingUsername;
+		int32 AskingUserId;
+		bool bGotAuthor = (*Author)->TryGetStringField(MixerChatStringConstants::FieldNames::UserNameWithUnderscore, AskingUsername);
+		bGotAuthor &= (*Author)->TryGetNumberField(MixerChatStringConstants::FieldNames::UserId, AskingUserId);
+
+		if (!bGotAuthor)
+		{
+			UE_LOG(LogMixerChat, Error, TEXT("Failed to parse author for new poll"));
+			return false;
+		}
+
+		TSharedRef<FMixerChatUser> AskingUser = MakeShared<FMixerChatUser>(AskingUsername, AskingUserId);
+		(*Author)->TryGetNumberField(MixerChatStringConstants::FieldNames::UserLevel, AskingUser->Level);
+
+		ActivePoll = MakeShared<FChatPollMixerImpl>(AskingUser, Question, EndsAt);
+		bIsNewPoll = true;
+
+		ActivePoll->Answers.SetNum(Answers->Num());
+		for (int32 i = 0; i < Answers->Num(); ++i)
+		{
+			(*Answers)[i]->TryGetString(ActivePoll->Answers[i].Name);
+			ActivePoll->Answers[i].Voters = 0;
+		}
+	}
+
+	bool bAnythingChanged = false;
+	UpdateActivePollFromServer(JsonObj, bAnythingChanged);
+
+	if (bIsNewPoll)
+	{
+		ChatInterface->TriggerOnChatRoomPollStartDelegates(*User, RoomId, ActivePoll.ToSharedRef());
+	}
+	else if (bAnythingChanged)
+	{
+		ChatInterface->TriggerOnChatRoomPollUpdateDelegates(*User, RoomId, ActivePoll.ToSharedRef());
+	}
+	else
+	{
+		UE_LOG(LogMixerChat, Verbose, TEXT("No change to active poll detected in PollStart event."));
+	}
+
+	return true;
+}
+
+bool FMixerChatConnection::HandlePollEndEvent(FJsonObject* JsonObj)
+{
+	if (!ActivePoll.IsValid())
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("Received poll end with no ActivePoll.  This may be possible at the point of joining a channel.  Otherwise it probably indicates an error."));
+
+		// Report handled to avoid additional spam given that this could be legitimate
+		return true;
+	}
+
+	bool bParsedOk = HandlePollEndEventInternal(JsonObj);
+
+	// Regardless of whether we made sense of the message we should close out the current poll -
+	// that way there's some hope that we can eventually recover rather than being permanently
+	// in an error state.
+	TSharedRef<FChatPollMixer> EndingPoll = ActivePoll.ToSharedRef();
+	ActivePoll.Reset();
+
+	ChatInterface->TriggerOnChatRoomPollEndDelegates(*User, RoomId, EndingPoll);
+
+	return bParsedOk;
+}
+
+bool FMixerChatConnection::HandlePollEndEventInternal(FJsonObject* JsonObj)
+{
+	GET_JSON_DOUBLE_RETURN_FAILURE(EndsAt, EndsAtDouble);
+
+	// EndsAt is reported in ms since January 1 1970
+	FDateTime EndsAt = FDateTime::FromUnixTimestamp(static_cast<int64>(EndsAtDouble / 1000.0));
+
+	// Sanity check that this message matches the ongoing poll in this channel.
+	if (ActivePoll->GetEndTime() != EndsAt)
+	{
+		UE_LOG(LogMixerChat, Error, TEXT("Received PollEnd with end time different to current poll (new: %s, current %s)."), *EndsAt.ToString(), *ActivePoll->GetEndTime().ToString());
+		return false;
+	}
+
+	bool bAnythingChanged = false;
+	return UpdateActivePollFromServer(JsonObj, bAnythingChanged);
+}
+
+
+bool FMixerChatConnection::UpdateActivePollFromServer(FJsonObject* JsonObj, bool& bOutAnythingChanged)
+{
+	GET_JSON_ARRAY_RETURN_FAILURE(ResponsesByIndex, Responses);
+
+	if (ActivePoll->Answers.Num() != Responses->Num())
+	{
+		UE_LOG(LogMixerChat, Error, TEXT("Unexpected change to number of possible answers for poll after creation (old value: %d, new value %d)"), ActivePoll->Answers.Num(), Responses->Num());
+		return false;
+	}
+
+	bOutAnythingChanged = false;
+	for (int32 i = 0; i < Responses->Num(); ++i)
+	{
+		int32 NewVoteCount;
+		if ((*Responses)[i]->TryGetNumber(NewVoteCount))
+		{
+			if (NewVoteCount != ActivePoll->Answers[i].Voters)
+			{
+				ActivePoll->Answers[i].Voters = NewVoteCount;
+				bOutAnythingChanged = true;
+			}
+		}
+	}
+
+	return true;
+}
+
 bool FMixerChatConnection::SendChatMessage(const FString& MessageBody)
 {
 	if (!bIsReady)
@@ -591,6 +755,52 @@ bool FMixerChatConnection::SendWhisper(const FString& ToUser, const FString& Mes
 	}
 
 	FString MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::Whisper, MessageId, ToUser, MessageBody);
+	SendMethodPacket(MethodPacket, nullptr);
+
+	return true;
+}
+
+bool FMixerChatConnection::SendVoteStart(const FString& Question, const TArray<FString>& Answers, FTimespan Duration)
+{
+	if (!bIsReady)
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("Attempt to start poll in room %s before connection has been established.  Wait for OnChatRoomJoin event."), *RoomId);
+		return false;
+	}
+
+	if (IsAnonymous())
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("Attempt to start poll in room %s when connected anonymously."), *RoomId);
+		return false;
+	}
+
+	FString MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::VoteStart, MessageId, Question, Answers, Duration.GetTotalSeconds());
+	SendMethodPacket(MethodPacket, nullptr);
+
+	return true;
+}
+
+bool FMixerChatConnection::SendVoteChoose(const FChatPollMixer& Poll, int32 AnswerIndex)
+{
+	if (!bIsReady)
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("Attempt to vote in poll in room %s before connection has been established.  Wait for OnChatRoomJoin event."), *RoomId);
+		return false;
+	}
+
+	if (IsAnonymous())
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("Attempt to vote in poll in room %s when connected anonymously."), *RoomId);
+		return false;
+	}
+
+	if (&Poll != ActivePoll.Get())
+	{
+		UE_LOG(LogMixerChat, Warning, TEXT("Attempt to vote in poll in room %s when it is not the active poll."), *RoomId);
+		return false;
+	}
+
+	FString MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::VoteChoose, MessageId, AnswerIndex);
 	SendMethodPacket(MethodPacket, nullptr);
 
 	return true;
@@ -864,6 +1074,8 @@ FMixerChatConnection::FServerMessageHandler FMixerChatConnection::GetEventHandle
 		EventHandlers.Add(MixerChatStringConstants::EventTypes::DeleteMessage, &FMixerChatConnection::HandleDeleteMessageEvent);
 		EventHandlers.Add(MixerChatStringConstants::EventTypes::ClearMessages, &FMixerChatConnection::HandleClearMessagesEvent);
 		EventHandlers.Add(MixerChatStringConstants::EventTypes::PurgeMessage, &FMixerChatConnection::HandlePurgeMessageEvent);
+		EventHandlers.Add(MixerChatStringConstants::EventTypes::PollStart, &FMixerChatConnection::HandlePollStartEvent);
+		EventHandlers.Add(MixerChatStringConstants::EventTypes::PollEnd, &FMixerChatConnection::HandlePollEndEvent);
 	}
 
 	FServerMessageHandler* Handler = EventHandlers.Find(EventType);

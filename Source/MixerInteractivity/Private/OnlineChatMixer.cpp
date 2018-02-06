@@ -179,6 +179,33 @@ bool FOnlineChatMixer::GetLastMessages(const FUniqueNetId& UserId, const FChatRo
 	}
 }
 
+bool FOnlineChatMixer::StartPoll(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& Question, const TArray<FString>& Answers, FTimespan Duration)
+{
+	TSharedPtr<FMixerChatConnection> Connection = FindConnectionForRoomId(RoomId);
+	if (Connection.IsValid())
+	{
+		return Connection->SendVoteStart(Question, Answers, Duration);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool FOnlineChatMixer::VoteInPoll(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FChatPollMixer& Poll, int32 AnswerIndex)
+{
+	TSharedPtr<FMixerChatConnection> Connection = FindConnectionForRoomId(RoomId);
+	if (Connection.IsValid())
+	{
+		return Connection->SendVoteChoose(Poll, AnswerIndex);
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
 
 bool FOnlineChatMixer::IsDefaultChatRoom(const FChatRoomId& RoomId) const
 {

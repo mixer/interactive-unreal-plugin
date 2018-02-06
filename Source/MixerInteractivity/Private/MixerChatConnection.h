@@ -30,6 +30,8 @@ public:
 
 	bool SendChatMessage(const FString& MessageBody);
 	bool SendWhisper(const FString& ToUser, const FString& MessageBody);
+	bool SendVoteStart(const FString& Question, const TArray<FString>& Answers, FTimespan Duration);
+	bool SendVoteChoose(const FChatPollMixer& Poll, int32 AnswerIndex);
 
 	const FChatRoomId& GetRoom() const			{ return RoomId; }
 	bool IsAnonymous() const					{ return AuthKey.IsEmpty(); }
@@ -66,12 +68,14 @@ private:
 	bool HandleDeleteMessageEvent(class FJsonObject* JsonObj);
 	bool HandleClearMessagesEvent(class FJsonObject* JsonObj);
 	bool HandlePurgeMessageEvent(class FJsonObject* JsonObj);
-	bool HandlePollStartEvent(class FJsonObject* JsonObj, TSharedPtr<FChatMessageMixerImpl>& OutMessage);
-	bool HandlePollEndEvent(class FJsonObject* JsonObj, TSharedPtr<FChatMessageMixerImpl>& OutMessage);
+	bool HandlePollStartEvent(class FJsonObject* JsonObj);
+	bool HandlePollEndEvent(class FJsonObject* JsonObj);
 
 	bool HandleChatMessageEventInternal(class FJsonObject* JsonObj, TSharedPtr<FChatMessageMixerImpl>& OutMessage);
 	bool HandleChatMessageEventMessageObject(class FJsonObject* JsonObj, FChatMessageMixerImpl* ChatMessage);
 	bool HandleChatMessageEventMessageArrayEntry(class FJsonObject* JsonObj, FChatMessageMixerImpl* ChatMessage);
+	bool HandlePollEndEventInternal(class FJsonObject* JsonObj);
+	bool UpdateActivePollFromServer(class FJsonObject* JsonObj, bool& bOutAnythingChanged);
 
 	void AddMessageToChatHistory(TSharedRef<struct FChatMessageMixerImpl> ChatMessage);
 	void DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<FChatMessageMixerImpl>)> Predicate);
@@ -98,6 +102,7 @@ private:
 	TSharedPtr<class IWebSocket> WebSocket;
 	TMap<FUniqueNetIdMixer, TSharedPtr<FMixerChatUser>> CachedUsers;
 	TMap<int32, FServerMessageHandler> ReplyHandlers;
+	TSharedPtr<struct FChatPollMixerImpl> ActivePoll;
 	TSharedPtr<struct FChatMessageMixerImpl> ChatHistoryNewest;
 	TSharedPtr<struct FChatMessageMixerImpl> ChatHistoryOldest;
 	int32 ChatHistoryNum;

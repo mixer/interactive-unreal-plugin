@@ -96,9 +96,9 @@ public:
 	virtual const FDateTime& GetTimestamp() const override						{ return Timestamp; }
 
 	// FChatMessageMixer methods
-	virtual bool IsWhisper() override											{ return bIsWhisper; }
-	virtual bool IsAction() override											{ return bIsAction; }
-	virtual bool IsModerated() override											{ return bIsModerated; }
+	virtual bool IsWhisper()const override										{ return bIsWhisper; }
+	virtual bool IsAction() const override										{ return bIsAction; }
+	virtual bool IsModerated() const override									{ return bIsModerated; }
 
 	const FMixerChatUser& GetSender()											{ return FromUser.Get(); }
 	const FGuid& GetMessageId()													{ return MessageId; }
@@ -146,6 +146,39 @@ public:
 	TSharedPtr<FChatMessageMixerImpl> PrevLink;
 };
 
+struct FChatPollMixerImpl : public FChatPollMixer
+{
+public:
+	FChatPollMixerImpl(TSharedRef<const FMixerChatUser> InAskingUser, const FString& InQuestion, FDateTime InEndsAt)
+		: AskingUser(InAskingUser)
+		, Question(InQuestion)
+		, EndsAt(InEndsAt)
+	{
+
+	}
+
+	virtual TSharedRef<const FChatRoomMember> GetAskingUser() const	override		{ return AskingUser; }
+	virtual const FString& GetQuestion() const override								{ return Question; }
+	virtual int32 GetNumAnswers() const override									{ return Answers.Num(); }
+	virtual const FString& GetAnswer(int32 Index) const override					{ return Answers[Index].Name; }
+	virtual int32 GetNumVotersForAnswer(int32 Index) const override					{ return Answers[Index].Voters; }
+	virtual FDateTime GetEndTime() const override									{ return EndsAt; }
+
+public:
+	struct Answer
+	{
+		FString Name;
+		int32 Voters;
+	};
+
+	TArray<Answer> Answers;
+
+private:
+	TSharedRef<const FMixerChatUser> AskingUser;
+	FString Question;
+	FDateTime EndsAt;
+};
+
 class FOnlineChatMixer : public IOnlineChatMixer, public TSharedFromThis<FOnlineChatMixer>
 {
 public:
@@ -176,6 +209,10 @@ public:
 	virtual bool GetLastMessages(const FUniqueNetId& UserId, const FChatRoomId& RoomId, int32 NumMessages, TArray< TSharedRef<FChatMessage> >& OutMessages) override;
 
 	virtual void DumpChatState() const override {}
+
+	// IOnlineChatMixer
+	virtual bool StartPoll(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& Question, const TArray<FString>& Answers, FTimespan Duration) override;
+	virtual bool VoteInPoll(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FChatPollMixer& Poll, int32 AnswerIndex) override;
 
 public:
 	void ConnectAttemptFinished(const FUniqueNetId& UserId, const FChatRoomId& RoomId, bool bSuccess, const FString& ErrorMessage);
