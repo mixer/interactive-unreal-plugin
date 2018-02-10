@@ -12,6 +12,7 @@
 #include "MixerInteractivityUserSettings.h"
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivityLog.h"
+#include "OnlineChatMixer.h"
 
 #include "HttpModule.h"
 #include "PlatformHttp.h"
@@ -30,6 +31,7 @@
 #include "SlateApplication.h"
 #include "App.h"
 #include "Engine/Engine.h"
+#include "OnlineSubsystemTypes.h"
 
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
 #include "SMixerLoginPane.h"
@@ -71,6 +73,8 @@ void FMixerInteractivityModule::StartupModule()
 	InteractivityState = EMixerInteractivityState::Not_Interactive;
 	ClientLibraryState = Microsoft::mixer::not_initialized;
 	HasCreatedGroups = false;
+
+	ChatInterface = MakeShared<FOnlineChatMixer>();
 }
 
 bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> UserId)
@@ -113,7 +117,7 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 		const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
 		Microsoft::mixer::interactivity_manager::get_singleton_instance()->set_oauth_token(*UserSettings->AccessToken);
-		if (Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false))
+		if (Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false, *Settings->ShareCode))
 		{
 			// Set this immediately so that polling for state matches the event
 			ClientLibraryState = Microsoft::mixer::initializing;
@@ -417,7 +421,13 @@ void FMixerInteractivityModule::TickClientLibrary()
 				switch (PreviousLoginState)
 				{
 				case EMixerLoginState::Logging_In:
-					LoginAttemptFinished(false);
+					// On Xbox a pop to not_initialized is expected as a result of calling set_local_user when there
+					// was already a previous user.  In any case on all platforms we can safely postpone dealing with
+					// the client library state until user auth is finished.
+					if (UserAuthState != EMixerLoginState::Logging_In)
+					{
+						LoginAttemptFinished(false);
+					}
 					break;
 
 				case EMixerLoginState::Logged_In:
@@ -649,11 +659,10 @@ void FMixerInteractivityModule::OnTokenRequestComplete(FHttpRequestPtr HttpReque
 	{
 		// Now get user info
 		const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
-		FString AuthZHeaderValue = FString::Printf(TEXT("Bearer %s"), *UserSettings->AccessToken);
 		TSharedRef<IHttpRequest> UserRequest = FHttpModule::Get().CreateRequest();
 		UserRequest->SetVerb(TEXT("GET"));
 		UserRequest->SetURL(TEXT("https://mixer.com/api/v1/users/current"));
-		UserRequest->SetHeader(TEXT("Authorization"), AuthZHeaderValue);
+		UserRequest->SetHeader(TEXT("Authorization"), UserSettings->GetAuthZHeaderValue());
 		UserRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnUserRequestComplete);
 		if (!UserRequest->ProcessRequest())
 		{
@@ -685,17 +694,30 @@ void FMixerInteractivityModule::OnUserRequestComplete(FHttpRequestPtr HttpReques
 	{
 		UserAuthState = EMixerLoginState::Logged_In;
 
-		if (NeedsClientLibraryActive() && ClientLibraryState == Microsoft::mixer::not_initialized)
+		if (NeedsClientLibraryActive())
 		{
 			const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-			if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false))
+			switch (ClientLibraryState)
 			{
-				LoginAttemptFinished(false);
-			}
-			else
-			{
-				// Set this immediately to avoid a temporary pop to Not_Logged_In
-				ClientLibraryState = Microsoft::mixer::initializing;
+			case Microsoft::mixer::not_initialized:
+				if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false, *Settings->ShareCode))
+				{
+					LoginAttemptFinished(false);
+				}
+				else
+				{
+					// Set this immediately to avoid a temporary pop to Not_Logged_In
+					ClientLibraryState = Microsoft::mixer::initializing;
+				}
+				break;
+
+			case Microsoft::mixer::initializing:
+				// Should naturally progress and we'll handle it in Tick
+				break;
+
+			default:
+				// We're already logged in
+				LoginAttemptFinished(true);
 			}
 		}
 		else
@@ -1172,6 +1194,15 @@ void FMixerInteractivityModule::InitDesignTimeGroups()
 	}
 }
 
+TSharedPtr<IOnlineChat> FMixerInteractivityModule::GetChatInterface()
+{
+	return ChatInterface;
+}
+
+TSharedPtr<IOnlineChatMixer> FMixerInteractivityModule::GetExtendedChatInterface()
+{
+	return ChatInterface;
+}
 
 #if PLATFORM_XBOXONE
 void FMixerInteractivityModule::TickXboxLogin()
@@ -1185,10 +1216,13 @@ void FMixerInteractivityModule::TickXboxLogin()
 			{
 				if (GetXTokenOperation->Status == Windows::Foundation::AsyncStatus::Completed)
 				{
+					UMixerInteractivityUserSettings* UserSettings = GetMutableDefault<UMixerInteractivityUserSettings>();
+					UserSettings->AccessToken = GetXTokenOperation->GetResults()->Token->ToString()->Data();
+
 					TSharedRef<IHttpRequest> UserRequest = FHttpModule::Get().CreateRequest();
 					UserRequest->SetVerb(TEXT("GET"));
 					UserRequest->SetURL(TEXT("https://mixer.com/api/v1/users/current"));
-					UserRequest->SetHeader(TEXT("Authorization"), GetXTokenOperation->GetResults()->Token->ToString()->Data());
+					UserRequest->SetHeader(TEXT("Authorization"), UserSettings->GetAuthZHeaderValue());
 					UserRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnUserRequestComplete);
 					if (!UserRequest->ProcessRequest())
 					{

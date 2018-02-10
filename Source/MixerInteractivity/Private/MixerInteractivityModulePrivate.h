@@ -27,6 +27,7 @@
 #include "JsonSerializerMacros.h"
 #include "Future.h"
 #include "Input/Reply.h"
+#include "CoreOnline.h"
 #include <memory>
 
 namespace Microsoft
@@ -44,6 +45,7 @@ struct FMixerChannelJsonSerializable : public FMixerChannel, public FJsonSeriali
 {
 public:
 	BEGIN_JSON_SERIALIZER
+		JSON_SERIALIZE("id", Id);
 		JSON_SERIALIZE("name", Name);
 		JSON_SERIALIZE("viewersCurrent", CurrentViewers);
 		JSON_SERIALIZE("viewersTotal", LifetimeUniqueViewers);
@@ -132,6 +134,9 @@ public:
 	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId);
 	virtual void CaptureSparkTransaction(const FString& TransactionId);
 
+	virtual TSharedPtr<class IOnlineChat> GetChatInterface();
+	virtual TSharedPtr<class IOnlineChatMixer> GetExtendedChatInterface();
+
 	virtual FOnLoginStateChanged& OnLoginStateChanged()						{ return LoginStateChanged; }
 	virtual FOnInteractivityStateChanged& OnInteractivityStateChanged()		{ return InteractivityStateChanged; }
 	virtual FOnParticipantStateChangedEvent& OnParticipantStateChanged()	{ return ParticipantStateChanged; }
@@ -193,6 +198,8 @@ private:
 	FOnButtonEvent ButtonEvent;
 	FOnStickEvent StickEvent;
 	FOnBroadcastingStateChanged BroadcastingStateChanged;
+
+	TSharedPtr<class FOnlineChatMixer> ChatInterface;
 
 	bool RetryLoginWithUI;
 	bool HasCreatedGroups;

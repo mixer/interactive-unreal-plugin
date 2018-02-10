@@ -123,9 +123,9 @@ void SMixerLoginPane::StartLoginFlowAfterCookiesDeleted()
 	if (BrowserWidget.IsValid())
 	{
 #if WITH_EDITOR
-		static const FString OAuthScope = GIsEditor ? "interactive:manage:self interactive:robot:self" : "interactive:robot:self";
+		static const FString OAuthScope = GIsEditor ? "interactive:manage:self interactive:robot:self chat:connect chat:chat chat:whisper" : "interactive:robot:self chat:connect chat:chat chat:whisper";
 #else
-		static const FString OAuthScope = "interactive:robot:self";
+		static const FString OAuthScope = "interactive:robot:self chat:connect chat:chat chat:whisper";
 #endif
 
 		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
