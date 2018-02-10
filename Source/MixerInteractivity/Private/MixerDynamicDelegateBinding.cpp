@@ -11,6 +11,13 @@
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivityLog.h"
 #include "Engine/World.h"
+#include "Dom/JsonValue.h"
+#include "Dom/JsonObject.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonWriter.h"
+#include "Serialization/JsonSerializer.h"
+#include "Logging/MessageLog.h"
+#include "Misc/UObjectToken.h"
 
 TArray<TWeakObjectPtr<UMixerInteractivityBlueprintEventSource>> UMixerInteractivityBlueprintEventSource::BlueprintEventSources;
 
@@ -51,6 +58,20 @@ FMixerButtonEventDynamicDelegate* UMixerInteractivityBlueprintEventSource::GetBu
 {
 	FMixerButtonEventDynamicDelegateWrapper& DelegateWrapper = ButtonDelegates.FindOrAdd(ButtonName);
 	return Pressed ? &DelegateWrapper.PressedDelegate : &DelegateWrapper.ReleasedDelegate;
+}
+
+void UMixerInteractivityBlueprintEventSource::AddCustomGlobalEventBinding(const FString& EventName, UObject* TargetObject, FName TargetFunctionName)
+{
+	FMixerCustomGlobalEventStubDelegateWrapper& DelegateWrapper = CustomGlobalEventDelegates.FindOrAdd(EventName);
+	FScriptDelegate SingleDelegate;
+	SingleDelegate.BindUFunction(TargetObject, TargetFunctionName);
+	DelegateWrapper.Delegate.AddUnique(SingleDelegate);
+
+	if (DelegateWrapper.FunctionPrototype == nullptr)
+	{
+		DelegateWrapper.PrototypeReference.SetExternalMember(TargetFunctionName, TargetObject->GetClass());
+		DelegateWrapper.FunctionPrototype = DelegateWrapper.PrototypeReference.ResolveMember<UFunction>(static_cast<UClass*>(nullptr));
+	}
 }
 
 FMixerStickEventDynamicDelegate* UMixerInteractivityBlueprintEventSource::GetStickEvent(FName StickName)
@@ -116,9 +137,98 @@ void UMixerInteractivityBlueprintEventSource::OnBroadcastingStateChangedNativeEv
 	}
 }
 
+void UMixerInteractivityBlueprintEventSource::OnCustomMessageNativeEvent(const FString& MessageBodyString)
+{
+	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(MessageBodyString);
+	TSharedPtr<FJsonObject> JsonObject;
+	if (FJsonSerializer::Deserialize(JsonReader, JsonObject) &&
+		JsonObject.IsValid())
+	{
+		FString MessageType;
+		if (JsonObject->TryGetStringField(TEXT("method"), MessageType))
+		{
+			FMixerCustomGlobalEventStubDelegateWrapper* DelegateWrapper = CustomGlobalEventDelegates.Find(MessageType);
+			if (DelegateWrapper != nullptr && DelegateWrapper->FunctionPrototype != nullptr)
+			{
+				void* ParmStorage = FMemory_Alloca(DelegateWrapper->FunctionPrototype->ParmsSize);
+				FMemory::Memzero(ParmStorage, DelegateWrapper->FunctionPrototype->ParmsSize);
+				for (TFieldIterator<UProperty> PropIt(DelegateWrapper->FunctionPrototype); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
+				{
+					if (!PropIt->HasAnyPropertyFlags(CPF_OutParm) || PropIt->HasAnyPropertyFlags(CPF_ReferenceParm))
+					{
+						auto F = JsonObject->TryGetField(PropIt->GetName());
+						PropIt->ImportText(*F->AsString(), (uint8*)ParmStorage + PropIt->GetOffset_ForUFunction(), 0, nullptr);						
+					}
+				}
+
+				DelegateWrapper->Delegate.ProcessMulticastDelegate<UObject>(ParmStorage);
+
+				for (TFieldIterator<UProperty> PropIt(DelegateWrapper->FunctionPrototype); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
+				{
+					if (!PropIt->HasAnyPropertyFlags(CPF_OutParm) || PropIt->HasAnyPropertyFlags(CPF_ReferenceParm))
+					{
+						PropIt->DestroyValue((uint8*)ParmStorage + PropIt->GetOffset_ForUFunction());
+					}
+				}
+			}
+		}
+	}
+}
+
+
 UWorld* UMixerInteractivityBlueprintEventSource::GetWorld() const
 {
 	return Cast<UWorld>(GetOuter());
+}
+
+void UMixerInteractivityBlueprintEventSource::PostLoad() 
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	bool bFoundOutOfDateEvents = false;
+	for (TMap<FName, FMixerButtonEventDynamicDelegateWrapper>::TIterator It(ButtonDelegates); It; ++It)
+	{
+		if (!It->Value.PressedDelegate.IsBound() && !It->Value.ReleasedDelegate.IsBound())
+		{
+			bFoundOutOfDateEvents = true;
+			It.RemoveCurrent();
+		}
+	}
+
+	for (TMap<FName, FMixerStickEventDynamicDelegateWrapper>::TIterator It(StickDelegates); It; ++It)
+	{
+		if (!It->Value.Delegate.IsBound())
+		{
+			bFoundOutOfDateEvents = true;
+			It.RemoveCurrent();
+		}
+	}
+#endif
+
+	for (TMap<FString, FMixerCustomGlobalEventStubDelegateWrapper>::TIterator It(CustomGlobalEventDelegates); It; ++It)
+	{
+#if WITH_EDITOR
+		if (!It->Value.Delegate.IsBound())
+		{
+			bFoundOutOfDateEvents = true;
+			It.RemoveCurrent();
+		}
+		else
+#endif
+		{
+			It->Value.FunctionPrototype = It->Value.PrototypeReference.ResolveMember<UFunction>(static_cast<UClass*>(nullptr));
+		}
+	}
+
+#if WITH_EDITOR
+	if (GIsEditor && bFoundOutOfDateEvents)
+	{
+		FMessageLog("LoadErrors").Warning()
+			->AddToken(FUObjectToken::Create(GetOutermost()))
+			->AddToken(FTextToken::Create(NSLOCTEXT("MixerInteractivity", "ResaveNeeded_OutOfDateEvents", "References to out-of-date Mixer events found.  Please resave.")));
+	}
+#endif
 }
 
 void UMixerDelegateBinding::AddButtonBinding(const FMixerButtonEventBinding& BindingInfo)
@@ -129,6 +239,11 @@ void UMixerDelegateBinding::AddButtonBinding(const FMixerButtonEventBinding& Bin
 void UMixerDelegateBinding::AddStickBinding(const FMixerStickEventBinding& BindingInfo)
 {
 	StickEventBindings.Add(BindingInfo);
+}
+
+void UMixerDelegateBinding::AddCustomGlobalEventBinding(const FMixerCustomGlobalEventBinding& BindingInfo)
+{
+	CustomGlobalEventBindings.Add(BindingInfo);
 }
 
 void UMixerDelegateBinding::BindDynamicDelegates(UObject* InInstance) const
@@ -156,6 +271,11 @@ void UMixerDelegateBinding::BindDynamicDelegates(UObject* InInstance) const
 			Delegate.BindUFunction(InInstance, StickBinding.TargetFunctionName);
 			Event->AddUnique(Delegate);
 		}
+	}
+
+	for (const FMixerCustomGlobalEventBinding& CustomEventBinding : CustomGlobalEventBindings)
+	{
+		EventSource->AddCustomGlobalEventBinding(CustomEventBinding.EventName, InInstance, CustomEventBinding.TargetFunctionName);
 	}
 
 	if (ParticipantJoinedBinding != NAME_None)

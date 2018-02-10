@@ -17,6 +17,7 @@
 #include "UObject/WeakObjectPtr.h"
 #include "Delegates/Delegate.h"
 #include "MixerInteractivityBlueprintLibrary.h"
+#include "Engine/MemberReference.h"
 
 #include "MixerDynamicDelegateBinding.generated.h"
 
@@ -24,6 +25,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FMixerButtonEventDynamicDelegate, 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMixerParticipantEventDynamicDelegate, int32, ParticipantId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FMixerStickEventDynamicDelegate, FMixerStickReference, Joystick, int32, ParticipantId, float, XAxis, float, YAxis);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMixerBroadcastingEventDynamicDelegate);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMixerCustomGlobalEventStubDelegate);
 
 USTRUCT()
 struct MIXERINTERACTIVITY_API FMixerButtonEventDynamicDelegateWrapper
@@ -44,6 +47,21 @@ struct MIXERINTERACTIVITY_API FMixerStickEventDynamicDelegateWrapper
 
 	UPROPERTY()
 	FMixerStickEventDynamicDelegate Delegate;
+};
+
+USTRUCT()
+struct MIXERINTERACTIVITY_API FMixerCustomGlobalEventStubDelegateWrapper
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FMemberReference PrototypeReference;
+
+	UPROPERTY(transient)
+	UFunction* FunctionPrototype;
+
+	UPROPERTY()
+	FMixerCustomGlobalEventStubDelegate Delegate;
 };
 
 
@@ -74,21 +92,27 @@ public:
 public:
 	FMixerButtonEventDynamicDelegate* GetButtonEvent(FName ButtonName, bool Pressed);
 	FMixerStickEventDynamicDelegate* GetStickEvent(FName StickName);
+	void AddCustomGlobalEventBinding(const FString& EventName, UObject* TargetObject, FName TargetFunctionName);
 
 	void OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerButtonEventDetails& Details);
 	void OnParticipantStateChangedNativeEvent(TSharedPtr<const FMixerRemoteUser> Participant, EMixerInteractivityParticipantState NewState);
 	void OnStickNativeEvent(FName StickName, TSharedPtr<const FMixerRemoteUser> Participant, FVector2D StickValue);
 	void OnBroadcastingStateChangedNativeEvent(bool NewBroadcastingState);
+	void OnCustomMessageNativeEvent(const FString& MessageBodyString);
 
 	virtual UWorld* GetWorld() const override;
+	virtual void PostLoad() override;
 
 private:
 
 	UPROPERTY()
-	TMap< FName, FMixerButtonEventDynamicDelegateWrapper > ButtonDelegates;
+	TMap<FName, FMixerButtonEventDynamicDelegateWrapper> ButtonDelegates;
 
 	UPROPERTY()
-	TMap< FName, FMixerStickEventDynamicDelegateWrapper > StickDelegates;
+	TMap<FName, FMixerStickEventDynamicDelegateWrapper> StickDelegates;
+
+	UPROPERTY()
+	TMap<FString, FMixerCustomGlobalEventStubDelegateWrapper> CustomGlobalEventDelegates;
 
 public:
 	static UMixerInteractivityBlueprintEventSource* GetBlueprintEventSource(UWorld* ForWorld);
@@ -125,6 +149,18 @@ struct FMixerStickEventBinding
 	FName StickId;
 };
 
+USTRUCT()
+struct FMixerCustomGlobalEventBinding
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName TargetFunctionName;
+
+	UPROPERTY()
+	FString EventName;
+};
+
 UCLASS()
 class MIXERINTERACTIVITY_API UMixerDelegateBinding : public UDynamicBlueprintBinding
 {
@@ -148,6 +184,7 @@ public:
 
 	void AddButtonBinding(const FMixerButtonEventBinding& BindingInfo);
 	void AddStickBinding(const FMixerStickEventBinding& BindingInfo);
+	void AddCustomGlobalEventBinding(const FMixerCustomGlobalEventBinding& BindingInfo);
 
 public:
 	virtual void BindDynamicDelegates(UObject* InInstance) const;
@@ -160,4 +197,7 @@ private:
 
 	UPROPERTY()
 	TArray<FMixerStickEventBinding> StickEventBindings;
+
+	UPROPERTY()
+	TArray<FMixerCustomGlobalEventBinding> CustomGlobalEventBindings;
 };

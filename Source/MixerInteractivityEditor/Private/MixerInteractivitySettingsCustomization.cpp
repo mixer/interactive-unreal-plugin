@@ -15,6 +15,7 @@
 #include "MixerInteractivitySettings.h"
 #include "MixerInteractivityEditorModule.h"
 #include "MixerInteractiveGame.h"
+#include "K2Node_MixerCustomGlobalEvent.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
@@ -264,6 +265,11 @@ void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBui
 	ControlSheetGroup.AddPropertyRow(CachedButtonsProperty.ToSharedRef()).IsEnabled(false);
 	ControlSheetGroup.AddPropertyRow(CachedSticksProperty.ToSharedRef()).IsEnabled(false);
 	ControlSheetGroup.AddPropertyRow(CachedScenesProperty.ToSharedRef()).IsEnabled(false);
+
+
+	TSharedRef<IPropertyHandle> CustomEventsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, CustomGlobalEvents));
+	CustomEventsProperty->SetOnPropertyValuePreChange(FSimpleDelegate::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnCustomGlobalEventsPreChange));
+	CustomEventsProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnCustomGlobalEventsPostChange));
 
 	if (!LoginStateDelegateHandle.IsValid())
 	{
@@ -678,5 +684,36 @@ bool FMixerInteractivitySettingsCustomization::GetLoginButtonEnabledState() cons
 	return !Settings->ClientId.IsEmpty() && !Settings->RedirectUri.IsEmpty();
 }
 
+void FMixerInteractivitySettingsCustomization::OnCustomGlobalEventsPreChange()
+{
+	UClass* CustomGlobalEvents = GetMutableDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
+	if (CustomGlobalEvents != nullptr)
+	{
+		UBlueprint* CustomEventsBlueprint = Cast<UBlueprint>(CustomGlobalEvents->ClassGeneratedBy);
+		if (CustomEventsBlueprint != nullptr)
+		{
+			CustomEventsBlueprint->OnCompiled().RemoveAll(this);
+		}
+	}
+}
+
+void FMixerInteractivitySettingsCustomization::OnCustomGlobalEventsPostChange()
+{
+	FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerCustomGlobalEvent::StaticClass());
+
+	UClass* CustomGlobalEvents = GetMutableDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
+	if (CustomGlobalEvents != nullptr)
+	{
+		UBlueprint* CustomEventsBlueprint = Cast<UBlueprint>(CustomGlobalEvents->ClassGeneratedBy);
+		if (CustomEventsBlueprint != nullptr)
+		{
+			CustomEventsBlueprint->OnCompiled().AddLambda(
+				[](UBlueprint*)
+			{
+				FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerCustomGlobalEvent::StaticClass());
+			});
+		}
+	}
+}
 
 #undef LOCTEXT_NAMESPACE
