@@ -12,6 +12,7 @@
 
 #include "ObjectMacros.h"
 #include "Object.h"
+#include "SubclassOf.h"
 #include "MixerInteractivityCustomGlobalEvents.h"
 #include "MixerInteractivitySettings.generated.h"
 
@@ -93,10 +94,8 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta = (DisplayName = "Groups"))
 	TArray<FMixerPredefinedGroup> DesignTimeGroups;
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Config, Category = "Game Binding")
-	TSubclassOf<class UMixerCustomGlobalEventCollection> CustomGlobalEvents;
-#endif
+	TSubclassOf<UMixerCustomGlobalEventCollection> CustomGlobalEvents;
 
 public:
 	FString GetResolvedRedirectUri() const

@@ -10,6 +10,8 @@
 
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivityLog.h"
+#include "MixerInteractivitySettings.h"
+#include "MixerInteractivityCustomGlobalEvents.h"
 #include "Engine/World.h"
 #include "Dom/JsonValue.h"
 #include "Dom/JsonObject.h"
@@ -137,38 +139,104 @@ void UMixerInteractivityBlueprintEventSource::OnBroadcastingStateChangedNativeEv
 	}
 }
 
+void UMixerInteractivityBlueprintEventSource::ExtractCustomEventParamsFromMessage(FJsonObject* JsonObject, UFunction* FunctionPrototype, void* ParamStorage, SIZE_T ParamStorageSize)
+{
+	check(ParamStorageSize == FunctionPrototype->ParmsSize);
+	for (TFieldIterator<UProperty> PropIt(FunctionPrototype); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
+	{
+		if (!PropIt->HasAnyPropertyFlags(CPF_OutParm) || PropIt->HasAnyPropertyFlags(CPF_ReferenceParm))
+		{
+			check(PropIt->GetOffset_ForUFunction() + PropIt->GetSize() <= ParamStorageSize);
+			void* ThisParamStorage = static_cast<uint8*>(ParamStorage) + PropIt->GetOffset_ForUFunction();
+			PropIt->InitializeValue(ThisParamStorage);
+			TSharedPtr<FJsonValue> F = JsonObject->TryGetField(PropIt->GetName());
+			if (F.IsValid())
+			{
+				PropIt->ImportText(*F->AsString(), ThisParamStorage, 0, nullptr);
+			}
+			else
+			{
+				UE_LOG(LogMixerInteractivity, Error, TEXT("Custom event %s does not contain expected parameter %s"), *JsonObject->GetStringField(TEXT("method")), *PropIt->GetName());
+			}
+		}
+	}
+}
+
+void UMixerInteractivityBlueprintEventSource::DestroyCustomEventParams(UFunction* FunctionPrototype, void* ParamStorage, SIZE_T ParamStorageSize)
+{
+	for (TFieldIterator<UProperty> PropIt(FunctionPrototype); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
+	{
+		if (!PropIt->HasAnyPropertyFlags(CPF_OutParm) || PropIt->HasAnyPropertyFlags(CPF_ReferenceParm))
+		{
+			check(PropIt->GetOffset_ForUFunction() + PropIt->GetSize() <= ParamStorageSize);
+			void* ThisParamStorage = static_cast<uint8*>(ParamStorage) + PropIt->GetOffset_ForUFunction();
+			PropIt->DestroyValue(ThisParamStorage);
+		}
+	}
+}
+
+
+void UMixerInteractivityBlueprintEventSource::FindDelegatesForCustomEvent(const FString& Method, UFunction*& FunctionPrototype, const FMulticastScriptDelegate*& BlueprintEvent, const FMulticastScriptDelegate*& NativeEvent)
+{
+	FMixerCustomGlobalEventStubDelegateWrapper* DelegateWrapper = CustomGlobalEventDelegates.Find(Method);
+	if (DelegateWrapper != nullptr)
+	{
+		FunctionPrototype = DelegateWrapper->FunctionPrototype;
+		BlueprintEvent = &DelegateWrapper->Delegate;
+	}
+
+	UClass* CustomEventsDefinition = GetDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
+	if (CustomEventsDefinition != nullptr)
+	{
+		UMulticastDelegateProperty* PossibleNativeProperty = Cast<UMulticastDelegateProperty>(CustomEventsDefinition->FindPropertyByName(FName(*Method)));
+		if (PossibleNativeProperty != nullptr && PossibleNativeProperty->IsNative())
+		{
+			if (FunctionPrototype == nullptr)
+			{
+				FunctionPrototype = PossibleNativeProperty->SignatureFunction;
+			}
+			else
+			{
+				check(FunctionPrototype->IsSignatureCompatibleWith(PossibleNativeProperty->SignatureFunction));
+			}
+			NativeEvent = &PossibleNativeProperty->GetPropertyValue_InContainer(CustomEventsDefinition->GetDefaultObject<UObject>());
+		}
+	}
+}
+
+
 void UMixerInteractivityBlueprintEventSource::OnCustomMessageNativeEvent(const FString& MessageBodyString)
 {
 	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(MessageBodyString);
 	TSharedPtr<FJsonObject> JsonObject;
-	if (FJsonSerializer::Deserialize(JsonReader, JsonObject) &&
-		JsonObject.IsValid())
+	if (FJsonSerializer::Deserialize(JsonReader, JsonObject) && JsonObject.IsValid())
 	{
-		FString MessageType;
-		if (JsonObject->TryGetStringField(TEXT("method"), MessageType))
+		FString Method;
+		if (JsonObject->TryGetStringField(TEXT("method"), Method))
 		{
-			FMixerCustomGlobalEventStubDelegateWrapper* DelegateWrapper = CustomGlobalEventDelegates.Find(MessageType);
-			if (DelegateWrapper != nullptr && DelegateWrapper->FunctionPrototype != nullptr)
+			UFunction* FunctionPrototype = nullptr;
+			const FMulticastScriptDelegate* BlueprintEvent = nullptr;
+			const FMulticastScriptDelegate* NativeEvent = nullptr;
+			FindDelegatesForCustomEvent(Method, FunctionPrototype, BlueprintEvent, NativeEvent);
+
+			if (FunctionPrototype != nullptr && (BlueprintEvent != nullptr || NativeEvent != nullptr))
 			{
-				void* ParmStorage = FMemory_Alloca(DelegateWrapper->FunctionPrototype->ParmsSize);
-				FMemory::Memzero(ParmStorage, DelegateWrapper->FunctionPrototype->ParmsSize);
-				for (TFieldIterator<UProperty> PropIt(DelegateWrapper->FunctionPrototype); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
+				void* ParamStorage = FMemory_Alloca(FunctionPrototype->ParmsSize);
+				if (ParamStorage != nullptr)
 				{
-					if (!PropIt->HasAnyPropertyFlags(CPF_OutParm) || PropIt->HasAnyPropertyFlags(CPF_ReferenceParm))
-					{
-						auto F = JsonObject->TryGetField(PropIt->GetName());
-						PropIt->ImportText(*F->AsString(), (uint8*)ParmStorage + PropIt->GetOffset_ForUFunction(), 0, nullptr);						
-					}
-				}
+					ExtractCustomEventParamsFromMessage(JsonObject.Get(), FunctionPrototype, ParamStorage, FunctionPrototype->ParmsSize);
 
-				DelegateWrapper->Delegate.ProcessMulticastDelegate<UObject>(ParmStorage);
-
-				for (TFieldIterator<UProperty> PropIt(DelegateWrapper->FunctionPrototype); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
-				{
-					if (!PropIt->HasAnyPropertyFlags(CPF_OutParm) || PropIt->HasAnyPropertyFlags(CPF_ReferenceParm))
+					if (BlueprintEvent != nullptr)
 					{
-						PropIt->DestroyValue((uint8*)ParmStorage + PropIt->GetOffset_ForUFunction());
+						BlueprintEvent->ProcessMulticastDelegate<UObject>(ParamStorage);
 					}
+
+					if (NativeEvent != nullptr)
+					{
+						NativeEvent->ProcessMulticastDelegate<UObject>(ParamStorage);
+					}
+
+					DestroyCustomEventParams(FunctionPrototype, ParamStorage, FunctionPrototype->ParmsSize);
 				}
 			}
 		}
