@@ -104,11 +104,6 @@ public:
 	virtual void PostLoad() override;
 
 private:
-	void FindDelegatesForCustomEvent(const FString& Method, UFunction*& FunctionPrototype, const FMulticastScriptDelegate*& BlueprintEvent, const FMulticastScriptDelegate*& NativeEvent);
-	void ExtractCustomEventParamsFromMessage(class FJsonObject* JsonObject, UFunction* FunctionPrototype, void* ParamStorage, SIZE_T ParamStorageSize);
-	void DestroyCustomEventParams(UFunction* FunctionPrototype, void* ParamStorage, SIZE_T ParamStorageSize);
-
-private:
 
 	UPROPERTY()
 	TMap<FName, FMixerButtonEventDynamicDelegateWrapper> ButtonDelegates;
