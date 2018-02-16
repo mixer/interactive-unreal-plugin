@@ -34,7 +34,7 @@ namespace MixerBindingUtils
 				}
 				else
 				{
-					UE_LOG(LogMixerInteractivity, Error, TEXT("Custom event %s does not contain expected parameter %s"), *JsonObject->GetStringField(TEXT("method")), *PropIt->GetName());
+					UE_LOG(LogMixerInteractivity, Error, TEXT("Custom event %s does not contain expected parameter %s"), *FunctionPrototype->GetName(), *PropIt->GetName());
 				}
 			}
 		}
