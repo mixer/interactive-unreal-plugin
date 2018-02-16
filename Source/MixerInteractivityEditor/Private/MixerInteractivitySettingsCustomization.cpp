@@ -686,13 +686,17 @@ bool FMixerInteractivitySettingsCustomization::GetLoginButtonEnabledState() cons
 
 void FMixerInteractivitySettingsCustomization::OnCustomGlobalEventsPreChange()
 {
-	UClass* CustomGlobalEvents = GetMutableDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
-	if (CustomGlobalEvents != nullptr)
+	const FSoftClassPath& CustomEventsPath = GetDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
+	if (CustomEventsPath.IsValid())
 	{
-		UBlueprint* CustomEventsBlueprint = Cast<UBlueprint>(CustomGlobalEvents->ClassGeneratedBy);
-		if (CustomEventsBlueprint != nullptr)
+		UClass* CustomGlobalEvents = CustomEventsPath.ResolveClass();
+		if (CustomGlobalEvents != nullptr)
 		{
-			CustomEventsBlueprint->OnCompiled().RemoveAll(this);
+			UBlueprint* CustomEventsBlueprint = Cast<UBlueprint>(CustomGlobalEvents->ClassGeneratedBy);
+			if (CustomEventsBlueprint != nullptr)
+			{
+				CustomEventsBlueprint->OnCompiled().RemoveAll(this);
+			}
 		}
 	}
 }
@@ -701,17 +705,21 @@ void FMixerInteractivitySettingsCustomization::OnCustomGlobalEventsPostChange()
 {
 	FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerCustomGlobalEvent::StaticClass());
 
-	UClass* CustomGlobalEvents = GetMutableDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
-	if (CustomGlobalEvents != nullptr)
+	const FSoftClassPath& CustomEventsPath = GetDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
+	if (CustomEventsPath.IsValid())
 	{
-		UBlueprint* CustomEventsBlueprint = Cast<UBlueprint>(CustomGlobalEvents->ClassGeneratedBy);
-		if (CustomEventsBlueprint != nullptr)
+		UClass* CustomGlobalEvents = CustomEventsPath.TryLoadClass<UObject>();
+		if (CustomGlobalEvents != nullptr)
 		{
-			CustomEventsBlueprint->OnCompiled().AddLambda(
-				[](UBlueprint*)
+			UBlueprint* CustomEventsBlueprint = Cast<UBlueprint>(CustomGlobalEvents->ClassGeneratedBy);
+			if (CustomEventsBlueprint != nullptr)
 			{
-				FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerCustomGlobalEvent::StaticClass());
-			});
+				CustomEventsBlueprint->OnCompiled().AddLambda(
+					[](UBlueprint*)
+				{
+					FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerCustomGlobalEvent::StaticClass());
+				});
+			}
 		}
 	}
 }

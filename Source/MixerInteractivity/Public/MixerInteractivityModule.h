@@ -20,7 +20,9 @@ struct FMixerButtonState;
 struct FMixerStickDescription;
 struct FMixerStickState;
 struct FMixerButtonEventDetails;
+struct FMixerSimpleCustomControl;
 class FUniqueNetId;
+class FJsonObject;
 
 enum class EMixerLoginState : uint8;
 enum class EMixerInteractivityParticipantState : uint8;
@@ -309,4 +311,13 @@ public:
 
 	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnBroadcastingStateChanged, bool);
 	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged() = 0;
+
+	DECLARE_EVENT_FiveParams(IMixerInteractivityModule, FOnUnhandledCustomControlInputEvent, FName, FName, TSharedPtr<const FMixerRemoteUser>, TSharedPtr<const FMixerSimpleCustomControl>, const FJsonObject*);
+	virtual FOnUnhandledCustomControlInputEvent& OnUnhandledCustomControlInputEvent() = 0;
+
+	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnUnhandledCustomControlPropertyUpdate, FName, TSharedPtr<const FMixerSimpleCustomControl>);
+	virtual FOnUnhandledCustomControlPropertyUpdate& OnUnhandledCustomControlPropertyUpdate() = 0;
+
+	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnCustomMethodCall, FName, const FJsonObject*);
+	virtual FOnCustomMethodCall& OnCustomMethodCall() = 0;
 };

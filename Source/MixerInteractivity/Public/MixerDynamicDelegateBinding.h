@@ -92,13 +92,16 @@ public:
 public:
 	FMixerButtonEventDynamicDelegate* GetButtonEvent(FName ButtonName, bool Pressed);
 	FMixerStickEventDynamicDelegate* GetStickEvent(FName StickName);
-	void AddCustomGlobalEventBinding(const FString& EventName, UObject* TargetObject, FName TargetFunctionName);
+	void AddCustomGlobalEventBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName);
 
 	void OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerButtonEventDetails& Details);
 	void OnParticipantStateChangedNativeEvent(TSharedPtr<const FMixerRemoteUser> Participant, EMixerInteractivityParticipantState NewState);
 	void OnStickNativeEvent(FName StickName, TSharedPtr<const FMixerRemoteUser> Participant, FVector2D StickValue);
 	void OnBroadcastingStateChangedNativeEvent(bool NewBroadcastingState);
-	void OnCustomMessageNativeEvent(const FString& MessageBodyString);
+	void OnCustomMethodCallNativeEvent(FName MethodName, const class FJsonObject* MethodParams);
+	void OnUnhandledCustomControlInputNativeEvent(FName ControlName, FName MethodName, TSharedPtr<const FMixerRemoteUser> Participant, TSharedPtr<const FMixerSimpleCustomControl> ControlObject, const FJsonObject* EventPayload);
+	void OnUnhandledCustomControlPropertyUpdateNativeEvent(FName ControlName, TSharedPtr<const FMixerSimpleCustomControl> ControlObject);
+
 
 	virtual UWorld* GetWorld() const override;
 	virtual void PostLoad() override;
@@ -112,7 +115,7 @@ private:
 	TMap<FName, FMixerStickEventDynamicDelegateWrapper> StickDelegates;
 
 	UPROPERTY()
-	TMap<FString, FMixerCustomGlobalEventStubDelegateWrapper> CustomGlobalEventDelegates;
+	TMap<FName, FMixerCustomGlobalEventStubDelegateWrapper> CustomGlobalEventDelegates;
 
 public:
 	static UMixerInteractivityBlueprintEventSource* GetBlueprintEventSource(UWorld* ForWorld);
@@ -158,7 +161,7 @@ struct FMixerCustomGlobalEventBinding
 	FName TargetFunctionName;
 
 	UPROPERTY()
-	FString EventName;
+	FName EventName;
 };
 
 UCLASS()

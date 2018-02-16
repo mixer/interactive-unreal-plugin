@@ -10,6 +10,7 @@
 
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivityLog.h"
+#include "MixerBindingUtils.h"
 #include "Engine/World.h"
 #include "Dom/JsonValue.h"
 #include "Dom/JsonObject.h"
@@ -36,6 +37,9 @@ UMixerInteractivityBlueprintEventSource::UMixerInteractivityBlueprintEventSource
 		InteractivityModule.OnParticipantStateChanged().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnParticipantStateChangedNativeEvent);
 		InteractivityModule.OnStickEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnStickNativeEvent);
 		InteractivityModule.OnBroadcastingStateChanged().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnBroadcastingStateChangedNativeEvent);
+		InteractivityModule.OnUnhandledCustomControlInputEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnUnhandledCustomControlInputNativeEvent);
+		InteractivityModule.OnUnhandledCustomControlPropertyUpdate().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnUnhandledCustomControlPropertyUpdateNativeEvent);
+		InteractivityModule.OnCustomMethodCall().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnCustomMethodCallNativeEvent);
 	}
 }
 
@@ -60,7 +64,7 @@ FMixerButtonEventDynamicDelegate* UMixerInteractivityBlueprintEventSource::GetBu
 	return Pressed ? &DelegateWrapper.PressedDelegate : &DelegateWrapper.ReleasedDelegate;
 }
 
-void UMixerInteractivityBlueprintEventSource::AddCustomGlobalEventBinding(const FString& EventName, UObject* TargetObject, FName TargetFunctionName)
+void UMixerInteractivityBlueprintEventSource::AddCustomGlobalEventBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName)
 {
 	FMixerCustomGlobalEventStubDelegateWrapper& DelegateWrapper = CustomGlobalEventDelegates.FindOrAdd(EventName);
 	FScriptDelegate SingleDelegate;
@@ -137,44 +141,39 @@ void UMixerInteractivityBlueprintEventSource::OnBroadcastingStateChangedNativeEv
 	}
 }
 
-void UMixerInteractivityBlueprintEventSource::OnCustomMessageNativeEvent(const FString& MessageBodyString)
+void UMixerInteractivityBlueprintEventSource::OnCustomMethodCallNativeEvent(FName MethodName, const FJsonObject* MethodParams)
 {
-	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(MessageBodyString);
-	TSharedPtr<FJsonObject> JsonObject;
-	if (FJsonSerializer::Deserialize(JsonReader, JsonObject) &&
-		JsonObject.IsValid())
+	UFunction* FunctionPrototype = nullptr;
+	const FMulticastScriptDelegate* BlueprintEvent = nullptr;
+	const FMulticastScriptDelegate* NativeEvent = nullptr;
+	FMixerCustomGlobalEventStubDelegateWrapper* DelegateWrapper = CustomGlobalEventDelegates.Find(MethodName);
+	if (DelegateWrapper != nullptr)
 	{
-		FString MessageType;
-		if (JsonObject->TryGetStringField(TEXT("method"), MessageType))
+		FunctionPrototype = DelegateWrapper->FunctionPrototype;
+		BlueprintEvent = &DelegateWrapper->Delegate;
+	}
+
+	if (FunctionPrototype != nullptr && BlueprintEvent != nullptr)
+	{
+		void* ParamStorage = FMemory_Alloca(FunctionPrototype->ParmsSize);
+		if (ParamStorage != nullptr)
 		{
-			FMixerCustomGlobalEventStubDelegateWrapper* DelegateWrapper = CustomGlobalEventDelegates.Find(MessageType);
-			if (DelegateWrapper != nullptr && DelegateWrapper->FunctionPrototype != nullptr)
-			{
-				void* ParmStorage = FMemory_Alloca(DelegateWrapper->FunctionPrototype->ParmsSize);
-				FMemory::Memzero(ParmStorage, DelegateWrapper->FunctionPrototype->ParmsSize);
-				for (TFieldIterator<UProperty> PropIt(DelegateWrapper->FunctionPrototype); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
-				{
-					if (!PropIt->HasAnyPropertyFlags(CPF_OutParm) || PropIt->HasAnyPropertyFlags(CPF_ReferenceParm))
-					{
-						auto F = JsonObject->TryGetField(PropIt->GetName());
-						PropIt->ImportText(*F->AsString(), (uint8*)ParmStorage + PropIt->GetOffset_ForUFunction(), 0, nullptr);						
-					}
-				}
-
-				DelegateWrapper->Delegate.ProcessMulticastDelegate<UObject>(ParmStorage);
-
-				for (TFieldIterator<UProperty> PropIt(DelegateWrapper->FunctionPrototype); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
-				{
-					if (!PropIt->HasAnyPropertyFlags(CPF_OutParm) || PropIt->HasAnyPropertyFlags(CPF_ReferenceParm))
-					{
-						PropIt->DestroyValue((uint8*)ParmStorage + PropIt->GetOffset_ForUFunction());
-					}
-				}
-			}
+			MixerBindingUtils::ExtractCustomEventParamsFromMessage(MethodParams, FunctionPrototype, ParamStorage, FunctionPrototype->ParmsSize);
+			BlueprintEvent->ProcessMulticastDelegate<UObject>(ParamStorage);
+			MixerBindingUtils::DestroyCustomEventParams(FunctionPrototype, ParamStorage, FunctionPrototype->ParmsSize);
 		}
 	}
 }
 
+void UMixerInteractivityBlueprintEventSource::OnUnhandledCustomControlInputNativeEvent(FName ControlName, FName MethodName, TSharedPtr<const FMixerRemoteUser> Participant, TSharedPtr<const FMixerSimpleCustomControl> ControlObject, const FJsonObject* EventPayload)
+{
+	// @TODO
+}
+
+void UMixerInteractivityBlueprintEventSource::OnUnhandledCustomControlPropertyUpdateNativeEvent(FName ControlName, TSharedPtr<const FMixerSimpleCustomControl> ControlObject)
+{
+	// @TODO
+}
 
 UWorld* UMixerInteractivityBlueprintEventSource::GetWorld() const
 {
@@ -206,7 +205,7 @@ void UMixerInteractivityBlueprintEventSource::PostLoad()
 	}
 #endif
 
-	for (TMap<FString, FMixerCustomGlobalEventStubDelegateWrapper>::TIterator It(CustomGlobalEventDelegates); It; ++It)
+	for (TMap<FName, FMixerCustomGlobalEventStubDelegateWrapper>::TIterator It(CustomGlobalEventDelegates); It; ++It)
 	{
 #if WITH_EDITOR
 		if (!It->Value.Delegate.IsBound())

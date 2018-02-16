@@ -20,7 +20,7 @@ public:
 	GENERATED_BODY()
 
 	UPROPERTY()
-	FString EventName;
+	FName EventName;
 
 	virtual void GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const override;
 	virtual FText GetMenuCategory() const override;

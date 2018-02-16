@@ -15,6 +15,7 @@
 #include "BlueprintEditorUtils.h"
 #include "MixerInteractivityBlueprintLibrary.h"
 #include "MixerDynamicDelegateBinding.h"
+#include "MixerInteractivitySettings.h"
 #include "KismetCompiler.h"
 #include "JsonObject.h"
 
@@ -22,29 +23,33 @@
 
 void UK2Node_MixerCustomGlobalEvent::GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const
 {
-	auto CustomizeMixerNodeLambda = [](UEdGraphNode* NewNode, bool bIsTemplateNode, FString EventName, UFunction* DelegateSignatureFunc)
+	auto CustomizeMixerNodeLambda = [](UEdGraphNode* NewNode, bool bIsTemplateNode, FName EventName, UFunction* DelegateSignatureFunc)
 	{
 		UK2Node_MixerCustomGlobalEvent* MixerNode = CastChecked<UK2Node_MixerCustomGlobalEvent>(NewNode);
 		MixerNode->EventName = EventName;
-		MixerNode->CustomFunctionName = FName(*FString::Printf(TEXT("MixerCustomGlobalEvt_%s"), *EventName));
+		MixerNode->CustomFunctionName = FName(*FString::Printf(TEXT("MixerCustomGlobalEvt_%s"), *EventName.ToString()));
 		MixerNode->EventReference.SetExternalMember(DelegateSignatureFunc->GetFName(), DelegateSignatureFunc->GetOuterUClass());
 	};
 
 	UClass* ActionKey = GetClass();
 	if (ActionRegistrar.IsOpenForRegistration(ActionKey))
 	{
-		UClass* CustomEventsDefinition = GetDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
-		if (CustomEventsDefinition != nullptr)
+		const FSoftClassPath& CustomEventsPath = GetDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
+		if (CustomEventsPath.IsValid())
 		{
-			for (UProperty* Prop = CustomEventsDefinition->PropertyLink; Prop; Prop = Prop->PropertyLinkNext)
+			UClass* CustomEventsDefinition = GetDefault<UMixerInteractivitySettings>()->CustomGlobalEvents.TryLoadClass<UObject>();
+			if (CustomEventsDefinition != nullptr)
 			{
-				UMulticastDelegateProperty* MulticastProp = Cast<UMulticastDelegateProperty>(Prop);
-				if (MulticastProp != nullptr && MulticastProp->SignatureFunction != nullptr)
+				for (UProperty* Prop = CustomEventsDefinition->PropertyLink; Prop; Prop = Prop->PropertyLinkNext)
 				{
-					UBlueprintNodeSpawner* NodeSpawner = UBlueprintNodeSpawner::Create(GetClass());
-					check(NodeSpawner != nullptr);
-					NodeSpawner->CustomizeNodeDelegate = UBlueprintNodeSpawner::FCustomizeNodeDelegate::CreateStatic(CustomizeMixerNodeLambda, Prop->GetName(), MulticastProp->SignatureFunction);
-					ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
+					UMulticastDelegateProperty* MulticastProp = Cast<UMulticastDelegateProperty>(Prop);
+					if (MulticastProp != nullptr && MulticastProp->SignatureFunction != nullptr)
+					{
+						UBlueprintNodeSpawner* NodeSpawner = UBlueprintNodeSpawner::Create(GetClass());
+						check(NodeSpawner != nullptr);
+						NodeSpawner->CustomizeNodeDelegate = UBlueprintNodeSpawner::FCustomizeNodeDelegate::CreateStatic(CustomizeMixerNodeLambda, Prop->GetFName(), MulticastProp->SignatureFunction);
+						ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
+					}
 				}
 			}
 		}
@@ -73,12 +78,12 @@ void UK2Node_MixerCustomGlobalEvent::RegisterDynamicBinding(UDynamicBlueprintBin
 
 FText UK2Node_MixerCustomGlobalEvent::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	return FText::FromString(EventName);
+	return FText::FromName(EventName);
 }
 
 FText UK2Node_MixerCustomGlobalEvent::GetTooltipText() const
 {
-	return FText::FromString(EventName);
+	return FText::FromName(EventName);
 }
 
 #undef LOCTEXT_NAMESPACE

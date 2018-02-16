@@ -12,7 +12,8 @@
 
 #include "ObjectMacros.h"
 #include "Object.h"
-#include "MixerInteractivityCustomGlobalEvents.h"
+#include "SubclassOf.h"
+#include "MixerCustomControl.h"
 #include "MixerInteractivitySettings.generated.h"
 
 USTRUCT()
@@ -90,13 +91,18 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta = (DisplayName = "Scenes"))
 	TArray<FName> CachedScenes;
 
+	/**
+	* Collection of custom controls, saved into the Unreal project and used to populate UI in the Blueprint Editor
+	* as well as to instantiate proxy objects at runtime for bound controls.
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta = (DisplayName = "Custom Controls"))
+	TMap<FName, TSubclassOf<UMixerCustomControl>> CachedCustomControls;
+
 	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta = (DisplayName = "Groups"))
 	TArray<FMixerPredefinedGroup> DesignTimeGroups;
 
-#if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Config, Category = "Game Binding")
-	TSubclassOf<class UMixerCustomGlobalEventCollection> CustomGlobalEvents;
-#endif
+	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta=(MetaClass="MixerCustomGlobalEvents"))
+	FSoftClassPath CustomGlobalEvents;
 
 public:
 	FString GetResolvedRedirectUri() const

@@ -12,6 +12,7 @@
 #include "MixerInteractivityUserSettings.h"
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivityLog.h"
+#include "MixerBindingUtils.h"
 #include "OnlineChatMixer.h"
 
 #include "HttpModule.h"
@@ -453,6 +454,7 @@ void FMixerInteractivityModule::TickClientLibrary()
 				if (!HasCreatedGroups)
 				{
 					InitDesignTimeGroups();
+					InitCustomControls();
 				}
 				break;
 
@@ -465,6 +467,7 @@ void FMixerInteractivityModule::TickClientLibrary()
 				if (!HasCreatedGroups)
 				{
 					InitDesignTimeGroups();
+					InitCustomControls();
 				}
 				break;
 
@@ -477,6 +480,7 @@ void FMixerInteractivityModule::TickClientLibrary()
 				if (!HasCreatedGroups)
 				{
 					InitDesignTimeGroups();
+					InitCustomControls();
 				}
 				break;
 			}
@@ -1046,6 +1050,7 @@ void FMixerInteractivityModule::LoginAttemptFinished(bool Success)
 		check(GetLoginState() == EMixerLoginState::Logged_In);
 
 		InitDesignTimeGroups();
+		InitCustomControls();
 
 		OnLoginStateChanged().Broadcast(EMixerLoginState::Logged_In);
 
@@ -1194,6 +1199,136 @@ void FMixerInteractivityModule::InitDesignTimeGroups()
 	}
 }
 
+void FMixerInteractivityModule::InitCustomControls()
+{
+	if (NeedsClientLibraryActive())
+	{
+		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+		for (TMap<FName, TSubclassOf<UMixerCustomControl>>::TConstIterator It(Settings->CachedCustomControls); It; ++It)
+		{
+			if (It->Value.Get())
+			{
+				AdvancedCustomControls.Add(It->Key, NewObject<UMixerCustomControl>(GetTransientPackage(), It->Value));
+			}
+			else
+			{
+				SimpleCustomControls.Add(It->Key, MakeShared<FMixerSimpleCustomControl>());
+			}
+		}
+	}
+}
+
+void FMixerInteractivityModule::HandleCustomMessage(const FString& MessageBodyString)
+{
+	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(MessageBodyString);
+	TSharedPtr<FJsonObject> JsonObject;
+	if (FJsonSerializer::Deserialize(JsonReader, JsonObject) && JsonObject.IsValid())
+	{
+		FString Method;
+		if (JsonObject->TryGetStringField(TEXT("method"), Method))
+		{
+			const TSharedPtr<FJsonObject> *ParamsObject;
+			if (JsonObject->TryGetObjectField(TEXT("params"), ParamsObject))
+			{
+				if (Method == TEXT("giveInput"))
+				{
+					HandleCustomControlInputMessage(ParamsObject->Get());
+				}
+				else if (Method == TEXT("onControlUpdate"))
+				{
+					HandleCustomControlUpdateMessage(ParamsObject->Get());
+				}
+				else
+				{
+					OnCustomMethodCall().Broadcast(*Method, ParamsObject->Get());
+				}
+			}
+		}
+	}
+}
+
+void FMixerInteractivityModule::HandleCustomControlUpdateMessage(FJsonObject* ParamsJson)
+{
+	const TArray<TSharedPtr<FJsonValue>> *UpdatedControls;
+	if (ParamsJson->TryGetArrayField(TEXT("controls"), UpdatedControls))
+	{
+		for (const TSharedPtr<FJsonValue> Control : *UpdatedControls)
+		{
+			const TSharedPtr<FJsonObject> ControlObject = Control->AsObject();
+			if (ControlObject.IsValid())
+			{
+				FString ControlIdRaw;
+				if (ControlObject->TryGetStringField(TEXT("controlID"), ControlIdRaw))
+				{
+					FName ControlId = *ControlIdRaw;
+					if (TSharedPtr<FMixerSimpleCustomControl>* SimpleControl = SimpleCustomControls.Find(ControlId))
+					{
+						check(SimpleControl->IsValid());
+
+						(*SimpleControl)->PropertyBag.Append(ControlObject->Values);
+						OnUnhandledCustomControlPropertyUpdate().Broadcast(ControlId, *SimpleControl);
+					}
+					else if (UMixerCustomControl** AdvancedControl = AdvancedCustomControls.Find(ControlId))
+					{
+						// @TODO - Directly apply updates to matching properties
+					}
+					else
+					{
+						UE_LOG(LogMixerInteractivity, Warning, TEXT("Ignoring proprty updates for unknown custom control %s.  Update your bindings in the Mixer Interactivity project settings."), *ControlIdRaw);
+					}
+				}
+			}
+		}
+	}
+}
+
+void FMixerInteractivityModule::HandleCustomControlInputMessage(FJsonObject* ParamsJson)
+{
+	// @TODO - get participant and transaction (if any)
+
+	const TSharedPtr<FJsonObject> *InputObject;
+	if (ParamsJson->TryGetObjectField(TEXT("input"), InputObject))
+	{
+		FString ControlIdRaw;
+		if ((*InputObject)->TryGetStringField(TEXT("controlID"), ControlIdRaw))
+		{
+			FString EventTypeRaw;
+			if ((*InputObject)->TryGetStringField(TEXT("event"), EventTypeRaw))
+			{
+				FName ControlId = *ControlIdRaw;
+				FName EventType = *EventTypeRaw;
+				if (TSharedPtr<FMixerSimpleCustomControl>* SimpleControl = SimpleCustomControls.Find(ControlId))
+				{
+					check(SimpleControl->IsValid());
+					OnUnhandledCustomControlInputEvent().Broadcast(ControlId, EventType, nullptr, *SimpleControl, InputObject->Get());
+				}
+				else if (UMixerCustomControl** AdvancedControl = AdvancedCustomControls.Find(ControlId))
+				{
+					UFunction* HandlerMethod = (*AdvancedControl)->FindFunction(EventType);
+					if (HandlerMethod != nullptr)
+					{
+						void* ParamStorage = FMemory_Alloca(HandlerMethod->ParmsSize);
+						if (ParamStorage != nullptr)
+						{
+							MixerBindingUtils::ExtractCustomEventParamsFromMessage(InputObject->Get(), HandlerMethod, ParamStorage, HandlerMethod->ParmsSize);
+							(*AdvancedControl)->ProcessEvent(HandlerMethod, ParamStorage);
+							MixerBindingUtils::DestroyCustomEventParams(HandlerMethod, ParamStorage, HandlerMethod->ParmsSize);
+						}
+					}
+					else
+					{
+						UE_LOG(LogMixerInteractivity, Warning, TEXT("Received unknown input event %s for custom control %s.  Event will be ignored.  Provide a UFUNCTION matching the event name in order to handle this event."), *EventTypeRaw, *ControlIdRaw);
+					}
+				}
+				else
+				{
+					UE_LOG(LogMixerInteractivity, Warning, TEXT("Ignoring input event %s for unknown custom control %s.  Update your bindings in the Mixer Interactivity project settings."), *EventTypeRaw, *ControlIdRaw);
+				}
+			}
+		}
+	}
+}
+
 TSharedPtr<IOnlineChat> FMixerInteractivityModule::GetChatInterface()
 {
 	return ChatInterface;
@@ -1202,6 +1337,14 @@ TSharedPtr<IOnlineChat> FMixerInteractivityModule::GetChatInterface()
 TSharedPtr<IOnlineChatMixer> FMixerInteractivityModule::GetExtendedChatInterface()
 {
 	return ChatInterface;
+}
+
+void FMixerInteractivityModule::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	for (TMap<FName, UMixerCustomControl*>::TIterator It(AdvancedCustomControls); It; ++It)
+	{
+		Collector.AddReferencedObject(It->Value);
+	}
 }
 
 #if PLATFORM_XBOXONE
