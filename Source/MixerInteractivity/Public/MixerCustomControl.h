@@ -32,6 +32,11 @@ public:
 
 	bool Tick(float DeltaTime);
 
+	UFUNCTION(BlueprintImplementableEvent)
+	void OnServerPropertiesUpdated();
+
+	virtual void NativeOnServerPropertiesUpdated();
+
 protected:
 
 	FDelegateHandle TickerDelegate;

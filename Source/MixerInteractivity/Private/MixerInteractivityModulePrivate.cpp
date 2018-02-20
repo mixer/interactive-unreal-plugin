@@ -24,6 +24,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 #include "Serialization/JsonSerializer.h"
+#include "JsonObjectConverter.h"
 #include "UObjectGlobals.h"
 #include "CoreOnline.h"
 #include "Engine/World.h"
@@ -1270,7 +1271,8 @@ void FMixerInteractivityModule::HandleCustomControlUpdateMessage(FJsonObject* Pa
 					}
 					else if (UMixerCustomControl** AdvancedControl = AdvancedCustomControls.Find(ControlId))
 					{
-						// @TODO - Directly apply updates to matching properties
+						FJsonObjectConverter::JsonObjectToUStruct(ControlObject.ToSharedRef(), (*AdvancedControl)->GetClass(), *AdvancedControl);
+						(*AdvancedControl)->OnServerPropertiesUpdated();
 					}
 					else
 					{

@@ -12,6 +12,7 @@
 
 #include "Dom/JsonValue.h"
 #include "Dom/JsonObject.h"
+#include "JsonObjectConverter.h"
 #include "UObjectGlobals.h"
 #include "MixerInteractivityLog.h"
 
@@ -30,7 +31,10 @@ namespace MixerBindingUtils
 				TSharedPtr<FJsonValue> F = JsonObject->TryGetField(PropIt->GetName());
 				if (F.IsValid())
 				{
-					PropIt->ImportText(*F->AsString(), ThisParamStorage, 0, nullptr);
+					if (!FJsonObjectConverter::JsonValueToUProperty(F, *PropIt, ThisParamStorage, 0, 0))
+					{
+						UE_LOG(LogMixerInteractivity, Error, TEXT("Custom event %s: failed to convert Json value %s for parameter %s"), *FunctionPrototype->GetName(), *F->AsString(), *PropIt->GetName());
+					}
 				}
 				else
 				{

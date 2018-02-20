@@ -20,6 +20,11 @@ bool UMixerCustomControl::Tick(float DeltaTime)
 	return true;
 }
 
+void UMixerCustomControl::NativeOnServerPropertiesUpdated()
+{
+	OnServerPropertiesUpdated();
+}
+
 void UMixerTestControl::RemoteEventHandler1(int32 Param1, FString Param2)
 {
 
