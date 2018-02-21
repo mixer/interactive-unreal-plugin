@@ -44,6 +44,7 @@ public:
 	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeSticks() { return DesignTimeSticks; }
 	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeScenes() { return DesignTimeScenes; }
 	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeGroups() { return DesignTimeGroups; }
+	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeSimpleCustomControls() { return DesignTimeSimpleCustomControls; }
 
 	virtual void RefreshDesignTimeObjects();
 
@@ -54,6 +55,7 @@ private:
 	TArray<TSharedPtr<FName>> DesignTimeSticks;
 	TArray<TSharedPtr<FName>> DesignTimeScenes;
 	TArray<TSharedPtr<FName>> DesignTimeGroups;
+	TArray<TSharedPtr<FName>> DesignTimeSimpleCustomControls;
 
 	FOnDesignTimeObjectsChanged DesignTimeObjectsChanged;
 };
@@ -196,6 +198,15 @@ void FMixerInteractivityEditorModule::RefreshDesignTimeObjects()
 	for (const FMixerPredefinedGroup& Group : Settings->DesignTimeGroups)
 	{
 		DesignTimeGroups.Add(MakeShareable(new FName(Group.Name)));
+	}
+
+	DesignTimeSimpleCustomControls.Empty(Settings->CachedCustomControls.Num());
+	for (TMap<FName, TSubclassOf<UMixerCustomControl>>::TConstIterator It(Settings->CachedCustomControls); It; ++It)
+	{
+		if (It->Value.Get() == nullptr)
+		{
+			DesignTimeSimpleCustomControls.Add(MakeShared<FName>(It->Key));
+		}
 	}
 
 	DesignTimeObjectsChanged.Broadcast();

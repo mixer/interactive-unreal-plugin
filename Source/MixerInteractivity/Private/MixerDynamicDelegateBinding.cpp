@@ -84,6 +84,16 @@ FMixerStickEventDynamicDelegate* UMixerInteractivityBlueprintEventSource::GetSti
 	return &DelegateWrapper.Delegate;
 }
 
+FMixerCustomControlInputDynamicDelegate& UMixerInteractivityBlueprintEventSource::GetCustomControlInputEvent(FName ControlName)
+{
+	return CustomControlInputDelegates.FindOrAdd(ControlName).Delegate;
+}
+
+FMixerCustomControlUpdateDynamicDelegate& UMixerInteractivityBlueprintEventSource::GetCustomControlUpdateEvent(FName ControlName)
+{
+	return CustomControlUpdateDelegates.FindOrAdd(ControlName).Delegate;
+}
+
 void UMixerInteractivityBlueprintEventSource::OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerButtonEventDetails& Details)
 {
 	FMixerButtonEventDynamicDelegateWrapper* DelegateWrapper = ButtonDelegates.Find(ButtonName);
@@ -167,12 +177,24 @@ void UMixerInteractivityBlueprintEventSource::OnCustomMethodCallNativeEvent(FNam
 
 void UMixerInteractivityBlueprintEventSource::OnUnhandledCustomControlInputNativeEvent(FName ControlName, FName MethodName, TSharedPtr<const FMixerRemoteUser> Participant, TSharedPtr<const FMixerSimpleCustomControl> ControlObject, const FJsonObject* EventPayload)
 {
-	// @TODO
+	FMixerCustomControlInputDelegateWrapper* Wrapper = CustomControlInputDelegates.Find(ControlName);
+	if (Wrapper != nullptr)
+	{
+		FMixerCustomControlReference ControlRef;
+		ControlRef.Name = ControlName;
+		Wrapper->Delegate.Broadcast(ControlRef, MethodName, static_cast<int32>(Participant->Id));
+	}
 }
 
 void UMixerInteractivityBlueprintEventSource::OnUnhandledCustomControlPropertyUpdateNativeEvent(FName ControlName, TSharedPtr<const FMixerSimpleCustomControl> ControlObject)
 {
-	// @TODO
+	FMixerCustomControlUpdateDelegateWrapper* Wrapper = CustomControlUpdateDelegates.Find(ControlName);
+	if (Wrapper != nullptr)
+	{
+		FMixerCustomControlReference ControlRef;
+		ControlRef.Name = ControlName;
+		Wrapper->Delegate.Broadcast(ControlRef);
+	}
 }
 
 UWorld* UMixerInteractivityBlueprintEventSource::GetWorld() const
@@ -245,6 +267,16 @@ void UMixerDelegateBinding::AddCustomGlobalEventBinding(const FMixerCustomGlobal
 	CustomGlobalEventBindings.Add(BindingInfo);
 }
 
+void UMixerDelegateBinding::AddCustomControlInputBinding(const FMixerCustomControlEventBinding& BindingInfo)
+{
+	CustomControlInputBindings.Add(BindingInfo);
+}
+
+void UMixerDelegateBinding::AddCustomControlUpdateBinding(const FMixerCustomControlEventBinding& BindingInfo)
+{
+	CustomControlUpdateBindings.Add(BindingInfo);
+}
+
 void UMixerDelegateBinding::BindDynamicDelegates(UObject* InInstance) const
 {
 	UMixerInteractivityBlueprintEventSource* EventSource = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(InInstance->GetWorld());
@@ -275,6 +307,23 @@ void UMixerDelegateBinding::BindDynamicDelegates(UObject* InInstance) const
 	for (const FMixerCustomGlobalEventBinding& CustomEventBinding : CustomGlobalEventBindings)
 	{
 		EventSource->AddCustomGlobalEventBinding(CustomEventBinding.EventName, InInstance, CustomEventBinding.TargetFunctionName);
+	}
+
+	for (const FMixerCustomControlEventBinding& CustomControlBinding : CustomControlInputBindings)
+	{
+		FMixerCustomControlInputDynamicDelegate& Event = EventSource->GetCustomControlInputEvent(CustomControlBinding.ControlId);
+		FScriptDelegate Delegate;
+		Delegate.BindUFunction(InInstance, CustomControlBinding.TargetFunctionName);
+		Event.AddUnique(Delegate);
+	}
+
+
+	for (const FMixerCustomControlEventBinding& CustomControlBinding : CustomControlUpdateBindings)
+	{
+		FMixerCustomControlUpdateDynamicDelegate& Event = EventSource->GetCustomControlUpdateEvent(CustomControlBinding.ControlId);
+		FScriptDelegate Delegate;
+		Delegate.BindUFunction(InInstance, CustomControlBinding.TargetFunctionName);
+		Event.AddUnique(Delegate);
 	}
 
 	if (ParticipantJoinedBinding != NAME_None)

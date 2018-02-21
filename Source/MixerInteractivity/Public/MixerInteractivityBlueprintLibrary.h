@@ -118,6 +118,23 @@ struct TStructOpsTypeTraits<FMixerGroupReference> : public TStructOpsTypeTraitsB
 };
 
 USTRUCT(BlueprintType)
+struct MIXERINTERACTIVITY_API FMixerCustomControlReference : public FMixerObjectReference
+{
+public:
+	GENERATED_BODY()
+};
+
+template<>
+struct TStructOpsTypeTraits<FMixerCustomControlReference> : public TStructOpsTypeTraitsBase2<FMixerCustomControlReference>
+{
+	enum
+	{
+		WithExportTextItem = true,
+		WithImportTextItem = true
+	};
+};
+
+USTRUCT(BlueprintType)
 struct MIXERINTERACTIVITY_API FMixerTransactionId
 {
 public:

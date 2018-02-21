@@ -41,6 +41,7 @@ public:
 	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeSticks() = 0;
 	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeScenes() = 0;
 	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeGroups() = 0;
+	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeSimpleCustomControls() = 0;
 
 	virtual void RefreshDesignTimeObjects() = 0;
 
