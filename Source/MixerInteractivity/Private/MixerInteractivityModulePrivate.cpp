@@ -432,7 +432,12 @@ void FMixerInteractivityModule::TickClientLibrary()
 					break;
 
 				case EMixerLoginState::Logged_In:
-					Logout();
+					// This will occur when stopping PIE.  It's annoying to have to login
+					// again to edit Mixer settings, so don't trigger logout here.
+					if (!GIsEditor)
+					{
+						Logout();
+					}
 					break;
 
 				default:
