@@ -248,12 +248,13 @@ void FMixerInteractivityModule::OnLoginUIFlowFinished(bool WasSuccessful)
 {
 	if (LoginWindow.IsValid())
 	{
+		TSharedRef<SWindow> WindowToClose = LoginWindow.ToSharedRef();
 		if (WasSuccessful)
 		{
 			LoginWindow->SetOnWindowClosed(FOnWindowClosed());
+			LoginWindow.Reset();
 		}
 
-		TSharedRef<SWindow> WindowToClose = LoginWindow.ToSharedRef();
 		FSlateApplication::Get().RequestDestroyWindow(WindowToClose);
 	}
 }
