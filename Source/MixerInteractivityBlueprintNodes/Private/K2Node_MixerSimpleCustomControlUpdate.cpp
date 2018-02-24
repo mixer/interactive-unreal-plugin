@@ -47,7 +47,7 @@ void UK2Node_MixerSimpleCustomControlUpdate::GetMenuActions(FBlueprintActionData
 
 FText UK2Node_MixerSimpleCustomControlUpdate::GetMenuCategory() const
 {
-	return FText::FromString("{MixerInteractivity}");
+	return FText::FromString("{MixerInteractivity}|Custom Controls");
 }
 
 FText UK2Node_MixerSimpleCustomControlUpdate::GetNodeTitle(ENodeTitleType::Type TitleType) const
