@@ -123,6 +123,8 @@ public:
 	virtual bool GetStickDescription(FName Stick, FMixerStickDescription& OutDesc);
 	virtual bool GetStickState(FName Stick, FMixerStickState& OutState);
 	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState);
+	virtual bool GetCustomControl(FName ControlName, TSharedPtr<FMixerSimpleCustomControl>& OutControlObject);
+	virtual bool GetCustomControl(FName ControlName, class UMixerCustomControl*& OutControlObject);
 
 	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()
 	{

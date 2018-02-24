@@ -15,7 +15,6 @@
 #include "MixerInteractivityTypes.h"
 #include "Engine/LatentActionManager.h"
 #include "TextProperty.h"
-
 #include "MixerInteractivityBlueprintLibrary.generated.h"
 
 USTRUCT(BlueprintType)
@@ -340,4 +339,10 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Mixer|Interactivity")
 	static void CaptureSparkTransaction(FMixerTransactionId TransactionId);
+
+	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity", CustomThunk, meta=(BlueprintInternalUseOnly = "true"))
+	static void GetCustomControlProperty_Helper(FMixerCustomControlReference Control, FString PropertyName, int32 &OutProperty);
+
+	DECLARE_FUNCTION(execGetCustomControlProperty_Helper);
+
 };

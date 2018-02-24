@@ -9,12 +9,14 @@
 //*********************************************************
 #include "MixerInteractivityBlueprintLibrary.h"
 #include "MixerInteractivityModule.h"
+#include "MixerCustomControl.h"
 #include "LatentActions.h"
 #include "Engine/Engine.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "MessageLog.h"
 #include "Resources/Version.h"
+#include "JsonObjectConverter.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
@@ -319,6 +321,31 @@ FName UMixerInteractivityBlueprintLibrary::GetName(const FMixerObjectReference& 
 void UMixerInteractivityBlueprintLibrary::CaptureSparkTransaction(FMixerTransactionId TransactionId)
 {
 	IMixerInteractivityModule::Get().CaptureSparkTransaction(TransactionId.Id);
+}
+
+DECLARE_FUNCTION(UMixerInteractivityBlueprintLibrary::execGetCustomControlProperty_Helper)
+{
+	P_GET_STRUCT(FMixerCustomControlReference, Control);
+	P_GET_PROPERTY(UStrProperty, PropertyName);
+
+	Stack.MostRecentPropertyAddress = nullptr;
+	Stack.MostRecentProperty = nullptr;
+	Stack.StepCompiledIn<UProperty>(nullptr);
+	P_FINISH;
+
+	P_NATIVE_BEGIN;
+	if (Stack.MostRecentPropertyAddress != nullptr && Stack.MostRecentProperty != nullptr)
+	{
+		TSharedPtr<FMixerSimpleCustomControl> ControlObject;
+		if (IMixerInteractivityModule::Get().GetCustomControl(Control.Name, ControlObject))
+		{
+			if (TSharedPtr<FJsonValue>* LocatedProperty = ControlObject->PropertyBag.Find(PropertyName))
+			{
+				FJsonObjectConverter::JsonValueToUProperty(*LocatedProperty, Stack.MostRecentProperty, Stack.MostRecentPropertyAddress, 0, 0);
+			}
+		}
+	}
+	P_NATIVE_END;
 }
 
 #undef LOCTEXT_NAMESPACE

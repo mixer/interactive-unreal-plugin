@@ -224,6 +224,34 @@ public:
 	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState) = 0;
 
 	/**
+	* Retrieve information about a named custom control.  Information may include both static 
+	* (similar to Get*Description methods above) and dynamic (similar to Get*State methods) data.
+	* There is no concept of data being isolated per participant.
+	* This overload expects the named control to be a 'simple' custom control, that is, not mapped
+	* directly on the client to a custom type derived from UMixerCustomControl.
+	*
+	* @param	ControlName			Name of the control for which information should be returned.
+	* @param	OutControlObject	See FMixerSimpleCustomControl.
+	*
+	* @Return						True if the control was found (and is a simple control).
+	*/
+	virtual bool GetCustomControl(FName ControlName, TSharedPtr<FMixerSimpleCustomControl>& OutControlObject) = 0;
+
+	/**
+	* Retrieve information about a named custom control.  Information may include both static
+	* (similar to Get*Description methods above) and dynamic (similar to Get*State methods) data.
+	* There is no concept of data being isolated per participant.
+	* This overload expects the named control to be mapped directly on the client to a custom type
+	* derived from UMixerCustomControl.
+	*
+	* @param	ControlName			Name of the control for which information should be returned.
+	* @param	OutControlObject	See UMixerCustomControl.
+	*
+	* @Return						True if the control was found (and is a mapped control).
+	*/
+	virtual bool GetCustomControl(FName ControlName, class UMixerCustomControl*& OutControlObject) = 0;
+
+	/**
 	* Retrieve a structure describing the local user currently signed in to the Mixer service.
 	*
 	* @Return					See FMixerLocalUser.  Invalid shared pointer when no user is signed in.

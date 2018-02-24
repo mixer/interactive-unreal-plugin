@@ -963,6 +963,36 @@ bool FMixerInteractivityModule::GetStickState(FName Stick, uint32 ParticipantId,
 	return false;
 }
 
+bool FMixerInteractivityModule::GetCustomControl(FName ControlName, TSharedPtr<FMixerSimpleCustomControl>& OutControlObj)
+{
+	TSharedPtr<FMixerSimpleCustomControl>* FoundControl = SimpleCustomControls.Find(ControlName);
+	if (FoundControl != nullptr)
+	{
+		OutControlObj = *FoundControl;
+		return true;
+	}
+	else
+	{
+		OutControlObj.Reset();
+		return false;
+	}
+}
+
+bool FMixerInteractivityModule::GetCustomControl(FName ControlName, UMixerCustomControl*& OutControlObj)
+{
+	UMixerCustomControl** FoundControl = AdvancedCustomControls.Find(ControlName);
+	if (FoundControl != nullptr)
+	{
+		OutControlObj = *FoundControl;
+		return true;
+	}
+	else
+	{
+		OutControlObj = nullptr;
+		return false;
+	}
+}
+
 std::shared_ptr<Microsoft::mixer::interactive_button_control> FMixerInteractivityModule::FindButton(FName Name)
 {
 	using namespace Microsoft::mixer;
