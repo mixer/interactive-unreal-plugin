@@ -101,8 +101,8 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta = (DisplayName = "Groups"))
 	TArray<FMixerPredefinedGroup> DesignTimeGroups;
 
-	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta=(MetaClass="MixerCustomGlobalEvents"))
-	FSoftClassPath CustomGlobalEvents;
+	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta=(MetaClass="MixerCustomMethods"))
+	FSoftClassPath CustomMethods;
 
 public:
 	FString GetResolvedRedirectUri() const

@@ -64,9 +64,9 @@ FMixerButtonEventDynamicDelegate* UMixerInteractivityBlueprintEventSource::GetBu
 	return Pressed ? &DelegateWrapper.PressedDelegate : &DelegateWrapper.ReleasedDelegate;
 }
 
-void UMixerInteractivityBlueprintEventSource::AddCustomGlobalEventBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName)
+void UMixerInteractivityBlueprintEventSource::AddCustomMethodBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName)
 {
-	FMixerCustomGlobalEventStubDelegateWrapper& DelegateWrapper = CustomGlobalEventDelegates.FindOrAdd(EventName);
+	FMixerCustomMethodStubDelegateWrapper& DelegateWrapper = CustomMethodDelegates.FindOrAdd(EventName);
 	FScriptDelegate SingleDelegate;
 	SingleDelegate.BindUFunction(TargetObject, TargetFunctionName);
 	DelegateWrapper.Delegate.AddUnique(SingleDelegate);
@@ -156,7 +156,7 @@ void UMixerInteractivityBlueprintEventSource::OnCustomMethodCallNativeEvent(FNam
 	UFunction* FunctionPrototype = nullptr;
 	const FMulticastScriptDelegate* BlueprintEvent = nullptr;
 	const FMulticastScriptDelegate* NativeEvent = nullptr;
-	FMixerCustomGlobalEventStubDelegateWrapper* DelegateWrapper = CustomGlobalEventDelegates.Find(MethodName);
+	FMixerCustomMethodStubDelegateWrapper* DelegateWrapper = CustomMethodDelegates.Find(MethodName);
 	if (DelegateWrapper != nullptr)
 	{
 		FunctionPrototype = DelegateWrapper->FunctionPrototype;
@@ -227,7 +227,7 @@ void UMixerInteractivityBlueprintEventSource::PostLoad()
 	}
 #endif
 
-	for (TMap<FName, FMixerCustomGlobalEventStubDelegateWrapper>::TIterator It(CustomGlobalEventDelegates); It; ++It)
+	for (TMap<FName, FMixerCustomMethodStubDelegateWrapper>::TIterator It(CustomMethodDelegates); It; ++It)
 	{
 #if WITH_EDITOR
 		if (!It->Value.Delegate.IsBound())
@@ -262,9 +262,9 @@ void UMixerDelegateBinding::AddStickBinding(const FMixerStickEventBinding& Bindi
 	StickEventBindings.Add(BindingInfo);
 }
 
-void UMixerDelegateBinding::AddCustomGlobalEventBinding(const FMixerCustomGlobalEventBinding& BindingInfo)
+void UMixerDelegateBinding::AddCustomMethodBinding(const FMixerCustomMethodBinding& BindingInfo)
 {
-	CustomGlobalEventBindings.Add(BindingInfo);
+	CustomMethodBindings.Add(BindingInfo);
 }
 
 void UMixerDelegateBinding::AddCustomControlInputBinding(const FMixerCustomControlEventBinding& BindingInfo)
@@ -304,9 +304,9 @@ void UMixerDelegateBinding::BindDynamicDelegates(UObject* InInstance) const
 		}
 	}
 
-	for (const FMixerCustomGlobalEventBinding& CustomEventBinding : CustomGlobalEventBindings)
+	for (const FMixerCustomMethodBinding& CustomEventBinding : CustomMethodBindings)
 	{
-		EventSource->AddCustomGlobalEventBinding(CustomEventBinding.EventName, InInstance, CustomEventBinding.TargetFunctionName);
+		EventSource->AddCustomMethodBinding(CustomEventBinding.EventName, InInstance, CustomEventBinding.TargetFunctionName);
 	}
 
 	for (const FMixerCustomControlEventBinding& CustomControlBinding : CustomControlInputBindings)

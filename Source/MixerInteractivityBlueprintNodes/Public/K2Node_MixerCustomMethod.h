@@ -11,10 +11,10 @@
 
 #include "K2Node_Event.h"
 #include "MixerInteractivityBlueprintLibrary.h"
-#include "K2Node_MixerCustomGlobalEvent.generated.h"
+#include "K2Node_MixerCustomMethod.generated.h"
 
 UCLASS(MinimalAPI)
-class UK2Node_MixerCustomGlobalEvent : public UK2Node_Event
+class UK2Node_MixerCustomMethod : public UK2Node_Event
 {
 public:
 	GENERATED_BODY()

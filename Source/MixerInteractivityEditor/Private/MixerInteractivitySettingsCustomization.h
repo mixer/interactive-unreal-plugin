@@ -71,8 +71,8 @@ private:
 	FText GetUpdateControlSheetFromOnlineButtonText() const;
 	FReply UpdateControlSheetFromOnline();
 
-	void OnCustomGlobalEventsPreChange();
-	void OnCustomGlobalEventsPostChange();
+	void OnCustomMethodsPreChange();
+	void OnCustomMethodsPostChange();
 
 private:
 	FDelegateHandle LoginStateDelegateHandle;

@@ -9,10 +9,10 @@
 //*********************************************************
 #pragma once
 
-#include "MixerInteractivityCustomGlobalEvents.generated.h"
+#include "MixerInteractivityCustomMethods.generated.h"
 
 UCLASS(Blueprintable, NotBlueprintType, NotPlaceable, NotEditInlineNew, HideDropdown)
-class UMixerCustomGlobalEvents : public UObject
+class UMixerCustomMethods : public UObject
 {
 public:
 	GENERATED_BODY()

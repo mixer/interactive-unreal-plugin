@@ -30,7 +30,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMixerBroadcastingEventDynamicDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FMixerCustomControlInputDynamicDelegate, FMixerCustomControlReference, Control, FName, Event, int32, ParticipantId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMixerCustomControlUpdateDynamicDelegate, FMixerCustomControlReference, Control);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMixerCustomGlobalEventStubDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMixerCustomMethodStubDelegate);
 
 USTRUCT()
 struct MIXERINTERACTIVITY_API FMixerButtonEventDynamicDelegateWrapper
@@ -68,7 +68,7 @@ struct MIXERINTERACTIVITY_API FMixerCustomControlUpdateDelegateWrapper
 };
 
 USTRUCT()
-struct MIXERINTERACTIVITY_API FMixerCustomGlobalEventStubDelegateWrapper
+struct MIXERINTERACTIVITY_API FMixerCustomMethodStubDelegateWrapper
 {
 	GENERATED_BODY()
 
@@ -79,7 +79,7 @@ struct MIXERINTERACTIVITY_API FMixerCustomGlobalEventStubDelegateWrapper
 	UFunction* FunctionPrototype;
 
 	UPROPERTY()
-	FMixerCustomGlobalEventStubDelegate Delegate;
+	FMixerCustomMethodStubDelegate Delegate;
 };
 
 
@@ -112,7 +112,7 @@ public:
 	FMixerStickEventDynamicDelegate* GetStickEvent(FName StickName);
 	FMixerCustomControlInputDynamicDelegate& GetCustomControlInputEvent(FName ControlName);
 	FMixerCustomControlUpdateDynamicDelegate& GetCustomControlUpdateEvent(FName ControlName);
-	void AddCustomGlobalEventBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName);
+	void AddCustomMethodBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName);
 
 	void OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerButtonEventDetails& Details);
 	void OnParticipantStateChangedNativeEvent(TSharedPtr<const FMixerRemoteUser> Participant, EMixerInteractivityParticipantState NewState);
@@ -135,7 +135,7 @@ private:
 	TMap<FName, FMixerStickEventDynamicDelegateWrapper> StickDelegates;
 
 	UPROPERTY()
-	TMap<FName, FMixerCustomGlobalEventStubDelegateWrapper> CustomGlobalEventDelegates;
+	TMap<FName, FMixerCustomMethodStubDelegateWrapper> CustomMethodDelegates;
 
 	UPROPERTY()
 	TMap<FName, FMixerCustomControlInputDelegateWrapper> CustomControlInputDelegates;
@@ -179,7 +179,7 @@ struct FMixerStickEventBinding
 };
 
 USTRUCT()
-struct FMixerCustomGlobalEventBinding
+struct FMixerCustomMethodBinding
 {
 	GENERATED_BODY()
 
@@ -225,7 +225,7 @@ public:
 
 	void AddButtonBinding(const FMixerButtonEventBinding& BindingInfo);
 	void AddStickBinding(const FMixerStickEventBinding& BindingInfo);
-	void AddCustomGlobalEventBinding(const FMixerCustomGlobalEventBinding& BindingInfo);
+	void AddCustomMethodBinding(const FMixerCustomMethodBinding& BindingInfo);
 	void AddCustomControlInputBinding(const FMixerCustomControlEventBinding& BindingInfo);
 	void AddCustomControlUpdateBinding(const FMixerCustomControlEventBinding& BindingInfo);
 
@@ -242,7 +242,7 @@ private:
 	TArray<FMixerStickEventBinding> StickEventBindings;
 
 	UPROPERTY()
-	TArray<FMixerCustomGlobalEventBinding> CustomGlobalEventBindings;
+	TArray<FMixerCustomMethodBinding> CustomMethodBindings;
 
 	UPROPERTY()
 	TArray<FMixerCustomControlEventBinding> CustomControlInputBindings;

@@ -15,7 +15,7 @@
 #include "MixerInteractivitySettings.h"
 #include "MixerInteractivityEditorModule.h"
 #include "MixerInteractiveGame.h"
-#include "K2Node_MixerCustomGlobalEvent.h"
+#include "K2Node_MixerCustomMethod.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
@@ -267,9 +267,9 @@ void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBui
 	ControlSheetGroup.AddPropertyRow(CachedScenesProperty.ToSharedRef()).IsEnabled(false);
 
 
-	TSharedRef<IPropertyHandle> CustomEventsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, CustomGlobalEvents));
-	CustomEventsProperty->SetOnPropertyValuePreChange(FSimpleDelegate::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnCustomGlobalEventsPreChange));
-	CustomEventsProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnCustomGlobalEventsPostChange));
+	TSharedRef<IPropertyHandle> CustomMethodsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, CustomMethods));
+	CustomMethodsProperty->SetOnPropertyValuePreChange(FSimpleDelegate::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnCustomMethodsPreChange));
+	CustomMethodsProperty->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnCustomMethodsPostChange));
 
 	if (!LoginStateDelegateHandle.IsValid())
 	{
@@ -684,40 +684,40 @@ bool FMixerInteractivitySettingsCustomization::GetLoginButtonEnabledState() cons
 	return !Settings->ClientId.IsEmpty() && !Settings->RedirectUri.IsEmpty();
 }
 
-void FMixerInteractivitySettingsCustomization::OnCustomGlobalEventsPreChange()
+void FMixerInteractivitySettingsCustomization::OnCustomMethodsPreChange()
 {
-	const FSoftClassPath& CustomEventsPath = GetDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
-	if (CustomEventsPath.IsValid())
+	const FSoftClassPath& CustomMethodsPath = GetDefault<UMixerInteractivitySettings>()->CustomMethods;
+	if (CustomMethodsPath.IsValid())
 	{
-		UClass* CustomGlobalEvents = CustomEventsPath.ResolveClass();
-		if (CustomGlobalEvents != nullptr)
+		UClass* CustomMethods = CustomMethodsPath.ResolveClass();
+		if (CustomMethods != nullptr)
 		{
-			UBlueprint* CustomEventsBlueprint = Cast<UBlueprint>(CustomGlobalEvents->ClassGeneratedBy);
-			if (CustomEventsBlueprint != nullptr)
+			UBlueprint* CustomMethodsBlueprint = Cast<UBlueprint>(CustomMethods->ClassGeneratedBy);
+			if (CustomMethodsBlueprint != nullptr)
 			{
-				CustomEventsBlueprint->OnCompiled().RemoveAll(this);
+				CustomMethodsBlueprint->OnCompiled().RemoveAll(this);
 			}
 		}
 	}
 }
 
-void FMixerInteractivitySettingsCustomization::OnCustomGlobalEventsPostChange()
+void FMixerInteractivitySettingsCustomization::OnCustomMethodsPostChange()
 {
-	FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerCustomGlobalEvent::StaticClass());
+	FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerCustomMethod::StaticClass());
 
-	const FSoftClassPath& CustomEventsPath = GetDefault<UMixerInteractivitySettings>()->CustomGlobalEvents;
-	if (CustomEventsPath.IsValid())
+	const FSoftClassPath& CustomMethodsPath = GetDefault<UMixerInteractivitySettings>()->CustomMethods;
+	if (CustomMethodsPath.IsValid())
 	{
-		UClass* CustomGlobalEvents = CustomEventsPath.TryLoadClass<UObject>();
-		if (CustomGlobalEvents != nullptr)
+		UClass* CustomMethods = CustomMethodsPath.TryLoadClass<UObject>();
+		if (CustomMethods != nullptr)
 		{
-			UBlueprint* CustomEventsBlueprint = Cast<UBlueprint>(CustomGlobalEvents->ClassGeneratedBy);
-			if (CustomEventsBlueprint != nullptr)
+			UBlueprint* CustomMethodsBlueprint = Cast<UBlueprint>(CustomMethods->ClassGeneratedBy);
+			if (CustomMethodsBlueprint != nullptr)
 			{
-				CustomEventsBlueprint->OnCompiled().AddLambda(
+				CustomMethodsBlueprint->OnCompiled().AddLambda(
 					[](UBlueprint*)
 				{
-					FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerCustomGlobalEvent::StaticClass());
+					FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerCustomMethod::StaticClass());
 				});
 			}
 		}
