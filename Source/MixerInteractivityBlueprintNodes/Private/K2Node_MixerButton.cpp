@@ -28,9 +28,9 @@ void UK2Node_MixerButton::ValidateNodeDuringCompilation(class FCompilerResultsLo
 {
 	Super::ValidateNodeDuringCompilation(MessageLog);
 
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	check(Settings);
-	if (!Settings->CachedButtons.Contains(ButtonId))
+	TArray<FString> Buttons;
+	UMixerInteractivitySettings::GetAllButtons(Buttons);
+	if (!Buttons.Contains(ButtonId.ToString()))
 	{
 		MessageLog.Warning(*FText::Format(LOCTEXT("MixerButtonNode_UnknownButtonWarning", "Mixer Button Event specifies invalid button id '{0}' for @@"), FText::FromName(ButtonId)).ToString(), this);
 	}
@@ -143,13 +143,12 @@ void UK2Node_MixerButton::GetMenuActions(FBlueprintActionDatabaseRegistrar& Acti
 	UClass* ActionKey = GetClass();
 	if (ActionRegistrar.IsOpenForRegistration(ActionKey))
 	{
-		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-		for (FName CachedButtonName : Settings->CachedButtons)
+		TArray<FString> Buttons;
+		UMixerInteractivitySettings::GetAllButtons(Buttons);
+		for (const FString& ButtonName : Buttons)
 		{
 			UBlueprintNodeSpawner* NodeSpawner = UBlueprintNodeSpawner::Create(GetClass());
-			check(NodeSpawner != nullptr);
-
-			NodeSpawner->CustomizeNodeDelegate = UBlueprintNodeSpawner::FCustomizeNodeDelegate::CreateStatic(CustomizeMixerNodeLambda, CachedButtonName);
+			NodeSpawner->CustomizeNodeDelegate = UBlueprintNodeSpawner::FCustomizeNodeDelegate::CreateStatic(CustomizeMixerNodeLambda, FName(*ButtonName));
 			ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
 		}
 	}

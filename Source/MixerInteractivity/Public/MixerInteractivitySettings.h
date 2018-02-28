@@ -104,6 +104,9 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta=(MetaClass="MixerCustomMethods"))
 	FSoftClassPath CustomMethods;
 
+	UPROPERTY(EditAnywhere, Config, Category = "Interactive Controls", meta = (AllowedClasses = "MixerProjectAsset"))
+	FSoftObjectPath ProjectDefinition;
+
 public:
 	FString GetResolvedRedirectUri() const
 	{
@@ -126,4 +129,10 @@ public:
 		return TEXT("RETAIL");
 #endif
 	}
+
+#if WITH_EDITORONLY_DATA
+	static void GetAllSticks(TArray<FString>& OutSticks);
+	static void GetAllButtons(TArray<FString>& OutButtons);
+	static void GetAllUnmappedCustomControls(TArray<FString>& OutCustomControls);
+#endif
 };

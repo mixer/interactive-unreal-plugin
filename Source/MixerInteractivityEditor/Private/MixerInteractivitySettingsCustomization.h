@@ -14,6 +14,7 @@
 #include "IDetailCustomization.h"
 #include "DetailLayoutBuilder.h"
 #include "MixerInteractivityTypes.h"
+#include "MixerInteractivityJsonTypes.h"
 #include "SComboBox.h"
 
 struct FMixerInteractiveGame;
@@ -92,6 +93,8 @@ private:
 	TArray<FName> OnlineJoystickNames;
 	TArray<FName> OnlineSceneNames;
 	TArray<TSharedPtr<FName>> OnlineSceneNamesForCombo;
+
+	FMixerInteractiveGameVersion DownloadedProjectDefinition;
 
 	bool IsChangingUser;
 };

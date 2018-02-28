@@ -14,7 +14,7 @@
 #include "MixerInteractivityModule.h"
 #include "MixerInteractivitySettings.h"
 #include "MixerInteractivityEditorModule.h"
-#include "MixerInteractiveGame.h"
+#include "MixerInteractivityProjectAsset.h"
 #include "K2Node_MixerCustomMethod.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
@@ -28,12 +28,17 @@
 #include "ContentBrowserModule.h"
 #include "K2Node_MixerButton.h"
 #include "K2Node_MixerStickEvent.h"
+#include "K2Node_MixerSimpleCustomControlInput.h"
+#include "K2Node_MixerSimpleCustomControlUpdate.h"
 #include "BlueprintActionDatabase.h"
 #include "PropertyCustomizationHelpers.h"
 #include "IDetailChildrenBuilder.h"
 #include "SErrorHint.h"
 #include "SButton.h"
 #include "SRichTextBlock.h"
+#include "ContentBrowserModule.h"
+#include "IContentBrowserSingleton.h"
+#include "AssetToolsModule.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
@@ -262,10 +267,9 @@ void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBui
 		]
 	];
 
-	ControlSheetGroup.AddPropertyRow(CachedButtonsProperty.ToSharedRef()).IsEnabled(false);
-	ControlSheetGroup.AddPropertyRow(CachedSticksProperty.ToSharedRef()).IsEnabled(false);
-	ControlSheetGroup.AddPropertyRow(CachedScenesProperty.ToSharedRef()).IsEnabled(false);
-
+	//ControlSheetGroup.AddPropertyRow(CachedButtonsProperty.ToSharedRef()).IsEnabled(false);
+	//ControlSheetGroup.AddPropertyRow(CachedSticksProperty.ToSharedRef()).IsEnabled(false);
+	//ControlSheetGroup.AddPropertyRow(CachedScenesProperty.ToSharedRef()).IsEnabled(false);
 
 	TSharedRef<IPropertyHandle> CustomMethodsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, CustomMethods));
 	CustomMethodsProperty->SetOnPropertyValuePreChange(FSimpleDelegate::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnCustomMethodsPreChange));
@@ -435,46 +439,37 @@ void FMixerInteractivitySettingsCustomization::OnInteractiveControlsForVersionRe
 {
 	if (Success)
 	{
-		OnlineSceneNames.Empty();
-		OnlineButtonNames.Empty();
-		OnlineJoystickNames.Empty();
-		for (const FMixerInteractiveScene& Scene : VersionWithControls.Controls.Scenes)
-		{
-			OnlineSceneNames.Add(FName(*Scene.Id));
-
-			for (const FMixerInteractiveControl& Control : Scene.Controls)
-			{
-				if (Control.IsButton())
-				{
-					OnlineButtonNames.Add(FName(*Control.Id));
-				}
-				else if (Control.IsJoystick())
-				{
-					OnlineJoystickNames.Add(FName(*Control.Id));
-				}
-			}
-		}
+		DownloadedProjectDefinition = VersionWithControls;
+	}
+	else
+	{
+		DownloadedProjectDefinition.Id = 0;
+		DownloadedProjectDefinition.Name.Empty();
+		DownloadedProjectDefinition.Controls.Scenes.Empty();
 	}
 }
 
 EVisibility FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineVisibility() const
 {
+	if (DownloadedProjectDefinition.Id == 0)
+	{
+		return EVisibility::Collapsed;
+	}
+
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	if (Settings->CachedButtons != OnlineButtonNames ||
-		Settings->CachedSticks != OnlineJoystickNames ||
-		Settings->CachedScenes != OnlineSceneNames)
+	UMixerProjectAsset* ProjectAsset = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
+	if (ProjectAsset == nullptr)
 	{
 		return EVisibility::Visible;
 	}
 
-	return EVisibility::Collapsed;
+	return ProjectAsset->ParsedProjectDefinition == DownloadedProjectDefinition ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
 FText FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineInfoText() const
 {
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	check(Settings);
-	if (Settings->CachedButtons.Num() > 0 || Settings->CachedScenes.Num() > 0 || Settings->CachedSticks.Num() > 0)
+	if (Settings->ProjectDefinition.TryLoad() != nullptr)
 	{
 		return LOCTEXT("ControlSheetNeedsUpdate", "The controls for the selected interactive game and version are different to the local saved version.");
 	}
@@ -487,8 +482,7 @@ FText FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineI
 FText FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineButtonText() const
 {
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	check(Settings);
-	if (Settings->CachedButtons.Num() > 0 || Settings->CachedScenes.Num() > 0 || Settings->CachedSticks.Num() > 0)
+	if (Settings->ProjectDefinition.TryLoad() != nullptr)
 	{
 		return LOCTEXT("ControlSheetUpdateNow", "Update now");
 	}
@@ -502,20 +496,39 @@ FReply FMixerInteractivitySettingsCustomization::UpdateControlSheetFromOnline()
 {
 	UMixerInteractivitySettings* Settings = GetMutableDefault<UMixerInteractivitySettings>();
 
-	CachedButtonsProperty->NotifyPreChange();
-	CachedScenesProperty->NotifyPreChange();
-	CachedSticksProperty->NotifyPreChange();
-	Settings->CachedButtons = OnlineButtonNames;
-	Settings->CachedScenes = OnlineSceneNames;
-	Settings->CachedSticks = OnlineJoystickNames;
-	CachedButtonsProperty->NotifyPostChange();
-	CachedScenesProperty->NotifyPostChange();
-	CachedSticksProperty->NotifyPostChange();
+	UMixerProjectAsset* CurrentDefinition = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
+	if (CurrentDefinition == nullptr)
+	{
+		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+		FSaveAssetDialogConfig SaveConfig;
+		SaveConfig.DefaultAssetName = TEXT("NewMixerProject");
+		SaveConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
+		FString SaveToPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveConfig);
+
+		const FString SavePackageName = FPackageName::ObjectPathToPackageName(SaveToPath);
+		const FString SavePackagePath = FPaths::GetPath(SavePackageName);
+		const FString SaveAssetName = FPaths::GetBaseFilename(SavePackageName);
+
+		FAssetToolsModule& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+		CurrentDefinition = Cast<UMixerProjectAsset>(AssetTools.Get().CreateAsset(SaveAssetName, SavePackagePath, UMixerProjectAsset::StaticClass(), nullptr));
+
+		Settings->ProjectDefinition = FSoftObjectPath(CurrentDefinition);
+		Settings->SaveConfig();
+	}
+
+	if (CurrentDefinition != nullptr)
+	{
+		CurrentDefinition->ParsedProjectDefinition = DownloadedProjectDefinition;
+		CurrentDefinition->ProjectDefinitionJson = DownloadedProjectDefinition.ToJson(false);
+		CurrentDefinition->MarkPackageDirty();
+	}
 
 	IMixerInteractivityEditorModule::Get().RefreshDesignTimeObjects();
 
 	FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerButton::StaticClass());
 	FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerStickEvent::StaticClass());
+	FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerSimpleCustomControlInput::StaticClass());
+	FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerSimpleCustomControlUpdate::StaticClass());
 
 	return FReply::Handled();
 }

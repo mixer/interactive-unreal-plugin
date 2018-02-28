@@ -13,7 +13,7 @@
 #include "JsonTypes.h"
 #include "JsonSerializerMacros.h"
 
-struct MIXERINTERACTIVITYEDITOR_API FMixerInteractiveControl : public FJsonSerializable
+struct MIXERINTERACTIVITY_API FMixerInteractiveControl : public FJsonSerializable
 {
 public:
 	FString Id;
@@ -25,15 +25,25 @@ public:
 
 	bool IsButton() const { return Kind == ButtonKind; }
 	bool IsJoystick() const { return Kind == JoystickKind; }
+	bool IsCustom() const;
 
 public:
 	BEGIN_JSON_SERIALIZER
 		JSON_SERIALIZE("controlID", Id);
 		JSON_SERIALIZE("kind", Kind);
 	END_JSON_SERIALIZER
+public:
+	bool operator==(const FMixerInteractiveControl& Rhs) const
+	{
+		return Id == Rhs.Id && Kind == Rhs.Kind;
+	}
+	bool operator !=(const FMixerInteractiveControl& Rhs) const
+	{
+		return !(*this == Rhs);
+	}
 };
 
-struct MIXERINTERACTIVITYEDITOR_API FMixerInteractiveScene : public FJsonSerializable
+struct MIXERINTERACTIVITY_API FMixerInteractiveScene : public FJsonSerializable
 {
 public:
 	FString Id;
@@ -44,9 +54,18 @@ public:
 		JSON_SERIALIZE("sceneID", Id);
 		JSON_SERIALIZE_ARRAY_SERIALIZABLE("controls", Controls, FMixerInteractiveControl);
 	END_JSON_SERIALIZER
+public:
+	bool operator==(const FMixerInteractiveScene& Rhs) const
+	{
+		return Id == Rhs.Id && Controls == Rhs.Controls;
+	}
+	bool operator !=(const FMixerInteractiveScene& Rhs) const
+	{
+		return !(*this == Rhs);
+	}
 };
 
-struct MIXERINTERACTIVITYEDITOR_API FMixerInteractiveControlsCollection : public FJsonSerializable
+struct MIXERINTERACTIVITY_API FMixerInteractiveControlsCollection : public FJsonSerializable
 {
 public:
 	TArray<FMixerInteractiveScene> Scenes;
@@ -55,9 +74,18 @@ public:
 	BEGIN_JSON_SERIALIZER
 		JSON_SERIALIZE_ARRAY_SERIALIZABLE("scenes", Scenes, FMixerInteractiveScene);
 	END_JSON_SERIALIZER
+public:
+	bool operator==(const FMixerInteractiveControlsCollection& Rhs) const
+	{
+		return Scenes == Rhs.Scenes;
+	}
+	bool operator !=(const FMixerInteractiveControlsCollection& Rhs) const
+	{
+		return !(*this == Rhs);
+	}
 };
 
-struct MIXERINTERACTIVITYEDITOR_API FMixerInteractiveGameVersion : public FJsonSerializable
+struct MIXERINTERACTIVITY_API FMixerInteractiveGameVersion : public FJsonSerializable
 {
 public:
 	FString Name;
@@ -69,9 +97,19 @@ public:
 		JSON_SERIALIZE("version", Name);
 		JSON_SERIALIZE_OBJECT_SERIALIZABLE("controls", Controls);
 	END_JSON_SERIALIZER
+
+public:
+	bool operator==(const FMixerInteractiveGameVersion& Rhs) const
+	{
+		return Id == Rhs.Id && Name == Rhs.Name && Controls == Rhs.Controls;
+	}
+	bool operator !=(const FMixerInteractiveGameVersion& Rhs) const
+	{
+		return !(*this == Rhs);
+	}
 };
 
-struct MIXERINTERACTIVITYEDITOR_API FMixerInteractiveGame : public FJsonSerializable
+struct MIXERINTERACTIVITY_API FMixerInteractiveGame : public FJsonSerializable
 {
 public:
 	FString Name;

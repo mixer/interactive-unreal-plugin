@@ -8,8 +8,14 @@
 //
 //*********************************************************
 
-#include "MixerInteractiveGame.h"
+#include "MixerInteractivityJsonTypes.h"
 #include "JsonObject.h"
 
 const FString FMixerInteractiveControl::ButtonKind = TEXT("button");
 const FString FMixerInteractiveControl::JoystickKind = TEXT("joystick");
+
+bool FMixerInteractiveControl::IsCustom() const
+{
+	return !IsButton()
+		&& !IsJoystick();
+}

@@ -20,27 +20,24 @@
 
 void UK2Node_MixerSimpleCustomControlUpdate::GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const
 {
-	auto CustomizeMixerNodeLambda = [](UEdGraphNode* NewNode, bool bIsTemplateNode, FName InControlName)
+	auto CustomizeMixerNodeLambda = [](UEdGraphNode* NewNode, bool bIsTemplateNode, FString InControlName)
 	{
 		UK2Node_MixerSimpleCustomControlUpdate* MixerNode = CastChecked<UK2Node_MixerSimpleCustomControlUpdate>(NewNode);
-		MixerNode->ControlId = InControlName;
-		MixerNode->CustomFunctionName = FName(*FString::Printf(TEXT("MixerCustomControlUpdateEvt_%s"), *InControlName.ToString()));
+		MixerNode->ControlId = *InControlName;
+		MixerNode->CustomFunctionName = FName(*FString::Printf(TEXT("MixerCustomControlUpdateEvt_%s"), *InControlName));
 		MixerNode->EventReference.SetExternalDelegateMember(FName(TEXT("MixerCustomControlUpdateDynamicDelegate__DelegateSignature")));
 	};
 
 	UClass* ActionKey = GetClass();
 	if (ActionRegistrar.IsOpenForRegistration(ActionKey))
 	{
-		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-		for (TMap<FName, TSubclassOf<UMixerCustomControl>>::TConstIterator It(Settings->CachedCustomControls); It; ++It)
+		TArray<FString> CustomControls;
+		UMixerInteractivitySettings::GetAllUnmappedCustomControls(CustomControls);
+		for (const FString& CustomControlName : CustomControls)
 		{
-			if (It->Value.Get() == nullptr)
-			{
-				UBlueprintNodeSpawner* NodeSpawner = UBlueprintNodeSpawner::Create(GetClass());
-				check(NodeSpawner != nullptr);
-				NodeSpawner->CustomizeNodeDelegate = UBlueprintNodeSpawner::FCustomizeNodeDelegate::CreateStatic(CustomizeMixerNodeLambda, It->Key);
-				ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
-			}
+			UBlueprintNodeSpawner* NodeSpawner = UBlueprintNodeSpawner::Create(GetClass());
+			NodeSpawner->CustomizeNodeDelegate = UBlueprintNodeSpawner::FCustomizeNodeDelegate::CreateStatic(CustomizeMixerNodeLambda, CustomControlName);
+			ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
 		}
 	}
 }

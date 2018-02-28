@@ -34,6 +34,7 @@
 #include "App.h"
 #include "Engine/Engine.h"
 #include "OnlineSubsystemTypes.h"
+#include "OnlineChatMixerPrivate.h"
 
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
 #include "SMixerLoginPane.h"
