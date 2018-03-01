@@ -26,6 +26,10 @@ public:
 	// End of IDetailCustomization interface
 
 private:
-	const UClass* GetClassForCustomControl(class UMixerProjectAsset* ProjectDefinition, FName ControlName) const;
-	void SetClassForCustomControl(const UClass* NewClass, class UMixerProjectAsset* ProjectDefinition, FName ControlName) const;
+	const UClass* GetClassForCustomControl(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName) const;
+	void SetClassForCustomControl(const UClass* NewClass, TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName) const;
+	void OnUseSelectedClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName);
+	void OnBrowseClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName);
+	void OnMakeNewClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName);
+	void OnClearClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName);
 };

@@ -26,6 +26,6 @@ public:
 	FMixerInteractiveGameVersion ParsedProjectDefinition;
 #endif
 
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, Category="Scenes")
 	TMap<FName, FSoftClassPath> CustomControlBindings;
 };

@@ -85,20 +85,37 @@ public:
 	}
 };
 
+struct MIXERINTERACTIVITY_API FMixerInteractiveGame : public FJsonSerializable
+{
+public:
+	FString Name;
+	FString Description;
+	TArray<struct FMixerInteractiveGameVersion> Versions;
+	uint32 Id;
+
+public:
+	void Serialize(FJsonSerializerBase& Serializer, bool bFlatObject);
+};
+
 struct MIXERINTERACTIVITY_API FMixerInteractiveGameVersion : public FJsonSerializable
 {
 public:
 	FString Name;
 	uint32 Id;
 	FMixerInteractiveControlsCollection Controls;
+
+	// Shallow definition of parent game - won't include versions all over again
+	FMixerInteractiveGame Game;
 public:
 	BEGIN_JSON_SERIALIZER
 		JSON_SERIALIZE("id", Id);
 		JSON_SERIALIZE("version", Name);
 		JSON_SERIALIZE_OBJECT_SERIALIZABLE("controls", Controls);
+		JSON_SERIALIZE_OBJECT_SERIALIZABLE("game", Game);
 	END_JSON_SERIALIZER
 
 public:
+	// Ignore parent Game - Id should be enough to fully establish identity 
 	bool operator==(const FMixerInteractiveGameVersion& Rhs) const
 	{
 		return Id == Rhs.Id && Name == Rhs.Name && Controls == Rhs.Controls;
@@ -107,21 +124,4 @@ public:
 	{
 		return !(*this == Rhs);
 	}
-};
-
-struct MIXERINTERACTIVITY_API FMixerInteractiveGame : public FJsonSerializable
-{
-public:
-	FString Name;
-	FString Description;
-	TArray<FMixerInteractiveGameVersion> Versions;
-	uint32 Id;
-
-public:
-	BEGIN_JSON_SERIALIZER
-		JSON_SERIALIZE("name", Name);
-		JSON_SERIALIZE("id", Id);
-		JSON_SERIALIZE("description", Description);
-		JSON_SERIALIZE_ARRAY_SERIALIZABLE("versions", Versions, FMixerInteractiveGameVersion);
-	END_JSON_SERIALIZER
 };

@@ -19,3 +19,13 @@ bool FMixerInteractiveControl::IsCustom() const
 	return !IsButton()
 		&& !IsJoystick();
 }
+
+void FMixerInteractiveGame::Serialize(FJsonSerializerBase& Serializer, bool bFlatObject)
+{
+	if (!bFlatObject) { Serializer.StartObject(); }
+	JSON_SERIALIZE("name", Name);
+	JSON_SERIALIZE("id", Id);
+	JSON_SERIALIZE("description", Description);
+	JSON_SERIALIZE_ARRAY_SERIALIZABLE("versions", Versions, FMixerInteractiveGameVersion);
+	if (!bFlatObject) { Serializer.EndObject(); }
+}
