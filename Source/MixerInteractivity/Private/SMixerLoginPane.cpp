@@ -239,7 +239,7 @@ bool SMixerLoginPane::OnBrowserRequestCloseBaseWindow(const TWeakPtr<IWebBrowser
 	if (BrowserWidget.IsValid())
 	{
 		TSharedRef<SWidget> PinnedThis = AsShared();
-		OnUIFlowFinished.ExecuteIfBound(TEXT(""));
+		OnUIFlowFinished.ExecuteIfBound(false);
 		StartLoginFlow();
 	}
 	return true;
