@@ -33,15 +33,19 @@ public:
 	// End of IDetailCustomization interface
 
 private:
+	enum class EGameBindingMethod
+	{
+		Manual,
+		FromMixerUser
+	};
+
+private:
 	FMixerInteractivitySettingsCustomization();
 
 	FReply Login();
 	FReply ChangeUser();
 
-	EVisibility GetLoginButtonVisibility() const;
 	bool GetLoginButtonEnabledState() const;
-	EVisibility GetChangeUserVisibility() const;
-	EVisibility GetLoginInProgressVisibility() const;
 	FText GetCurrentUserText() const;
 
 	void OnLoginStateChanged(EMixerLoginState NewState);
@@ -49,52 +53,52 @@ private:
 	void OnInteractiveGamesRequestFinished(bool Success, const TArray<FMixerInteractiveGame>& Games);
 	void OnInteractiveControlsForVersionRequestFinished(bool Success, const FMixerInteractiveGameVersion& VersionWithControls);
 
-	bool GetEnabledStateRequiresLogin();
+	bool GetEnabledStateRequiresLogin() const;
 
-	void OnGameSelectionChanged(TSharedPtr<FMixerInteractiveGame> Game, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> ChangedProperty);
-	void OnVersionSelectionChanged(TSharedPtr<FMixerInteractiveGameVersion> Version, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> ChangedProperty);
+	void OnGameBindingMethodChanged(ECheckBoxState NewCheckState, EGameBindingMethod ForBindingMethod);
 
 	void GenerateWidgetForDesignTimeGroupsElement(TSharedRef<IPropertyHandle> StructProperty, int32 ArrayIndex, IDetailChildrenBuilder& ChildrenBuilder);
 	void OnGroupInitialSceneSelectionChanged(TSharedPtr<FName> SceneName, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> ChangedProperty);
 	FText GetInitialSceneComboText(TSharedRef<IPropertyHandle> Property) const;
 	EVisibility GetErrorVisibilityForGroup(int32 GroupElementIndex) const;
 
-	TSharedRef<SWidget> GenerateWidgetForGameComboRow(TSharedPtr<FMixerInteractiveGame> Game);
-	TSharedRef<SWidget> GenerateWidgetForVersionComboRow(TSharedPtr<FMixerInteractiveGameVersion> Version);
 	TSharedRef<SWidget> GenerateWidgetForGroupInitialScene(TSharedPtr<FName> SceneName);
-	FText GetSelectedGameComboText() const;
-	FText GetSelectedVersionComboText() const;
 
-	void UpdateOnlineInteractiveControlSheet(const FMixerInteractiveGameVersion& Version);
-
+	EVisibility GetLoginErrorVisibility() const;
 	EVisibility GetUpdateControlSheetFromOnlineVisibility() const;
+	EVisibility GetVersionMismatchErrorVisibility() const;
+	EVisibility GetUpdateExistingControlSheetVisibility() const;
+	EVisibility VisibleWhenGameBindingMethod(EGameBindingMethod InMethod) const;
+	ECheckBoxState CheckedWhenGameBindingMethod(EGameBindingMethod InMethod) const;
+	bool EnabledWhenGameBindingMethod(EGameBindingMethod InMethod) const;
+	int32 GetWidgetIndexForLoginState() const;
+	int32 GetWidgetIndexForGameBindingMethod() const;
 	FText GetUpdateControlSheetFromOnlineInfoText() const;
-	FText GetUpdateControlSheetFromOnlineButtonText() const;
 	FReply UpdateControlSheetFromOnline();
+	FReply CreateNewControlSheetFromOnline(TSharedRef<IPropertyHandle> ProjectDefinitionProperty);
 
 	void OnCustomMethodsPreChange();
 	void OnCustomMethodsPostChange();
 
+	void GetContentForGameNameCombo(TArray<TSharedPtr<FString>>& OutStrings, TArray<TSharedPtr<SToolTip>>& OutTooltips, TArray<bool>& OutRestrictedItems) const;
+	void GetContentForGameVersionCombo(TArray<TSharedPtr<FString>>& OutStrings, TArray<TSharedPtr<SToolTip>>& OutTooltips, TArray<bool>& OutRestrictedItems) const;
+	FString GetGameVersionComboValue() const;
+	void OnGameVersionComboValueSelected(const FString& SelectedString, TSharedRef<IPropertyHandle> GameVersionProperty);
+
 private:
 	FDelegateHandle LoginStateDelegateHandle;
 
-	TArray<TSharedPtr<FMixerInteractiveGame>> InteractiveGames;
-	TArray<TSharedPtr<FMixerInteractiveGameVersion>> InteractiveVersions;
+	TArray<FMixerInteractiveGame> InteractiveGames;
 
 	TSharedPtr<SComboBox<TSharedPtr<FMixerInteractiveGame>>> GameNamesBox;
 	TSharedPtr<SComboBox<TSharedPtr<FMixerInteractiveGameVersion>>> GameVersionsBox;
 
-	TSharedPtr<IPropertyHandle> CachedButtonsProperty;
-	TSharedPtr<IPropertyHandle> CachedSticksProperty;
-	TSharedPtr<IPropertyHandle> CachedScenesProperty;
 	TSharedPtr<IPropertyHandle> DesignTimeGroupsProperty;
 
-	TArray<FName> OnlineButtonNames;
-	TArray<FName> OnlineJoystickNames;
-	TArray<FName> OnlineSceneNames;
 	TArray<TSharedPtr<FName>> OnlineSceneNamesForCombo;
 
 	FMixerInteractiveGameVersion DownloadedProjectDefinition;
+	EGameBindingMethod SelectedBindingMethod;
 
 	bool IsChangingUser;
 };

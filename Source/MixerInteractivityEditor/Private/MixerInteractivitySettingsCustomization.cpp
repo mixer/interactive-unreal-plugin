@@ -36,6 +36,10 @@
 #include "SErrorHint.h"
 #include "SButton.h"
 #include "SRichTextBlock.h"
+#include "SCheckBox.h"
+#include "SWidgetSwitcher.h"
+#include "SNotificationList.h"
+#include "NotificationManager.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 #include "AssetToolsModule.h"
@@ -48,7 +52,10 @@ TSharedRef<IDetailCustomization> FMixerInteractivitySettingsCustomization::MakeI
 }
 
 FMixerInteractivitySettingsCustomization::FMixerInteractivitySettingsCustomization()
+	: SelectedBindingMethod(EGameBindingMethod::FromMixerUser)
+	, IsChangingUser(false)
 {
+	DownloadedProjectDefinition.Id = 0;
 }
 
 FMixerInteractivitySettingsCustomization::~FMixerInteractivitySettingsCustomization()
@@ -95,111 +102,159 @@ void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBui
 	TSharedRef<SWidget> HeaderContent =
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
-		.FillWidth(0.8f)
-		.HAlign(EHorizontalAlignment::HAlign_Right)
-		.VAlign(EVerticalAlignment::VAlign_Center)
-		.Padding(2.0f, 2.0f, 16.0f, 2.0f)
+		.FillWidth(1.0f)
 		[
-			SNew(STextBlock)
-			.Text(this, &FMixerInteractivitySettingsCustomization::GetCurrentUserText)
-			.Font(IDetailLayoutBuilder::GetDetailFont())
+			SNew(SSpacer)
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.HAlign(EHorizontalAlignment::HAlign_Right)
 		.VAlign(EVerticalAlignment::VAlign_Center)
 		.Padding(2.0f, 2.0f)
 		[
-			SNew(SButton)
-			.Visibility(this, &FMixerInteractivitySettingsCustomization::GetLoginButtonVisibility)
-			.IsEnabled(this, &FMixerInteractivitySettingsCustomization::GetLoginButtonEnabledState)
-			.Text(LOCTEXT("LoginButtonText", "Login"))
-			.ToolTipText(LOCTEXT("LoginButton_Tooltip", "Log into Mixer to select the game and version to associate with this project"))
-			.OnClicked(this, &FMixerInteractivitySettingsCustomization::Login)
+			SNew(SCheckBox)
+			.Style(FCoreStyle::Get(), "RadioButton")
+			.IsChecked(this, &FMixerInteractivitySettingsCustomization::CheckedWhenGameBindingMethod, EGameBindingMethod::Manual)
+			.OnCheckStateChanged(this, &FMixerInteractivitySettingsCustomization::OnGameBindingMethodChanged, EGameBindingMethod::Manual)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("GameBindingMethod_Manual", "Manual"))
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.HAlign(EHorizontalAlignment::HAlign_Right)
 		.VAlign(EVerticalAlignment::VAlign_Center)
 		.Padding(2.0f, 2.0f)
 		[
-			SNew(SButton)
-			.Visibility(this, &FMixerInteractivitySettingsCustomization::GetChangeUserVisibility)
-			.Text(LOCTEXT("ChangeUserButtonText", "Change user"))
-			.ToolTipText(LOCTEXT("ChangeUserButton_Tooltip", "Change the current Mixer user (affects the set of interactive games that may be associated with this project"))
-			.OnClicked(this, &FMixerInteractivitySettingsCustomization::ChangeUser)
+			SNew(SCheckBox)
+			.Style(FCoreStyle::Get(), "RadioButton")
+			.IsChecked(this, &FMixerInteractivitySettingsCustomization::CheckedWhenGameBindingMethod, EGameBindingMethod::FromMixerUser)
+			.OnCheckStateChanged(this, &FMixerInteractivitySettingsCustomization::OnGameBindingMethodChanged, EGameBindingMethod::FromMixerUser)
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("GameBindingMethod_FromMixerUser", "From Mixer user:"))
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+			]
 		]
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
-		.HAlign(EHorizontalAlignment::HAlign_Right)
 		.VAlign(EVerticalAlignment::VAlign_Center)
 		.Padding(2.0f, 2.0f)
 		[
-			SNew(SCircularThrobber)
-			.Visibility(this, &FMixerInteractivitySettingsCustomization::GetLoginInProgressVisibility)
-			.Radius(12.0f)
+			SNew(SWidgetSwitcher)
+			.WidgetIndex(this, &FMixerInteractivitySettingsCustomization::GetWidgetIndexForLoginState)
+			.IsEnabled(this, &FMixerInteractivitySettingsCustomization::EnabledWhenGameBindingMethod, EGameBindingMethod::FromMixerUser)
+			+ SWidgetSwitcher::Slot()
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(EVerticalAlignment::VAlign_Center)
+				[
+					SNew(SButton)
+					.IsEnabled(this, &FMixerInteractivitySettingsCustomization::GetLoginButtonEnabledState)
+					.Text(LOCTEXT("LoginButtonText", "Login"))
+					.ToolTipText(LOCTEXT("LoginButton_Tooltip", "Log into Mixer to select the game and version to associate with this project"))
+					.OnClicked(this, &FMixerInteractivitySettingsCustomization::Login)
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.Padding(2.0f, 2.0f)
+				.VAlign(EVerticalAlignment::VAlign_Center)
+				[
+					SNew(SErrorHint)
+					.ErrorText(LOCTEXT("MissingLoginInfo", "Client Id and Redirect Uri required."))
+					.Visibility(this, &FMixerInteractivitySettingsCustomization::GetLoginErrorVisibility)
+				]
+			]
+			+ SWidgetSwitcher::Slot()
+			[
+				SNew(SCircularThrobber)
+			]
+			+ SWidgetSwitcher::Slot()
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(EVerticalAlignment::VAlign_Center)
+				.Padding(0.0f, 0.0f, 14.0f, 0.0f)
+				[
+					SNew(STextBlock)
+					.Text(this, &FMixerInteractivitySettingsCustomization::GetCurrentUserText)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(EVerticalAlignment::VAlign_Center)
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("ChangeUserButtonText", "Change user"))
+					.ToolTipText(LOCTEXT("ChangeUserButton_Tooltip", "Change the current Mixer user (affects the set of interactive games that may be associated with this project"))
+					.OnClicked(this, &FMixerInteractivitySettingsCustomization::ChangeUser)
+				]
+			]
+			+ SWidgetSwitcher::Slot()
+			[
+				SNew(SCircularThrobber)
+			]
 		];
-
 
 	GameBindingCategoryBuilder.HeaderContent(HeaderContent);
 
-	TSharedRef<IPropertyHandle> GameNameProperty = DetailBuilder.GetProperty("GameName");
+	TSharedRef<IPropertyHandle> GameNameProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, GameName));
 	DetailBuilder.HideProperty(GameNameProperty);
-	TSharedRef<IPropertyHandle> GameVersionProperty = DetailBuilder.GetProperty("GameVersionId");
-	DetailBuilder.HideProperty(GameVersionProperty);
 
 	GameBindingCategoryBuilder.AddCustomRow(GameNameProperty->GetPropertyDisplayName())
+	.Visibility(TAttribute<EVisibility>::Create(TAttribute<EVisibility>::FGetter::CreateSP(this, &FMixerInteractivitySettingsCustomization::VisibleWhenGameBindingMethod, EGameBindingMethod::FromMixerUser)))
 	.NameContent()
 	[
 		GameNameProperty->CreatePropertyNameWidget()
 	]
-	.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMixerInteractivitySettingsCustomization::GetEnabledStateRequiresLogin)))
 	.ValueContent()
 	.MaxDesiredWidth(500.0f)
 	.MinDesiredWidth(100.0f)
 	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.FillWidth(1.0f)
-		.VAlign(VAlign_Center)
+		SNew(SBox)
+		.IsEnabled(this, &FMixerInteractivitySettingsCustomization::GetEnabledStateRequiresLogin)
 		[
-			SAssignNew(GameNamesBox, SComboBox<TSharedPtr<FMixerInteractiveGame>>)
-			.OptionsSource(&InteractiveGames)
-			.OnSelectionChanged(this, &FMixerInteractivitySettingsCustomization::OnGameSelectionChanged, GameNameProperty)
-			.OnGenerateWidget(this, &FMixerInteractivitySettingsCustomization::GenerateWidgetForGameComboRow)
-			.Content()
-			[
-				SNew(STextBlock)
-				.Text(this, &FMixerInteractivitySettingsCustomization::GetSelectedGameComboText)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-			]
+			PropertyCustomizationHelpers::MakePropertyComboBox(
+				GameNameProperty,
+				FOnGetPropertyComboBoxStrings::CreateSP(this, &FMixerInteractivitySettingsCustomization::GetContentForGameNameCombo))
 		]
 	];
 
-	GameBindingCategoryBuilder.AddCustomRow(GameVersionProperty->GetPropertyDisplayName())
+	TSharedRef<IPropertyHandle> GameVersionProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, GameVersionId));
+
+	IDetailPropertyRow& VersionRow = GameBindingCategoryBuilder.AddProperty(GameVersionProperty);
+	TSharedPtr<SWidget> VersionNameWidget;
+	TSharedPtr<SWidget> VersionValueWidget;
+	VersionRow.GetDefaultWidgets(VersionNameWidget, VersionValueWidget);
+
+	VersionRow.CustomWidget()
 	.NameContent()
 	[
-		GameVersionProperty->CreatePropertyNameWidget()
+		VersionNameWidget.ToSharedRef()
 	]
-	.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMixerInteractivitySettingsCustomization::GetEnabledStateRequiresLogin)))
 	.ValueContent()
 	.MaxDesiredWidth(500.0f)
 	.MinDesiredWidth(100.0f)
 	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot()
-		.FillWidth(1.0f)
-		.VAlign(VAlign_Center)
+		SNew(SWidgetSwitcher)
+		.WidgetIndex(this, &FMixerInteractivitySettingsCustomization::GetWidgetIndexForGameBindingMethod)
+		+ SWidgetSwitcher::Slot()
 		[
-			SAssignNew(GameVersionsBox, SComboBox<TSharedPtr<FMixerInteractiveGameVersion>>)
-			.OptionsSource(&InteractiveVersions)
-			.OnSelectionChanged(this, &FMixerInteractivitySettingsCustomization::OnVersionSelectionChanged, GameVersionProperty)
-			.OnGenerateWidget(this, &FMixerInteractivitySettingsCustomization::GenerateWidgetForVersionComboRow)
-			.Content()
+			VersionValueWidget.ToSharedRef()
+		]
+		+ SWidgetSwitcher::Slot()
+		[
+			SNew(SBox)
+			.IsEnabled(this, &FMixerInteractivitySettingsCustomization::GetEnabledStateRequiresLogin)
 			[
-				SNew(STextBlock)
-				.Text(this, &FMixerInteractivitySettingsCustomization::GetSelectedVersionComboText)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
+				PropertyCustomizationHelpers::MakePropertyComboBox(
+					GameVersionProperty,
+					FOnGetPropertyComboBoxStrings::CreateSP(this, &FMixerInteractivitySettingsCustomization::GetContentForGameVersionCombo),
+					FOnGetPropertyComboBoxValue::CreateSP(this, &FMixerInteractivitySettingsCustomization::GetGameVersionComboValue),
+					FOnPropertyComboBoxValueSelected::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnGameVersionComboValueSelected, GameVersionProperty))
 			]
 		]
 	];
@@ -207,46 +262,48 @@ void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBui
 	TSharedRef<IPropertyHandle> ShareCodeProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, ShareCode));
 	GameBindingCategoryBuilder.AddProperty(ShareCodeProperty);
 
-	CachedButtonsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, CachedButtons));
-	DetailBuilder.HideProperty(CachedButtonsProperty);
-	CachedSticksProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, CachedSticks));
-	DetailBuilder.HideProperty(CachedSticksProperty);
-	CachedScenesProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, CachedScenes));
-	DetailBuilder.HideProperty(CachedScenesProperty);
+	IDetailCategoryBuilder& ControlsCategoryBuilder = DetailBuilder.EditCategory("Interactive Controls", FText::GetEmpty(), ECategoryPriority::Uncommon);
+
 	DesignTimeGroupsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, DesignTimeGroups));
 	DetailBuilder.HideProperty(DesignTimeGroupsProperty);
 
-	TSharedRef<FDetailArrayBuilder> GroupsBuilder = MakeShareable(new FDetailArrayBuilder(DesignTimeGroupsProperty.ToSharedRef()));
-	GroupsBuilder->OnGenerateArrayElementWidget(FOnGenerateArrayElementWidget::CreateSP(this, &FMixerInteractivitySettingsCustomization::GenerateWidgetForDesignTimeGroupsElement));
-	GameBindingCategoryBuilder.AddCustomBuilder(GroupsBuilder);
-	FSimpleDelegate GroupsChangedDelegate = FSimpleDelegate::CreateLambda([GroupsBuilder]() 
-	{ 
-		GroupsBuilder->RefreshChildren();
-		IMixerInteractivityEditorModule::Get().RefreshDesignTimeObjects(); 
-	});
-	DesignTimeGroupsProperty->AsArray()->SetOnNumElementsChanged(GroupsChangedDelegate);
+	TSharedRef<IPropertyHandle> ProjectDefinitionProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, ProjectDefinition));
+	IDetailPropertyRow& ProjectDefinitionRow = ControlsCategoryBuilder.AddProperty(ProjectDefinitionProperty);
+	TSharedPtr<SWidget> ProjectDefNameWidget;
+	TSharedPtr<SWidget> ProjectDefValueWidget;
+	ProjectDefinitionRow.GetDefaultWidgets(ProjectDefNameWidget, ProjectDefValueWidget);
 
-	IDetailGroup& ControlSheetGroup = GameBindingCategoryBuilder.AddGroup("InteractiveControls", LOCTEXT("InteractiveControls", "Interactive Controls"));
-	
-	ControlSheetGroup.HeaderRow()
-	.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMixerInteractivitySettingsCustomization::GetEnabledStateRequiresLogin)))
+	ProjectDefinitionRow.CustomWidget()
 	.NameContent()
 	[
-		SNew(STextBlock)
-		.Text(LOCTEXT("InteractiveControls", "Interactive Controls"))
-		.Font(IDetailLayoutBuilder::GetDetailFont())
+		ProjectDefNameWidget.ToSharedRef()
 	]
 	.ValueContent()
-	.MaxDesiredWidth(400.0f)
+	.MaxDesiredWidth(500.0f)
 	.MinDesiredWidth(100.0f)
 	[
 		SNew(SHorizontalBox)
-		.Visibility(this, &FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineVisibility)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			ProjectDefValueWidget.ToSharedRef()
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.VAlign(VAlign_Center)
+		[
+			SNew(SErrorHint)
+			.ErrorText(LOCTEXT("Error_ProjectVersionMismatch", "The selected project definition has a Version Id that does not match the Version Id selected in the Mixer Interactivity settings.  This may cause runtime Interactive Controls to be different from those available in the Blueprint Editor."))
+			.Visibility(this, &FMixerInteractivitySettingsCustomization::GetVersionMismatchErrorVisibility)
+		]
 		+ SHorizontalBox::Slot()
 		.FillWidth(1.0f)
 		.VAlign(VAlign_Fill)
+		.Padding(16.0f, 16.0f)
 		[
 			SNew(SVerticalBox)
+			.Visibility(this, &FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineVisibility)
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			.HAlign(HAlign_Fill)
@@ -260,16 +317,39 @@ void FMixerInteractivitySettingsCustomization::CustomizeDetails(IDetailLayoutBui
 			.AutoHeight()
 			.HAlign(HAlign_Left)
 			[
-				SNew(SButton)
-				.Text(this, &FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineButtonText)
-				.OnClicked(this, &FMixerInteractivitySettingsCustomization::UpdateControlSheetFromOnline)
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(0.0f, 2.0f, 2.0f, 2.0f)
+				[
+					SNew(SButton)
+					.Visibility(this, &FMixerInteractivitySettingsCustomization::GetUpdateExistingControlSheetVisibility)
+					.Text(LOCTEXT("ControlSheetUpdateNow", "Update now"))
+					.OnClicked(this, &FMixerInteractivitySettingsCustomization::UpdateControlSheetFromOnline)
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(2.0f, 2.0f)
+				[
+					SNew(SButton)
+					.Text(LOCTEXT("ControlSheetSaveLocal", "Save local..."))
+					.OnClicked(this, &FMixerInteractivitySettingsCustomization::CreateNewControlSheetFromOnline, ProjectDefinitionProperty)
+				]
 			]
 		]
 	];
 
-	//ControlSheetGroup.AddPropertyRow(CachedButtonsProperty.ToSharedRef()).IsEnabled(false);
-	//ControlSheetGroup.AddPropertyRow(CachedSticksProperty.ToSharedRef()).IsEnabled(false);
-	//ControlSheetGroup.AddPropertyRow(CachedScenesProperty.ToSharedRef()).IsEnabled(false);
+	TSharedRef<FDetailArrayBuilder> GroupsBuilder = MakeShareable(new FDetailArrayBuilder(DesignTimeGroupsProperty.ToSharedRef()));
+	GroupsBuilder->OnGenerateArrayElementWidget(FOnGenerateArrayElementWidget::CreateSP(this, &FMixerInteractivitySettingsCustomization::GenerateWidgetForDesignTimeGroupsElement));
+	ControlsCategoryBuilder.AddCustomBuilder(GroupsBuilder);
+	FSimpleDelegate GroupsChangedDelegate = FSimpleDelegate::CreateLambda([GroupsBuilder]() 
+	{ 
+		GroupsBuilder->RefreshChildren();
+		IMixerInteractivityEditorModule::Get().RefreshDesignTimeObjects(); 
+	});
+	DesignTimeGroupsProperty->AsArray()->SetOnNumElementsChanged(GroupsChangedDelegate);
 
 	TSharedRef<IPropertyHandle> CustomMethodsProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerInteractivitySettings, CustomMethods));
 	CustomMethodsProperty->SetOnPropertyValuePreChange(FSimpleDelegate::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnCustomMethodsPreChange));
@@ -301,54 +381,10 @@ FReply FMixerInteractivitySettingsCustomization::ChangeUser()
 	return FReply::Handled();
 }
 
-EVisibility FMixerInteractivitySettingsCustomization::GetLoginButtonVisibility() const
-{
-	return IMixerInteractivityModule::Get().GetLoginState() == EMixerLoginState::Not_Logged_In ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-EVisibility FMixerInteractivitySettingsCustomization::GetChangeUserVisibility() const
-{
-	return IMixerInteractivityModule::Get().GetLoginState() == EMixerLoginState::Logged_In ? EVisibility::Visible : EVisibility::Collapsed;
-}
-
-EVisibility FMixerInteractivitySettingsCustomization::GetLoginInProgressVisibility() const
-{
-	switch (IMixerInteractivityModule::Get().GetLoginState())
-	{
-	case EMixerLoginState::Logging_In:
-	case EMixerLoginState::Logging_Out:
-		return EVisibility::Visible;
-
-	default:
-		return EVisibility::Collapsed;
-	}
-}
-
-
 FText FMixerInteractivitySettingsCustomization::GetCurrentUserText() const
 {
 	TSharedPtr<const FMixerLocalUser> CurrentUser = IMixerInteractivityModule::Get().GetCurrentUser();
-	switch (IMixerInteractivityModule::Get().GetLoginState())
-	{
-	case EMixerLoginState::Logged_In:
-		check(CurrentUser.IsValid());
-		return FText::FormatOrdered(LOCTEXT("CurrentUserFormatString", "Logged in as {0}"), FText::FromString(CurrentUser->Name));
-	case EMixerLoginState::Logging_In:
-	case EMixerLoginState::Logging_Out:
-		return LOCTEXT("LogInOutInProgress", "Working on it...");
-	case EMixerLoginState::Not_Logged_In:
-		if (GetLoginButtonEnabledState())
-		{
-			return LOCTEXT("NoCurrentUser", "Not logged in");
-		}
-		else
-		{
-			return LOCTEXT("MissingLoginInfo", "Client Id and Redirect Uri required.");
-		}
-
-	default:
-		return FText::GetEmpty();
-	}
+	return CurrentUser.IsValid() ? FText::FromString(CurrentUser->Name) : FText::GetEmpty();
 }
 
 
@@ -375,63 +411,27 @@ void FMixerInteractivitySettingsCustomization::OnLoginStateChanged(EMixerLoginSt
 
 void FMixerInteractivitySettingsCustomization::OnInteractiveGamesRequestFinished(bool Success, const TArray<FMixerInteractiveGame>& Games)
 {
-	if (Success)
-	{
-		InteractiveGames.Empty(Games.Num());
-		for (const FMixerInteractiveGame& Game : Games)
-		{
-			InteractiveGames.Add(MakeShareable(new FMixerInteractiveGame(Game)));
-		}
-		GameNamesBox->RefreshOptions();
+	InteractiveGames = Games;
 
-		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-		for (TSharedPtr<FMixerInteractiveGame> Game : InteractiveGames)
-		{
-			if (Game->Name == Settings->GameName)
-			{
-				GameNamesBox->SetSelectedItem(Game);
-				break;
-			}
-		}
+	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+	if (Settings->GameVersionId != 0)
+	{
+		FMixerInteractiveGameVersion FakeVersion;
+		FakeVersion.Id = Settings->GameVersionId;
+		IMixerInteractivityEditorModule::Get().RequestInteractiveControlsForGameVersion(FakeVersion, FOnMixerInteractiveControlsRequestFinished::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnInteractiveControlsForVersionRequestFinished));
 	}
 }
 
-bool FMixerInteractivitySettingsCustomization::GetEnabledStateRequiresLogin()
+bool FMixerInteractivitySettingsCustomization::GetEnabledStateRequiresLogin() const
 {
 	return IMixerInteractivityModule::Get().GetLoginState() == EMixerLoginState::Logged_In;
 }
 
-void FMixerInteractivitySettingsCustomization::OnGameSelectionChanged(TSharedPtr<FMixerInteractiveGame> Game, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> ChangedProperty)
+void FMixerInteractivitySettingsCustomization::OnGameBindingMethodChanged(ECheckBoxState NewCheckState, EGameBindingMethod ForBindingMethod)
 {
-	if (Game.IsValid())
+	if (NewCheckState == ECheckBoxState::Checked)
 	{
-		ChangedProperty->SetValue(Game->Name);
-		InteractiveVersions.Empty(Game->Versions.Num());
-		for (const FMixerInteractiveGameVersion& Version : Game->Versions)
-		{
-			InteractiveVersions.Add(MakeShareable(new FMixerInteractiveGameVersion(Version)));
-		}
-		GameVersionsBox->RefreshOptions();
-		GameVersionsBox->ClearSelection();
-
-		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-		for (TSharedPtr<FMixerInteractiveGameVersion> Version : InteractiveVersions)
-		{
-			if (Version->Id == Settings->GameVersionId)
-			{
-				GameVersionsBox->SetSelectedItem(Version);
-				break;
-			}
-		}
-	}
-}
-
-void FMixerInteractivitySettingsCustomization::OnVersionSelectionChanged(TSharedPtr<FMixerInteractiveGameVersion> Version, ESelectInfo::Type SelectInfo, TSharedRef<IPropertyHandle> ChangedProperty)
-{
-	if (Version.IsValid())
-	{
-		ChangedProperty->SetValue(Version->Id);
-		IMixerInteractivityEditorModule::Get().RequestInteractiveControlsForGameVersion(*Version, FOnMixerInteractiveControlsRequestFinished::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnInteractiveControlsForVersionRequestFinished));
+		SelectedBindingMethod = ForBindingMethod;
 	}
 }
 
@@ -449,8 +449,18 @@ void FMixerInteractivitySettingsCustomization::OnInteractiveControlsForVersionRe
 	}
 }
 
+EVisibility FMixerInteractivitySettingsCustomization::GetLoginErrorVisibility() const
+{
+	return GetLoginButtonEnabledState() ? EVisibility::Collapsed : EVisibility::Visible;
+}
+
 EVisibility FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineVisibility() const
 {
+	if (IMixerInteractivityModule::Get().GetLoginState() != EMixerLoginState::Logged_In)
+	{
+		return EVisibility::Collapsed;
+	}
+
 	if (DownloadedProjectDefinition.Id == 0)
 	{
 		return EVisibility::Collapsed;
@@ -466,6 +476,51 @@ EVisibility FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromO
 	return ProjectAsset->ParsedProjectDefinition == DownloadedProjectDefinition ? EVisibility::Collapsed : EVisibility::Visible;
 }
 
+EVisibility FMixerInteractivitySettingsCustomization::GetVersionMismatchErrorVisibility() const
+{
+	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+	UMixerProjectAsset* CurrentDefinition = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
+	if (CurrentDefinition != nullptr && CurrentDefinition->ParsedProjectDefinition.Id != Settings->GameVersionId)
+	{
+		return EVisibility::Visible;
+	}
+	else
+	{
+		return EVisibility::Collapsed;
+	}
+}
+
+EVisibility FMixerInteractivitySettingsCustomization::GetUpdateExistingControlSheetVisibility() const
+{
+	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+	return Settings->ProjectDefinition.IsValid() ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+EVisibility FMixerInteractivitySettingsCustomization::VisibleWhenGameBindingMethod(EGameBindingMethod InMethod) const
+{
+	return SelectedBindingMethod == InMethod ? EVisibility::Visible : EVisibility::Collapsed;
+}
+
+ECheckBoxState FMixerInteractivitySettingsCustomization::CheckedWhenGameBindingMethod(EGameBindingMethod InMethod) const
+{
+	return SelectedBindingMethod == InMethod ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+bool FMixerInteractivitySettingsCustomization::EnabledWhenGameBindingMethod(EGameBindingMethod InMethod) const
+{
+	return SelectedBindingMethod == InMethod;
+}
+
+int32 FMixerInteractivitySettingsCustomization::GetWidgetIndexForLoginState() const
+{
+	return static_cast<int32>(IMixerInteractivityModule::Get().GetLoginState());
+}
+
+int32 FMixerInteractivitySettingsCustomization::GetWidgetIndexForGameBindingMethod() const
+{
+	return static_cast<int32>(SelectedBindingMethod);
+}
+
 FText FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineInfoText() const
 {
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
@@ -475,53 +530,19 @@ FText FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineI
 	}
 	else
 	{
-		return LOCTEXT("ControlSheetMissing", "You can save information about the current interactivity controls to your game config file.  This will allow you to work with Mixer controls in Blueprint, even when not signed in to Mixer.");
-	}
-}
-
-FText FMixerInteractivitySettingsCustomization::GetUpdateControlSheetFromOnlineButtonText() const
-{
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	if (Settings->ProjectDefinition.TryLoad() != nullptr)
-	{
-		return LOCTEXT("ControlSheetUpdateNow", "Update now");
-	}
-	else
-	{
-		return LOCTEXT("ControlSheetSaveLocal", "Save local...");
+		return LOCTEXT("ControlSheetMissing", "You can save information about the current interactivity controls to an Unreal asset.  This will allow you to work with Mixer controls in Blueprint, even when not signed in to Mixer.");
 	}
 }
 
 FReply FMixerInteractivitySettingsCustomization::UpdateControlSheetFromOnline()
 {
 	UMixerInteractivitySettings* Settings = GetMutableDefault<UMixerInteractivitySettings>();
-
 	UMixerProjectAsset* CurrentDefinition = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
-	if (CurrentDefinition == nullptr)
-	{
-		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
-		FSaveAssetDialogConfig SaveConfig;
-		SaveConfig.DefaultAssetName = TEXT("NewMixerProject");
-		SaveConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
-		FString SaveToPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveConfig);
+	check(CurrentDefinition != nullptr);
 
-		const FString SavePackageName = FPackageName::ObjectPathToPackageName(SaveToPath);
-		const FString SavePackagePath = FPaths::GetPath(SavePackageName);
-		const FString SaveAssetName = FPaths::GetBaseFilename(SavePackageName);
-
-		FAssetToolsModule& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-		CurrentDefinition = Cast<UMixerProjectAsset>(AssetTools.Get().CreateAsset(SaveAssetName, SavePackagePath, UMixerProjectAsset::StaticClass(), nullptr));
-
-		Settings->ProjectDefinition = FSoftObjectPath(CurrentDefinition);
-		Settings->SaveConfig();
-	}
-
-	if (CurrentDefinition != nullptr)
-	{
-		CurrentDefinition->ParsedProjectDefinition = DownloadedProjectDefinition;
-		CurrentDefinition->ProjectDefinitionJson = DownloadedProjectDefinition.ToJson(false);
-		CurrentDefinition->MarkPackageDirty();
-	}
+	CurrentDefinition->ParsedProjectDefinition = DownloadedProjectDefinition;
+	CurrentDefinition->ProjectDefinitionJson = DownloadedProjectDefinition.ToJson(false);
+	CurrentDefinition->MarkPackageDirty();
 
 	IMixerInteractivityEditorModule::Get().RefreshDesignTimeObjects();
 
@@ -533,50 +554,47 @@ FReply FMixerInteractivitySettingsCustomization::UpdateControlSheetFromOnline()
 	return FReply::Handled();
 }
 
-TSharedRef<SWidget> FMixerInteractivitySettingsCustomization::GenerateWidgetForGameComboRow(TSharedPtr<FMixerInteractiveGame> Game)
+FReply FMixerInteractivitySettingsCustomization::CreateNewControlSheetFromOnline(TSharedRef<IPropertyHandle> ProjectDefinitionProperty)
 {
-	return
-		SNew(STextBlock)
-		.Font(IDetailLayoutBuilder::GetDetailFont())
-		.Text(FText::FromString(Game->Name));
-}
+	UMixerProjectAsset* ProjectDefinition;
 
-TSharedRef<SWidget> FMixerInteractivitySettingsCustomization::GenerateWidgetForVersionComboRow(TSharedPtr<FMixerInteractiveGameVersion> Version)
-{
-	return
-		SNew(STextBlock)
-		.Font(IDetailLayoutBuilder::GetDetailFont())
-		.Text(FText::FromString(Version->Name));
-}
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	FAssetToolsModule& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
 
-FText FMixerInteractivitySettingsCustomization::GetSelectedGameComboText() const
-{
-	if (GameNamesBox.IsValid())
+	FString DefaultPath = TEXT("/Game/");
+	FString DefaultName = TEXT("NewMixerProject");
+	FString UniquePackageName;
+	FString UniqueAssetName;
+	AssetTools.Get().CreateUniqueAssetName(DefaultPath / DefaultName, TEXT(""), UniquePackageName, UniqueAssetName);
+	DefaultName = FPaths::GetCleanFilename(UniqueAssetName);
+
+	FSaveAssetDialogConfig SaveConfig;
+	SaveConfig.DefaultPath = DefaultPath;
+	SaveConfig.DefaultAssetName = DefaultName;
+	SaveConfig.ExistingAssetPolicy = ESaveAssetDialogExistingAssetPolicy::AllowButWarn;
+	FString SaveToPath = ContentBrowserModule.Get().CreateModalSaveAssetDialog(SaveConfig);
+	FText BadPathReason;
+	if (!FPackageName::IsValidObjectPath(SaveToPath, &BadPathReason))
 	{
-		TSharedPtr<FMixerInteractiveGame> SelectedGame = GameNamesBox->GetSelectedItem();
-		if (SelectedGame.IsValid())
-		{
-			return FText::FromString(SelectedGame->Name);
-		}
+		FNotificationInfo Info(FText::Format(LOCTEXT("NewProjectDefinition_Failed", "Failed to create Mixer project definition asset: {0}"), BadPathReason));
+		Info.ExpireDuration = 8.0f;
+		FSlateNotificationManager::Get().AddNotification(Info);
+
+		return FReply::Handled();
 	}
 
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	return FText::FromString(Settings->GameName);
-}
+	const FString SavePackageName = FPackageName::ObjectPathToPackageName(SaveToPath);
+	const FString SavePackagePath = FPaths::GetPath(SavePackageName);
+	const FString SaveAssetName = FPaths::GetBaseFilename(SavePackageName);
 
-FText FMixerInteractivitySettingsCustomization::GetSelectedVersionComboText() const
-{
-	if (GameVersionsBox.IsValid())
-	{
-		TSharedPtr<FMixerInteractiveGameVersion> SelectedVersion = GameVersionsBox->GetSelectedItem();
-		if (SelectedVersion.IsValid())
-		{
-			return FText::FromString(SelectedVersion->Name);
-		}
-	}
+	ProjectDefinition = Cast<UMixerProjectAsset>(AssetTools.Get().CreateAsset(SaveAssetName, SavePackagePath, UMixerProjectAsset::StaticClass(), nullptr));
 
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	return FText::Format(LOCTEXT("UnknownGameVersion", "Unknown (id: {0})"), FText::AsNumber(Settings->GameVersionId));
+	UMixerInteractivitySettings* Settings = GetMutableDefault<UMixerInteractivitySettings>();
+	ProjectDefinitionProperty->NotifyPreChange();
+	Settings->ProjectDefinition = FSoftObjectPath(ProjectDefinition);
+	ProjectDefinitionProperty->NotifyPostChange();
+
+	return UpdateControlSheetFromOnline();
 }
 
 void FMixerInteractivitySettingsCustomization::GenerateWidgetForDesignTimeGroupsElement(TSharedRef<IPropertyHandle> StructProperty, int32 ArrayIndex, IDetailChildrenBuilder& ChildrenBuilder)
@@ -736,5 +754,72 @@ void FMixerInteractivitySettingsCustomization::OnCustomMethodsPostChange()
 		}
 	}
 }
+
+void FMixerInteractivitySettingsCustomization::GetContentForGameNameCombo(TArray<TSharedPtr<FString>>& OutStrings, TArray<TSharedPtr<SToolTip>>& OutTooltips, TArray<bool>& OutRestrictedItems) const
+{
+	for (const FMixerInteractiveGame& Game : InteractiveGames)
+	{
+		OutStrings.Add(MakeShared<FString>(Game.Name));
+		OutTooltips.Add(SNew(SToolTip).Text(FText::FromString(Game.Description)));
+		OutRestrictedItems.Add(false);
+	}
+}
+
+void FMixerInteractivitySettingsCustomization::GetContentForGameVersionCombo(TArray<TSharedPtr<FString>>& OutStrings, TArray<TSharedPtr<SToolTip>>& OutTooltips, TArray<bool>& OutRestrictedItems) const
+{
+	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+	for (const FMixerInteractiveGame& Game : InteractiveGames)
+	{
+		if (Game.Name == Settings->GameName)
+		{
+			for (const FMixerInteractiveGameVersion& Version : Game.Versions)
+			{
+				OutStrings.Add(MakeShared<FString>(Version.Name));
+				OutTooltips.Add(SNew(SToolTip).Text(FText::Format(LOCTEXT("VersionTooltipFormatString", "Id: {0}"), Version.Id)));
+				OutRestrictedItems.Add(false);
+			}
+		}
+	}
+}
+
+FString FMixerInteractivitySettingsCustomization::GetGameVersionComboValue() const
+{
+	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+	for (const FMixerInteractiveGame& Game : InteractiveGames)
+	{
+		if (Game.Name == Settings->GameName)
+		{
+			for (const FMixerInteractiveGameVersion& Version : Game.Versions)
+			{
+				if (Version.Id == Settings->GameVersionId)
+				{
+					return Version.Name;
+				}
+			}
+		}
+	}
+
+	return FString::Printf(TEXT("Unknown (id: %d)"), Settings->GameVersionId);
+}
+
+void FMixerInteractivitySettingsCustomization::OnGameVersionComboValueSelected(const FString& SelectedString, TSharedRef<IPropertyHandle> GameVersionProperty)
+{
+	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+	for (const FMixerInteractiveGame& Game : InteractiveGames)
+	{
+		if (Game.Name == Settings->GameName)
+		{
+			for (const FMixerInteractiveGameVersion& Version : Game.Versions)
+			{
+				if (Version.Name == SelectedString)
+				{
+					GameVersionProperty->SetValue(Version.Id);
+					IMixerInteractivityEditorModule::Get().RequestInteractiveControlsForGameVersion(Version, FOnMixerInteractiveControlsRequestFinished::CreateSP(this, &FMixerInteractivitySettingsCustomization::OnInteractiveControlsForVersionRequestFinished));
+				}
+			}
+		}
+	}
+}
+
 
 #undef LOCTEXT_NAMESPACE

@@ -13,7 +13,9 @@
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivityLog.h"
 #include "MixerBindingUtils.h"
+#include "MixerInteractivityProjectAsset.h"
 #include "OnlineChatMixer.h"
+#include "OnlineChatMixerPrivate.h"
 
 #include "HttpModule.h"
 #include "PlatformHttp.h"
@@ -34,7 +36,6 @@
 #include "App.h"
 #include "Engine/Engine.h"
 #include "OnlineSubsystemTypes.h"
-#include "OnlineChatMixerPrivate.h"
 
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
 #include "SMixerLoginPane.h"
@@ -1242,15 +1243,12 @@ void FMixerInteractivityModule::InitCustomControls()
 	if (NeedsClientLibraryActive())
 	{
 		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-		for (TMap<FName, TSubclassOf<UMixerCustomControl>>::TConstIterator It(Settings->CachedCustomControls); It; ++It)
+		UMixerProjectAsset* ProjectAsset = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
+		if (ProjectAsset != nullptr)
 		{
-			if (It->Value.Get())
+			for (TMap<FName, FSoftClassPath>::TConstIterator It(ProjectAsset->CustomControlBindings); It; ++It)
 			{
-				AdvancedCustomControls.Add(It->Key, NewObject<UMixerCustomControl>(GetTransientPackage(), It->Value));
-			}
-			else
-			{
-				SimpleCustomControls.Add(It->Key, MakeShared<FMixerSimpleCustomControl>());
+				AdvancedCustomControls.Add(It->Key, NewObject<UMixerCustomControl>(GetTransientPackage(), It->Value.TryLoadClass<UMixerCustomControl>()));
 			}
 		}
 	}
@@ -1299,21 +1297,21 @@ void FMixerInteractivityModule::HandleCustomControlUpdateMessage(FJsonObject* Pa
 				if (ControlObject->TryGetStringField(TEXT("controlID"), ControlIdRaw))
 				{
 					FName ControlId = *ControlIdRaw;
-					if (TSharedPtr<FMixerSimpleCustomControl>* SimpleControl = SimpleCustomControls.Find(ControlId))
-					{
-						check(SimpleControl->IsValid());
-
-						(*SimpleControl)->PropertyBag.Append(ControlObject->Values);
-						OnUnhandledCustomControlPropertyUpdate().Broadcast(ControlId, *SimpleControl);
-					}
-					else if (UMixerCustomControl** AdvancedControl = AdvancedCustomControls.Find(ControlId))
+					if (UMixerCustomControl** AdvancedControl = AdvancedCustomControls.Find(ControlId))
 					{
 						FJsonObjectConverter::JsonObjectToUStruct(ControlObject.ToSharedRef(), (*AdvancedControl)->GetClass(), *AdvancedControl);
 						(*AdvancedControl)->OnServerPropertiesUpdated();
 					}
 					else
 					{
-						UE_LOG(LogMixerInteractivity, Warning, TEXT("Ignoring proprty updates for unknown custom control %s.  Update your bindings in the Mixer Interactivity project settings."), *ControlIdRaw);
+						TSharedPtr<FMixerSimpleCustomControl>& SimpleControl = SimpleCustomControls.FindOrAdd(ControlId);
+						if (!SimpleControl.IsValid())
+						{
+							SimpleControl = MakeShared<FMixerSimpleCustomControl>();
+						}
+
+						SimpleControl->PropertyBag.Append(ControlObject->Values);
+						OnUnhandledCustomControlPropertyUpdate().Broadcast(ControlId, SimpleControl);
 					}
 				}
 			}
