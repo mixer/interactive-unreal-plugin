@@ -22,6 +22,7 @@
 #include "MixerInteractivityJsonTypes.h"
 #include "MixerProjectDefinitionCustomization.h"
 #include "MixerInteractivityProjectAsset.h"
+#include "MixerEditorStyle.h"
 #include "UObjectGlobals.h"
 #include "IHttpRequest.h"
 #include "IHttpResponse.h"
@@ -60,12 +61,16 @@ private:
 	TArray<TSharedPtr<FName>> DesignTimeSimpleCustomControls;
 
 	FOnDesignTimeObjectsChanged DesignTimeObjectsChanged;
+
+	TSharedPtr<FMixerEditorStyle> MixerStyle;
 };
 
 IMPLEMENT_MODULE(FMixerInteractivityEditorModule, MixerInteractivityEditor)
 
 void FMixerInteractivityEditorModule::StartupModule()
 {
+	MixerStyle = MakeShared<FMixerEditorStyle>();
+
 	FEditorCategoryUtils::RegisterCategoryKey("MixerInteractivity",
 		LOCTEXT("MixerInteractivityCategory", "Mixer|Interactivity"),
 		LOCTEXT("MixerInteractivityCategory_Tooltip", "Interactivity features provided by Mixer"));
