@@ -209,7 +209,7 @@ void FMixerInteractivityEditorModule::RefreshDesignTimeObjects()
 				{
 					DesignTimeSticks.Add(MakeShared<FName>(ControlName));
 				}
-				else if (!ProjectAsset->CustomControlBindings.Contains(ControlName))
+				else if (!ProjectAsset->CustomControlMappings.Contains(ControlName))
 				{
 					DesignTimeSimpleCustomControls.Add(MakeShared<FName>(ControlName));
 				}

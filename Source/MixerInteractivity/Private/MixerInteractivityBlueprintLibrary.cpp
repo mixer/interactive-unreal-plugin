@@ -325,6 +325,7 @@ void UMixerInteractivityBlueprintLibrary::CaptureSparkTransaction(FMixerTransact
 
 DECLARE_FUNCTION(UMixerInteractivityBlueprintLibrary::execGetCustomControlProperty_Helper)
 {
+	P_GET_PROPERTY(UObjectProperty, WorldContextObject);
 	P_GET_STRUCT(FMixerCustomControlReference, Control);
 	P_GET_PROPERTY(UStrProperty, PropertyName);
 
@@ -334,14 +335,22 @@ DECLARE_FUNCTION(UMixerInteractivityBlueprintLibrary::execGetCustomControlProper
 	P_FINISH;
 
 	P_NATIVE_BEGIN;
-	if (Stack.MostRecentPropertyAddress != nullptr && Stack.MostRecentProperty != nullptr)
+	if (WorldContextObject != nullptr)
 	{
-		TSharedPtr<FMixerSimpleCustomControl> ControlObject;
-		if (IMixerInteractivityModule::Get().GetCustomControl(Control.Name, ControlObject))
+		UWorld* ForWorld = WorldContextObject->GetWorld();
+		if (ForWorld != nullptr)
 		{
-			if (TSharedPtr<FJsonValue>* LocatedProperty = ControlObject->PropertyBag.Find(PropertyName))
+			if (Stack.MostRecentPropertyAddress != nullptr && Stack.MostRecentProperty != nullptr)
 			{
-				FJsonObjectConverter::JsonValueToUProperty(*LocatedProperty, Stack.MostRecentProperty, Stack.MostRecentPropertyAddress, 0, 0);
+				TSharedPtr<FJsonObject> ControlObject;
+				if (IMixerInteractivityModule::Get().GetCustomControl(ForWorld, Control.Name, ControlObject))
+				{
+					TSharedPtr<FJsonValue> LocatedProperty = ControlObject->TryGetField(PropertyName);
+					if (LocatedProperty.IsValid())
+					{
+						FJsonObjectConverter::JsonValueToUProperty(LocatedProperty, Stack.MostRecentProperty, Stack.MostRecentPropertyAddress, 0, 0);
+					}
+				}
 			}
 		}
 	}

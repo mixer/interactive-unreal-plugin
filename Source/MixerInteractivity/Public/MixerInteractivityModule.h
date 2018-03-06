@@ -20,7 +20,6 @@ struct FMixerButtonState;
 struct FMixerStickDescription;
 struct FMixerStickState;
 struct FMixerButtonEventDetails;
-struct FMixerSimpleCustomControl;
 class FUniqueNetId;
 class FJsonObject;
 
@@ -227,15 +226,16 @@ public:
 	* Retrieve information about a named custom control.  Information may include both static 
 	* (similar to Get*Description methods above) and dynamic (similar to Get*State methods) data.
 	* There is no concept of data being isolated per participant.
-	* This overload expects the named control to be a 'simple' custom control, that is, not mapped
+	* This overload expects the named control to be an unmapped custom control, that is, not mapped
 	* directly on the client to a custom type derived from UMixerCustomControl.
 	*
+	* @param	ForWorld			World context for this query.  Only game worlds have fully instantiated custom controls.
 	* @param	ControlName			Name of the control for which information should be returned.
-	* @param	OutControlObject	See FMixerSimpleCustomControl.
+	* @param	OutControlObject	Json property bag describing the control.
 	*
-	* @Return						True if the control was found (and is a simple control).
+	* @Return						True if the control was found as an unmapped control.
 	*/
-	virtual bool GetCustomControl(FName ControlName, TSharedPtr<FMixerSimpleCustomControl>& OutControlObject) = 0;
+	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObject) = 0;
 
 	/**
 	* Retrieve information about a named custom control.  Information may include both static
@@ -244,12 +244,13 @@ public:
 	* This overload expects the named control to be mapped directly on the client to a custom type
 	* derived from UMixerCustomControl.
 	*
+	* @param	ForWorld			World context for this query.  Only game worlds have fully instantiated custom controls.
 	* @param	ControlName			Name of the control for which information should be returned.
 	* @param	OutControlObject	See UMixerCustomControl.
 	*
-	* @Return						True if the control was found (and is a mapped control).
+	* @Return						True if the control was found as a mapped control.
 	*/
-	virtual bool GetCustomControl(FName ControlName, class UMixerCustomControl*& OutControlObject) = 0;
+	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, class UMixerCustomControl*& OutControlObject) = 0;
 
 	/**
 	* Retrieve a structure describing the local user currently signed in to the Mixer service.
@@ -304,6 +305,10 @@ public:
 	*/
 	virtual void CaptureSparkTransaction(const FString& TransactionId) = 0;
 
+	virtual void UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate) = 0;
+
+	virtual void CallRemoteMethod(const FString& MethodName, const TSharedRef<FJsonObject> MethodParams) = 0;
+
 	/**
 	* Get access to Mixer chat via UE's standard IOnlineChat interface.
 	* Sending messages requires a logged in user.
@@ -340,12 +345,12 @@ public:
 	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnBroadcastingStateChanged, bool);
 	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged() = 0;
 
-	DECLARE_EVENT_FiveParams(IMixerInteractivityModule, FOnUnhandledCustomControlInputEvent, FName, FName, TSharedPtr<const FMixerRemoteUser>, TSharedPtr<const FMixerSimpleCustomControl>, const FJsonObject*);
-	virtual FOnUnhandledCustomControlInputEvent& OnUnhandledCustomControlInputEvent() = 0;
+	DECLARE_EVENT_FourParams(IMixerInteractivityModule, FOnCustomControlInput, FName, FName, TSharedPtr<const FMixerRemoteUser>, const TSharedRef<FJsonObject>);
+	virtual FOnCustomControlInput& OnCustomControlInput() = 0;
 
-	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnUnhandledCustomControlPropertyUpdate, FName, TSharedPtr<const FMixerSimpleCustomControl>);
-	virtual FOnUnhandledCustomControlPropertyUpdate& OnUnhandledCustomControlPropertyUpdate() = 0;
+	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnCustomControlPropertyUpdate, FName, const TSharedRef<FJsonObject>);
+	virtual FOnCustomControlPropertyUpdate& OnCustomControlPropertyUpdate() = 0;
 
-	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnCustomMethodCall, FName, const FJsonObject*);
+	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnCustomMethodCall, FName, const TSharedRef<FJsonObject>);
 	virtual FOnCustomMethodCall& OnCustomMethodCall() = 0;
 };

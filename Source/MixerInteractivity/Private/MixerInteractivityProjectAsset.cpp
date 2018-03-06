@@ -6,7 +6,9 @@ void UMixerProjectAsset::PostLoad()
 {
 	Super::PostLoad();
 
+#if WITH_EDITORONLY_DATA
 	ParsedProjectDefinition.FromJson(ProjectDefinitionJson);
+#endif
 }
 
 #if WITH_EDITORONLY_DATA

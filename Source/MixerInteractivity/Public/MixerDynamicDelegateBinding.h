@@ -54,17 +54,20 @@ struct MIXERINTERACTIVITY_API FMixerStickEventDynamicDelegateWrapper
 };
 
 USTRUCT()
-struct MIXERINTERACTIVITY_API FMixerCustomControlInputDelegateWrapper
+struct MIXERINTERACTIVITY_API FMixerCustomControlDelegateWrapper
 {
 	GENERATED_BODY()
-	FMixerCustomControlInputDynamicDelegate Delegate;
-};
 
-USTRUCT()
-struct MIXERINTERACTIVITY_API FMixerCustomControlUpdateDelegateWrapper
-{
-	GENERATED_BODY()
-	FMixerCustomControlUpdateDynamicDelegate Delegate;
+	UPROPERTY()
+	UMixerCustomControl* MappedControl;
+
+	UPROPERTY()
+	FMixerCustomControlUpdateDynamicDelegate UpdateDelegate;
+
+	UPROPERTY()
+	FMixerCustomControlInputDynamicDelegate InputDelegate;
+
+	TSharedPtr<FJsonObject> UnmappedControl;
 };
 
 USTRUCT()
@@ -118,13 +121,20 @@ public:
 	void OnParticipantStateChangedNativeEvent(TSharedPtr<const FMixerRemoteUser> Participant, EMixerInteractivityParticipantState NewState);
 	void OnStickNativeEvent(FName StickName, TSharedPtr<const FMixerRemoteUser> Participant, FVector2D StickValue);
 	void OnBroadcastingStateChangedNativeEvent(bool NewBroadcastingState);
-	void OnCustomMethodCallNativeEvent(FName MethodName, const class FJsonObject* MethodParams);
-	void OnUnhandledCustomControlInputNativeEvent(FName ControlName, FName MethodName, TSharedPtr<const FMixerRemoteUser> Participant, TSharedPtr<const FMixerSimpleCustomControl> ControlObject, const FJsonObject* EventPayload);
-	void OnUnhandledCustomControlPropertyUpdateNativeEvent(FName ControlName, TSharedPtr<const FMixerSimpleCustomControl> ControlObject);
+	void OnCustomMethodCallNativeEvent(FName MethodName, const TSharedRef<FJsonObject> MethodParams);
+	void OnCustomControlInputNativeEvent(FName ControlName, FName EventType, TSharedPtr<const FMixerRemoteUser> Participant, const TSharedRef<FJsonObject> EventPayload);
+	void OnCustomControlPropertyUpdateNativeEvent(FName ControlName, const TSharedRef<FJsonObject> UpdatedProperties);
 
+#if WITH_EDITORONLY_DATA
+	void RefreshCustomControls();
+	void OnCustomControlCompiled(class UBlueprint* CompiledBP);
+#endif
 
 	virtual UWorld* GetWorld() const override;
 	virtual void PostLoad() override;
+
+	UMixerCustomControl* GetMappedCustomControl(FName ControlName);
+	TSharedPtr<FJsonObject> GetUnmappedCustomControl(FName ControlName);
 
 private:
 
@@ -138,14 +148,12 @@ private:
 	TMap<FName, FMixerCustomMethodStubDelegateWrapper> CustomMethodDelegates;
 
 	UPROPERTY()
-	TMap<FName, FMixerCustomControlInputDelegateWrapper> CustomControlInputDelegates;
-
-	UPROPERTY()
-	TMap<FName, FMixerCustomControlUpdateDelegateWrapper> CustomControlUpdateDelegates;
+	TMap<FName, FMixerCustomControlDelegateWrapper> CustomControlDelegates;
 
 public:
 	static UMixerInteractivityBlueprintEventSource* GetBlueprintEventSource(UWorld* ForWorld);
 
+	void RegisterForMixerEvents();
 private:
 	static TArray<TWeakObjectPtr<UMixerInteractivityBlueprintEventSource>> BlueprintEventSources;
 

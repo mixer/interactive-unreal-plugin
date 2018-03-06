@@ -12,6 +12,8 @@
 #include "MixerInteractivityProjectAsset.h"
 #include "MixerInteractivityJsonTypes.h"
 
+#if WITH_EDITORONLY_DATA
+
 void UMixerInteractivitySettings::GetAllSticks(TArray<FString>& OutSticks)
 {
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
@@ -40,8 +42,10 @@ void UMixerInteractivitySettings::GetAllUnmappedCustomControls(TArray<FString>& 
 	{
 		auto IsSimpleCustomControl = [ProjectAsset](const FMixerInteractiveControl& C)
 		{
-			return C.IsCustom() && !ProjectAsset->CustomControlBindings.Contains(*C.Id);
+			return C.IsCustom() && !ProjectAsset->CustomControlMappings.Contains(*C.Id);
 		};
 		ProjectAsset->GetAllControls(IsSimpleCustomControl, OutCustomControls);
 	}
 }
+
+#endif

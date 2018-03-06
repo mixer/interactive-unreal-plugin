@@ -22,6 +22,8 @@ void UK2Node_MixerGetCustomControlProperty::AllocateDefaultPins()
 {
 	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 
+	UEdGraphPin* WorldContextPin = CreatePin(EGPD_Input, K2Schema->PC_Object, TEXT(""), UObject::StaticClass(), false, false, TEXT("WorldContextObject"));
+	WorldContextPin->bHidden = true;
 	CreatePin(EGPD_Input, K2Schema->PC_Struct, TEXT(""), FMixerCustomControlReference::StaticStruct(), false, false, TEXT("Control"));
 	CreatePin(EGPD_Input, K2Schema->PC_Name, TEXT(""), nullptr, false, false, TEXT("PropertyName"));
 	CreatePin(EGPD_Output, K2Schema->PC_Wildcard, TEXT(""), nullptr, false, false, K2Schema->PN_ReturnValue);
@@ -54,6 +56,10 @@ void UK2Node_MixerGetCustomControlProperty::ExpandNode(class FKismetCompilerCont
 	UEdGraphPin* FunctionReturnPin = GetPropertyHelperFunction->FindPinChecked(TEXT("OutProperty"), EGPD_Output);
 	FunctionReturnPin->PinType = ResultPin->PinType;
 	CompilerContext.MovePinLinksToIntermediate(*ResultPin, *FunctionReturnPin);
+
+	UEdGraphPin* FunctionWorldContextPin = GetPropertyHelperFunction->FindPinChecked(TEXT("WorldContextObject"), EGPD_Input);
+	UEdGraphPin* MyWorldContextPin = FindPinChecked(TEXT("WorldContextObject"), EGPD_Input);
+	CompilerContext.MovePinLinksToIntermediate(*MyWorldContextPin, *FunctionWorldContextPin);
 
 	UEdGraphPin* FunctionControlPin = GetPropertyHelperFunction->FindPinChecked(TEXT("Control"), EGPD_Input);
 	UEdGraphPin* MyControlPin = FindPinChecked(TEXT("Control"), EGPD_Input);

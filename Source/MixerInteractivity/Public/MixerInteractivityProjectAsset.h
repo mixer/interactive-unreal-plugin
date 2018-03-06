@@ -5,6 +5,18 @@
 #include "MixerInteractivityJsonTypes.h"
 #include "MixerInteractivityProjectAsset.generated.h"
 
+USTRUCT()
+struct FMixerCustomControlMapping
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FName SceneName;
+
+	UPROPERTY()
+	FSoftClassPath Class;
+};
+
 UCLASS()
 class MIXERINTERACTIVITY_API UMixerProjectAsset : public UDataAsset
 {
@@ -16,16 +28,14 @@ public:
 public:
 #if WITH_EDITORONLY_DATA
 	void GetAllControls(TFunctionRef<bool(const FMixerInteractiveControl&)> Predicate, TArray<FString>& OutControls);
-#endif
 
 public:
-#if WITH_EDITORONLY_DATA
 	UPROPERTY()
 	FString ProjectDefinitionJson;
 
 	FMixerInteractiveGameVersion ParsedProjectDefinition;
-#endif
 
 	UPROPERTY(EditAnywhere, Category="Scenes")
-	TMap<FName, FSoftClassPath> CustomControlBindings;
+	TMap<FName, FMixerCustomControlMapping> CustomControlMappings;
+#endif
 };

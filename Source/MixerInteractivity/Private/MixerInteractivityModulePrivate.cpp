@@ -21,6 +21,7 @@
 #include "PlatformHttp.h"
 #include "JsonTypes.h"
 #include "JsonPrintPolicy.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
 #include "Dom/JsonValue.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
@@ -369,6 +370,7 @@ bool FMixerInteractivityModule::Tick(float DeltaTime)
 	TickParticipantCacheMaintenance();
 	TickClientLibrary();
 	TickLocalUserMaintenance();
+	FlushControlUpdates();
 
 	return true;
 }
@@ -463,7 +465,6 @@ void FMixerInteractivityModule::TickClientLibrary()
 				if (!HasCreatedGroups)
 				{
 					InitDesignTimeGroups();
-					InitCustomControls();
 				}
 				break;
 
@@ -476,7 +477,6 @@ void FMixerInteractivityModule::TickClientLibrary()
 				if (!HasCreatedGroups)
 				{
 					InitDesignTimeGroups();
-					InitCustomControls();
 				}
 				break;
 
@@ -489,7 +489,7 @@ void FMixerInteractivityModule::TickClientLibrary()
 				if (!HasCreatedGroups)
 				{
 					InitDesignTimeGroups();
-					InitCustomControls();
+
 				}
 				break;
 			}
@@ -965,34 +965,16 @@ bool FMixerInteractivityModule::GetStickState(FName Stick, uint32 ParticipantId,
 	return false;
 }
 
-bool FMixerInteractivityModule::GetCustomControl(FName ControlName, TSharedPtr<FMixerSimpleCustomControl>& OutControlObj)
+bool FMixerInteractivityModule::GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObj)
 {
-	TSharedPtr<FMixerSimpleCustomControl>* FoundControl = SimpleCustomControls.Find(ControlName);
-	if (FoundControl != nullptr)
-	{
-		OutControlObj = *FoundControl;
-		return true;
-	}
-	else
-	{
-		OutControlObj.Reset();
-		return false;
-	}
+	OutControlObj = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(ForWorld)->GetUnmappedCustomControl(ControlName);
+	return OutControlObj.IsValid();
 }
 
-bool FMixerInteractivityModule::GetCustomControl(FName ControlName, UMixerCustomControl*& OutControlObj)
+bool FMixerInteractivityModule::GetCustomControl(UWorld* ForWorld, FName ControlName, UMixerCustomControl*& OutControlObj)
 {
-	UMixerCustomControl** FoundControl = AdvancedCustomControls.Find(ControlName);
-	if (FoundControl != nullptr)
-	{
-		OutControlObj = *FoundControl;
-		return true;
-	}
-	else
-	{
-		OutControlObj = nullptr;
-		return false;
-	}
+	OutControlObj = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(ForWorld)->GetMappedCustomControl(ControlName);
+	return OutControlObj != nullptr;
 }
 
 std::shared_ptr<Microsoft::mixer::interactive_button_control> FMixerInteractivityModule::FindButton(FName Name)
@@ -1089,7 +1071,6 @@ void FMixerInteractivityModule::LoginAttemptFinished(bool Success)
 		check(GetLoginState() == EMixerLoginState::Logged_In);
 
 		InitDesignTimeGroups();
-		InitCustomControls();
 
 		OnLoginStateChanged().Broadcast(EMixerLoginState::Logged_In);
 
@@ -1238,22 +1219,6 @@ void FMixerInteractivityModule::InitDesignTimeGroups()
 	}
 }
 
-void FMixerInteractivityModule::InitCustomControls()
-{
-	if (NeedsClientLibraryActive())
-	{
-		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-		UMixerProjectAsset* ProjectAsset = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
-		if (ProjectAsset != nullptr)
-		{
-			for (TMap<FName, FSoftClassPath>::TConstIterator It(ProjectAsset->CustomControlBindings); It; ++It)
-			{
-				AdvancedCustomControls.Add(It->Key, NewObject<UMixerCustomControl>(GetTransientPackage(), It->Value.TryLoadClass<UMixerCustomControl>()));
-			}
-		}
-	}
-}
-
 void FMixerInteractivityModule::HandleCustomMessage(const FString& MessageBodyString)
 {
 	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(MessageBodyString);
@@ -1276,7 +1241,7 @@ void FMixerInteractivityModule::HandleCustomMessage(const FString& MessageBodySt
 				}
 				else
 				{
-					OnCustomMethodCall().Broadcast(*Method, ParamsObject->Get());
+					OnCustomMethodCall().Broadcast(*Method, ParamsObject->ToSharedRef());
 				}
 			}
 		}
@@ -1293,26 +1258,10 @@ void FMixerInteractivityModule::HandleCustomControlUpdateMessage(FJsonObject* Pa
 			const TSharedPtr<FJsonObject> ControlObject = Control->AsObject();
 			if (ControlObject.IsValid())
 			{
-				FString ControlIdRaw;
-				if (ControlObject->TryGetStringField(TEXT("controlID"), ControlIdRaw))
+				FString ControlId;
+				if (ControlObject->TryGetStringField(TEXT("controlID"), ControlId))
 				{
-					FName ControlId = *ControlIdRaw;
-					if (UMixerCustomControl** AdvancedControl = AdvancedCustomControls.Find(ControlId))
-					{
-						FJsonObjectConverter::JsonObjectToUStruct(ControlObject.ToSharedRef(), (*AdvancedControl)->GetClass(), *AdvancedControl);
-						(*AdvancedControl)->OnServerPropertiesUpdated();
-					}
-					else
-					{
-						TSharedPtr<FMixerSimpleCustomControl>& SimpleControl = SimpleCustomControls.FindOrAdd(ControlId);
-						if (!SimpleControl.IsValid())
-						{
-							SimpleControl = MakeShared<FMixerSimpleCustomControl>();
-						}
-
-						SimpleControl->PropertyBag.Append(ControlObject->Values);
-						OnUnhandledCustomControlPropertyUpdate().Broadcast(ControlId, SimpleControl);
-					}
+					OnCustomControlPropertyUpdate().Broadcast(*ControlId, ControlObject.ToSharedRef());
 				}
 			}
 		}
@@ -1326,44 +1275,46 @@ void FMixerInteractivityModule::HandleCustomControlInputMessage(FJsonObject* Par
 	const TSharedPtr<FJsonObject> *InputObject;
 	if (ParamsJson->TryGetObjectField(TEXT("input"), InputObject))
 	{
-		FString ControlIdRaw;
-		if ((*InputObject)->TryGetStringField(TEXT("controlID"), ControlIdRaw))
+		FString ControlId;
+		if ((*InputObject)->TryGetStringField(TEXT("controlID"), ControlId))
 		{
-			FString EventTypeRaw;
-			if ((*InputObject)->TryGetStringField(TEXT("event"), EventTypeRaw))
+			FString EventType;
+			if ((*InputObject)->TryGetStringField(TEXT("event"), EventType))
 			{
-				FName ControlId = *ControlIdRaw;
-				FName EventType = *EventTypeRaw;
-				if (TSharedPtr<FMixerSimpleCustomControl>* SimpleControl = SimpleCustomControls.Find(ControlId))
-				{
-					check(SimpleControl->IsValid());
-					OnUnhandledCustomControlInputEvent().Broadcast(ControlId, EventType, nullptr, *SimpleControl, InputObject->Get());
-				}
-				else if (UMixerCustomControl** AdvancedControl = AdvancedCustomControls.Find(ControlId))
-				{
-					UFunction* HandlerMethod = (*AdvancedControl)->FindFunction(EventType);
-					if (HandlerMethod != nullptr)
-					{
-						void* ParamStorage = FMemory_Alloca(HandlerMethod->ParmsSize);
-						if (ParamStorage != nullptr)
-						{
-							MixerBindingUtils::ExtractCustomEventParamsFromMessage(InputObject->Get(), HandlerMethod, ParamStorage, HandlerMethod->ParmsSize);
-							(*AdvancedControl)->ProcessEvent(HandlerMethod, ParamStorage);
-							MixerBindingUtils::DestroyCustomEventParams(HandlerMethod, ParamStorage, HandlerMethod->ParmsSize);
-						}
-					}
-					else
-					{
-						UE_LOG(LogMixerInteractivity, Warning, TEXT("Received unknown input event %s for custom control %s.  Event will be ignored.  Provide a UFUNCTION matching the event name in order to handle this event."), *EventTypeRaw, *ControlIdRaw);
-					}
-				}
-				else
-				{
-					UE_LOG(LogMixerInteractivity, Warning, TEXT("Ignoring input event %s for unknown custom control %s.  Update your bindings in the Mixer Interactivity project settings."), *EventTypeRaw, *ControlIdRaw);
-				}
+				OnCustomControlInput().Broadcast(*ControlId, *EventType, nullptr, InputObject->ToSharedRef());
 			}
 		}
 	}
+}
+
+void FMixerInteractivityModule::UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate)
+{
+	TArray<TSharedPtr<FJsonValue>>& ControlsForScene = PendingControlUpdates.FindOrAdd(SceneName);
+	PropertiesToUpdate->SetStringField(TEXT("controlID"), ControlName.ToString());
+	ControlsForScene.Add(MakeShared<FJsonValueObject>(PropertiesToUpdate));
+}
+
+void FMixerInteractivityModule::FlushControlUpdates()
+{
+	for (TMap<FName, TArray<TSharedPtr<FJsonValue>>>::TIterator It(PendingControlUpdates); It; ++It)
+	{
+		TSharedRef<FJsonObject> UpdateMethodParams = MakeShared<FJsonObject>();
+		UpdateMethodParams->SetStringField(TEXT("sceneID"), It->Key.ToString());
+		UpdateMethodParams->SetArrayField(TEXT("controls"), It->Value);
+
+		CallRemoteMethod(TEXT("updateControls"), UpdateMethodParams);
+	}
+
+	PendingControlUpdates.Empty();
+}
+
+void FMixerInteractivityModule::CallRemoteMethod(const FString& MethodName, const TSharedRef<FJsonObject> MethodParams)
+{
+	FString SerializedParams;
+	TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&SerializedParams, 0);
+	FJsonSerializer::Serialize(MethodParams, Writer);
+
+	Microsoft::mixer::interactivity_manager::get_singleton_instance()->send_rpc_message(*MethodName, *SerializedParams);
 }
 
 TSharedPtr<IOnlineChat> FMixerInteractivityModule::GetChatInterface()
@@ -1374,14 +1325,6 @@ TSharedPtr<IOnlineChat> FMixerInteractivityModule::GetChatInterface()
 TSharedPtr<IOnlineChatMixer> FMixerInteractivityModule::GetExtendedChatInterface()
 {
 	return ChatInterface;
-}
-
-void FMixerInteractivityModule::AddReferencedObjects(FReferenceCollector& Collector)
-{
-	for (TMap<FName, UMixerCustomControl*>::TIterator It(AdvancedCustomControls); It; ++It)
-	{
-		Collector.AddReferencedObject(It->Value);
-	}
 }
 
 #if PLATFORM_XBOXONE

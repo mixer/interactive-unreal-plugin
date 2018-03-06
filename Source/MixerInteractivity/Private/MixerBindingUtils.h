@@ -11,8 +11,11 @@
 
 #include "HAL/Platform.h"
 
+class UFunction;
+class FJsonObject;
+
 namespace MixerBindingUtils
 {
-	void ExtractCustomEventParamsFromMessage(const class FJsonObject* JsonObject, class UFunction* FunctionPrototype, void* ParamStorage, SIZE_T ParamStorageSize);
-	void DestroyCustomEventParams(class UFunction* FunctionPrototype, void* ParamStorage, SIZE_T ParamStorageSize);
+	void ExtractCustomEventParamsFromMessage(const FJsonObject* JsonObject, UFunction* FunctionPrototype, void* ParamStorage, SIZE_T ParamStorageSize);
+	void DestroyCustomEventParams(UFunction* FunctionPrototype, void* ParamStorage, SIZE_T ParamStorageSize);
 }

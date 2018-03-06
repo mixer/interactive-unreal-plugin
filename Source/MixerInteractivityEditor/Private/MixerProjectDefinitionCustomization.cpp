@@ -5,6 +5,7 @@
 #include "MixerInteractivityProjectAsset.h"
 #include "MixerInteractivityJsonTypes.h"
 #include "MixerCustomControl.h"
+#include "MixerDynamicDelegateBinding.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailWidgetRow.h"
@@ -39,8 +40,8 @@ void FMixerProjectDefinitionCustomization::CustomizeDetails(IDetailLayoutBuilder
 		return;
 	}
 
-	TSharedRef<IPropertyHandle> ControlBindingProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerProjectAsset, CustomControlBindings));
-	DetailBuilder.HideProperty(ControlBindingProperty);
+	TSharedRef<IPropertyHandle> ControlMappingProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UMixerProjectAsset, CustomControlMappings));
+	DetailBuilder.HideProperty(ControlMappingProperty);
 
 	IDetailCategoryBuilder& ProjectInfoCategoryBuilder = DetailBuilder.EditCategory("Project Info");
 
@@ -93,6 +94,7 @@ void FMixerProjectDefinitionCustomization::CustomizeDetails(IDetailLayoutBuilder
 			.Text(FText::FromString(*Scene.Id))
 		];
 
+		FName SceneName = *Scene.Id;
 		for (const FMixerInteractiveControl& Control : Scene.Controls)
 		{
 			FString PrettyControlKind = Control.Kind;
@@ -145,8 +147,8 @@ void FMixerProjectDefinitionCustomization::CustomizeDetails(IDetailLayoutBuilder
 						SNew(SClassPropertyEntryBox)
 						.MetaClass(UMixerCustomControl::StaticClass())
 						.AllowAbstract(false)
-						.SelectedClass(this, &FMixerProjectDefinitionCustomization::GetClassForCustomControl, ControlBindingProperty, ControlName)
-						.OnSetClass(this, &FMixerProjectDefinitionCustomization::SetClassForCustomControl, ControlBindingProperty, ControlName)
+						.SelectedClass(this, &FMixerProjectDefinitionCustomization::GetClassForCustomControl, ControlMappingProperty, ControlName, SceneName)
+						.OnSetClass(this, &FMixerProjectDefinitionCustomization::SetClassForCustomControl, ControlMappingProperty, ControlName, SceneName)
 					]
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
@@ -154,7 +156,7 @@ void FMixerProjectDefinitionCustomization::CustomizeDetails(IDetailLayoutBuilder
 					.Padding(2.0f, 2.0f)
 					[
 						PropertyCustomizationHelpers::MakeUseSelectedButton(
-							FSimpleDelegate::CreateSP(this, &FMixerProjectDefinitionCustomization::OnUseSelectedClicked, ControlBindingProperty, ControlName))
+							FSimpleDelegate::CreateSP(this, &FMixerProjectDefinitionCustomization::OnUseSelectedClicked, ControlMappingProperty, ControlName, SceneName))
 					]
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
@@ -162,7 +164,7 @@ void FMixerProjectDefinitionCustomization::CustomizeDetails(IDetailLayoutBuilder
 					.Padding(2.0f, 2.0f)
 					[
 						PropertyCustomizationHelpers::MakeBrowseButton(
-							FSimpleDelegate::CreateSP(this, &FMixerProjectDefinitionCustomization::OnBrowseClicked, ControlBindingProperty, ControlName))
+							FSimpleDelegate::CreateSP(this, &FMixerProjectDefinitionCustomization::OnBrowseClicked, ControlMappingProperty, ControlName, SceneName))
 					]
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
@@ -170,7 +172,7 @@ void FMixerProjectDefinitionCustomization::CustomizeDetails(IDetailLayoutBuilder
 					.Padding(2.0f, 2.0f)
 					[
 						PropertyCustomizationHelpers::MakeNewBlueprintButton(
-							FSimpleDelegate::CreateSP(this, &FMixerProjectDefinitionCustomization::OnMakeNewClicked, ControlBindingProperty, ControlName))
+							FSimpleDelegate::CreateSP(this, &FMixerProjectDefinitionCustomization::OnMakeNewClicked, ControlMappingProperty, ControlName, SceneName))
 					]
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
@@ -178,7 +180,7 @@ void FMixerProjectDefinitionCustomization::CustomizeDetails(IDetailLayoutBuilder
 					.Padding(2.0f, 2.0f)
 					[
 						PropertyCustomizationHelpers::MakeClearButton(
-							FSimpleDelegate::CreateSP(this, &FMixerProjectDefinitionCustomization::OnClearClicked, ControlBindingProperty, ControlName))
+							FSimpleDelegate::CreateSP(this, &FMixerProjectDefinitionCustomization::OnClearClicked, ControlMappingProperty, ControlName, SceneName))
 					]
 				];
 			}
@@ -187,52 +189,56 @@ void FMixerProjectDefinitionCustomization::CustomizeDetails(IDetailLayoutBuilder
 
 }
 
-const UClass* FMixerProjectDefinitionCustomization::GetClassForCustomControl(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName) const
+const UClass* FMixerProjectDefinitionCustomization::GetClassForCustomControl(TSharedRef<IPropertyHandle> ControlMappingProperty, FName ControlName, FName SceneName) const
 {
 	TArray<UObject*> Outers;
-	ControlBindingProperty->GetOuterObjects(Outers);
+	ControlMappingProperty->GetOuterObjects(Outers);
 	UMixerProjectAsset* ProjectDefinition = CastChecked<UMixerProjectAsset>(Outers[0]);
-	FSoftClassPath* CurrentClass = ProjectDefinition->CustomControlBindings.Find(ControlName);
-	return CurrentClass != nullptr ? CurrentClass->TryLoadClass<UObject>() : nullptr;
+	FMixerCustomControlMapping* Binding = ProjectDefinition->CustomControlMappings.Find(ControlName);
+	return Binding != nullptr ? Binding->Class.TryLoadClass<UObject>() : nullptr;
 }
 
-void FMixerProjectDefinitionCustomization::SetClassForCustomControl(const UClass* NewClass, TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName) const
+void FMixerProjectDefinitionCustomization::SetClassForCustomControl(const UClass* NewClass, TSharedRef<IPropertyHandle> ControlMappingProperty, FName ControlName, FName SceneName) const
 {
-	ControlBindingProperty->NotifyPreChange();
+	ControlMappingProperty->NotifyPreChange();
 
 	TArray<UObject*> Outers;
-	ControlBindingProperty->GetOuterObjects(Outers);
+	ControlMappingProperty->GetOuterObjects(Outers);
 	UMixerProjectAsset* ProjectDefinition = CastChecked<UMixerProjectAsset>(Outers[0]);
 	if (NewClass != nullptr)
 	{
-		ProjectDefinition->CustomControlBindings.FindOrAdd(ControlName) = FSoftClassPath(NewClass);
+		FMixerCustomControlMapping& Binding = ProjectDefinition->CustomControlMappings.FindOrAdd(ControlName);
+		Binding.SceneName = SceneName;
+		Binding.Class = FSoftClassPath(NewClass);
 	}
 	else
 	{
-		ProjectDefinition->CustomControlBindings.Remove(ControlName);
+		ProjectDefinition->CustomControlMappings.Remove(ControlName);
 	}
-	ControlBindingProperty->NotifyPostChange();
+	ControlMappingProperty->NotifyPostChange();
 
 	IMixerInteractivityEditorModule::Get().RefreshDesignTimeObjects();
 
 	FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerSimpleCustomControlInput::StaticClass());
 	FBlueprintActionDatabase::Get().RefreshClassActions(UK2Node_MixerSimpleCustomControlUpdate::StaticClass());
+
+	UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(GEditor->GetEditorWorldContext().World())->RefreshCustomControls();
 }
 
-void FMixerProjectDefinitionCustomization::OnUseSelectedClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName)
+void FMixerProjectDefinitionCustomization::OnUseSelectedClicked(TSharedRef<IPropertyHandle> ControlMappingProperty, FName ControlName, FName SceneName) const
 {
 	FEditorDelegates::LoadSelectedAssetsIfNeeded.Broadcast();
 
 	const UClass* SelectedClass = GEditor->GetFirstSelectedClass(UMixerCustomControl::StaticClass());
 	if (SelectedClass)
 	{
-		SetClassForCustomControl(SelectedClass, ControlBindingProperty, ControlName);
+		SetClassForCustomControl(SelectedClass, ControlMappingProperty, ControlName, SceneName);
 	}
 }
 
-void FMixerProjectDefinitionCustomization::OnBrowseClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName)
+void FMixerProjectDefinitionCustomization::OnBrowseClicked(TSharedRef<IPropertyHandle> ControlMappingProperty, FName ControlName, FName SceneName) const
 {
-	const UClass* SelectedClass = GetClassForCustomControl(ControlBindingProperty, ControlName);
+	const UClass* SelectedClass = GetClassForCustomControl(ControlMappingProperty, ControlName, SceneName);
 	if (SelectedClass != nullptr && SelectedClass->ClassGeneratedBy != nullptr)
 	{
 		UBlueprint* Blueprint = Cast<UBlueprint>(SelectedClass->ClassGeneratedBy);
@@ -245,21 +251,21 @@ void FMixerProjectDefinitionCustomization::OnBrowseClicked(TSharedRef<IPropertyH
 	}
 }
 
-void FMixerProjectDefinitionCustomization::OnMakeNewClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName)
+void FMixerProjectDefinitionCustomization::OnMakeNewClicked(TSharedRef<IPropertyHandle> ControlMappingProperty, FName ControlName, FName SceneName) const
 {
 	UBlueprint* Blueprint = FKismetEditorUtilities::CreateBlueprintFromClass(LOCTEXT("CreateNewBlueprint", "Create New Blueprint"), UMixerCustomControl::StaticClass(), FString::Printf(TEXT("New%s"), *UMixerCustomControl::StaticClass()->GetName()));
 
 	if (Blueprint != NULL && Blueprint->GeneratedClass)
 	{
-		SetClassForCustomControl(Blueprint->GeneratedClass, ControlBindingProperty, ControlName);
+		SetClassForCustomControl(Blueprint->GeneratedClass, ControlMappingProperty, ControlName, SceneName);
 
 		FAssetEditorManager::Get().OpenEditorForAsset(Blueprint);
 	}
 }
 
-void FMixerProjectDefinitionCustomization::OnClearClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName)
+void FMixerProjectDefinitionCustomization::OnClearClicked(TSharedRef<IPropertyHandle> ControlMappingProperty, FName ControlName, FName SceneName) const
 {
-	SetClassForCustomControl(nullptr, ControlBindingProperty, ControlName);
+	SetClassForCustomControl(nullptr, ControlMappingProperty, ControlName, SceneName);
 }
 
 #undef LOCTEXT_NAMESPACE

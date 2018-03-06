@@ -26,10 +26,10 @@ public:
 	// End of IDetailCustomization interface
 
 private:
-	const UClass* GetClassForCustomControl(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName) const;
-	void SetClassForCustomControl(const UClass* NewClass, TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName) const;
-	void OnUseSelectedClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName);
-	void OnBrowseClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName);
-	void OnMakeNewClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName);
-	void OnClearClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName);
+	const UClass* GetClassForCustomControl(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName, FName SceneName) const;
+	void SetClassForCustomControl(const UClass* NewClass, TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName, FName SceneName) const;
+	void OnUseSelectedClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName, FName SceneName) const;
+	void OnBrowseClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName, FName SceneName) const;
+	void OnMakeNewClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName, FName SceneName) const;
+	void OnClearClicked(TSharedRef<IPropertyHandle> ControlBindingProperty, FName ControlName, FName SceneName) const;
 };

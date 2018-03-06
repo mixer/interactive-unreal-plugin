@@ -97,8 +97,7 @@ class UMixerInteractivityBlueprintEventSource;
 
 class FMixerInteractivityModule :
 	public IMixerInteractivityModule,
-	public FTickerObjectBase,
-	public FGCObject
+	public FTickerObjectBase
 {
 public:
 	virtual void StartupModule() override;
@@ -123,8 +122,8 @@ public:
 	virtual bool GetStickDescription(FName Stick, FMixerStickDescription& OutDesc);
 	virtual bool GetStickState(FName Stick, FMixerStickState& OutState);
 	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState);
-	virtual bool GetCustomControl(FName ControlName, TSharedPtr<FMixerSimpleCustomControl>& OutControlObject);
-	virtual bool GetCustomControl(FName ControlName, class UMixerCustomControl*& OutControlObject);
+	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObject);
+	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, class UMixerCustomControl*& OutControlObject);
 
 	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()
 	{
@@ -137,25 +136,25 @@ public:
 	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId);
 	virtual void CaptureSparkTransaction(const FString& TransactionId);
 
+	virtual void UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate);
+	virtual void CallRemoteMethod(const FString& MethodName, const TSharedRef<FJsonObject> MethodParams);
+
 	virtual TSharedPtr<class IOnlineChat> GetChatInterface();
 	virtual TSharedPtr<class IOnlineChatMixer> GetExtendedChatInterface();
 
-	virtual FOnLoginStateChanged& OnLoginStateChanged()											{ return LoginStateChanged; }
-	virtual FOnInteractivityStateChanged& OnInteractivityStateChanged()							{ return InteractivityStateChanged; }
-	virtual FOnParticipantStateChangedEvent& OnParticipantStateChanged()						{ return ParticipantStateChanged; }
-	virtual FOnButtonEvent& OnButtonEvent()														{ return ButtonEvent; }
-	virtual FOnStickEvent& OnStickEvent()														{ return StickEvent; }
-	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged()							{ return BroadcastingStateChanged; }
-	virtual FOnUnhandledCustomControlInputEvent& OnUnhandledCustomControlInputEvent()			{ return UnhandledCustomControlInputEvent; }
-	virtual FOnUnhandledCustomControlPropertyUpdate& OnUnhandledCustomControlPropertyUpdate()	{ return UnhandledCustomControlPropertyUpdate; }
-	virtual FOnCustomMethodCall& OnCustomMethodCall()											{ return CustomMethodCall; }
+	virtual FOnLoginStateChanged& OnLoginStateChanged()							{ return LoginStateChanged; }
+	virtual FOnInteractivityStateChanged& OnInteractivityStateChanged()			{ return InteractivityStateChanged; }
+	virtual FOnParticipantStateChangedEvent& OnParticipantStateChanged()		{ return ParticipantStateChanged; }
+	virtual FOnButtonEvent& OnButtonEvent()										{ return ButtonEvent; }
+	virtual FOnStickEvent& OnStickEvent()										{ return StickEvent; }
+	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged()			{ return BroadcastingStateChanged; }
+	virtual FOnCustomControlInput& OnCustomControlInput()						{ return CustomControlInputEvent; }
+	virtual FOnCustomControlPropertyUpdate& OnCustomControlPropertyUpdate()		{ return CustomControlPropertyUpdate; }
+	virtual FOnCustomMethodCall& OnCustomMethodCall()							{ return CustomMethodCall; }
 
 public:
 
 	virtual bool Tick(float DeltaTime);
-
-public:
-	virtual void AddReferencedObjects(FReferenceCollector& Collector);
 
 private:
 	bool LoginWithAuthCodeInternal(const FString& AuthCode, TSharedPtr<const FUniqueNetId> UserId);
@@ -170,7 +169,6 @@ private:
 
 	bool NeedsClientLibraryActive();
 	void InitDesignTimeGroups();
-	void InitCustomControls();
 
 	void HandleCustomMessage(const FString& MessageBodyString);
 	void HandleCustomControlUpdateMessage(FJsonObject* ParamsJson);
@@ -183,6 +181,7 @@ private:
 	void TickParticipantCacheMaintenance();
 	void TickClientLibrary();
 	void TickLocalUserMaintenance();
+	void FlushControlUpdates();
 
 	void LoginAttemptFinished(bool Success);
 
@@ -202,9 +201,6 @@ private:
 
 	TMap<uint32, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCache;
 
-	TMap<FName, TSharedPtr<FMixerSimpleCustomControl>> SimpleCustomControls;
-	TMap<FName, UMixerCustomControl*> AdvancedCustomControls;
-
 	EMixerLoginState UserAuthState;
 	Microsoft::mixer::interactivity_state ClientLibraryState;
 	EMixerInteractivityState InteractivityState;
@@ -215,11 +211,13 @@ private:
 	FOnButtonEvent ButtonEvent;
 	FOnStickEvent StickEvent;
 	FOnBroadcastingStateChanged BroadcastingStateChanged;
-	FOnUnhandledCustomControlInputEvent UnhandledCustomControlInputEvent;
-	FOnUnhandledCustomControlPropertyUpdate UnhandledCustomControlPropertyUpdate;
+	FOnCustomControlInput CustomControlInputEvent;
+	FOnCustomControlPropertyUpdate CustomControlPropertyUpdate;
 	FOnCustomMethodCall CustomMethodCall;
 
 	TSharedPtr<class FOnlineChatMixer> ChatInterface;
+
+	TMap<FName, TArray<TSharedPtr<FJsonValue>>> PendingControlUpdates;
 
 	bool RetryLoginWithUI;
 	bool HasCreatedGroups;
