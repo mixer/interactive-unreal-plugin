@@ -72,7 +72,6 @@ private:
 
 private:
 	TMap<uint32, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCache;
-	Microsoft::mixer::interactivity_state ClientLibraryState;
 };
 
 #endif // MIXER_BACKEND_INTERACTIVE_CPP

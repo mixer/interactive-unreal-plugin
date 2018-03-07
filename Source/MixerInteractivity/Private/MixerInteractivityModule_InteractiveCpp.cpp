@@ -47,35 +47,52 @@ IMPLEMENT_MODULE(FMixerInteractivityModule_InteractiveCpp, MixerInteractivity);
 
 bool FMixerInteractivityModule_InteractiveCpp::StartInteractiveConnection()
 {
+	using namespace Microsoft::mixer;
+
+	if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("StartInteractiveConnection failed - plugin state %d; interactive-cpp state %d."),
+			static_cast<int32>(GetInteractiveConnectionAuthState()), static_cast<int32>(interactivity_manager::get_singleton_instance()->interactivity_state()));
+		return false;
+	}
+
 #if PLATFORM_XBOXONE
 	Windows::Xbox::System::User^ ResolvedUser = GetXboxUser();
 	// User should have been resolved by the time we get here.
 	check(ResolvedUser != nullptr);
-	Microsoft::mixer::interactivity_manager::get_singleton_instance()->set_local_user(ResolvedUser);
+	interactivity_manager::get_singleton_instance()->set_local_user(ResolvedUser);
+
+	// Note that calling set_local_user guarantees that we need to call initialize again.
+
 #elif PLATFORM_SUPPORTS_MIXER_OAUTH
 	const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
-	Microsoft::mixer::interactivity_manager::get_singleton_instance()->set_oauth_token(*UserSettings->AccessToken);
-#else
-	UE_LOG(LogMixerInteractivity, Fatal, TEXT("interactive-cpp does not support this platform."));
-	return false;
+	interactivity_manager::get_singleton_instance()->set_oauth_token(*UserSettings->AccessToken);
 #endif
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false, *Settings->ShareCode))
+
+	// Library may already be initialized, particularly on non-Xbox platforms
+	if (interactivity_manager::get_singleton_instance()->interactivity_state() == interactivity_state::not_initialized)
 	{
-		UE_LOG(LogMixerInteractivity, Error, TEXT("Failed to initialize interactive-cpp"));
-		SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
-		return false;
+		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+		if (!interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false, *Settings->ShareCode))
+		{
+			UE_LOG(LogMixerInteractivity, Error, TEXT("Failed to initialize interactive-cpp"));
+			return false;
+		}
+		SetInteractiveConnectionAuthState(EMixerLoginState::Logging_In);
+	}
+	else
+	{
+		SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
 	}
 
-	SetInteractiveConnectionAuthState(EMixerLoginState::Logging_In);
 	return true;
 }
 
 bool FMixerInteractivityModule_InteractiveCpp::Tick(float DeltaTime)
 {
-	FMixerInteractivityModule::Tick(DeltaTime);
-
 	using namespace Microsoft::mixer;
+
+	FMixerInteractivityModule::Tick(DeltaTime);
 
 	std::vector<interactive_event> EventsThisFrame = interactivity_manager::get_singleton_instance()->do_work();
 	for (auto& MixerEvent : EventsThisFrame)
@@ -91,37 +108,11 @@ bool FMixerInteractivityModule_InteractiveCpp::Tick(float DeltaTime)
 		case interactive_event_type::interactivity_state_changed:
 		{
 			auto StateChangeArgs = std::static_pointer_cast<interactivity_state_change_event_args>(MixerEvent.event_args());
-			EMixerLoginState PreviousLoginState = GetLoginState();
-			ClientLibraryState = StateChangeArgs->new_state();
 			switch (StateChangeArgs->new_state())
 			{
 			case interactivity_state::not_initialized:
 				SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
 				SetInteractivityState(EMixerInteractivityState::Not_Interactive);
-				switch (PreviousLoginState)
-				{
-				case EMixerLoginState::Logging_In:
-					// On Xbox a pop to not_initialized is expected as a result of calling set_local_user when there
-					// was already a previous user.  In any case on all platforms we can safely postpone dealing with
-					// the client library state until user auth is finished.
-					if (GetUserAuthState() != EMixerLoginState::Logging_In)
-					{
-						LoginAttemptFinished(false);
-					}
-					break;
-
-				case EMixerLoginState::Logged_In:
-					// This will occur when stopping PIE.  It's annoying to have to login
-					// again to edit Mixer settings, so don't trigger logout here.
-					if (!GIsEditor)
-					{
-						Logout();
-					}
-					break;
-
-				default:
-					break;
-				}
 				break;
 
 			case interactivity_state::initializing:
@@ -133,28 +124,16 @@ bool FMixerInteractivityModule_InteractiveCpp::Tick(float DeltaTime)
 
 			case interactivity_state::interactivity_pending:
 				SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
-				if (PreviousLoginState == EMixerLoginState::Logging_In)
-				{
-					LoginAttemptFinished(true);
-				}
 				break;
 
 			case interactivity_state::interactivity_disabled:
 				SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
 				SetInteractivityState(EMixerInteractivityState::Not_Interactive);
-				if (PreviousLoginState == EMixerLoginState::Logging_In)
-				{
-					LoginAttemptFinished(true);
-				}
 				break;
 
 			case interactivity_state::interactivity_enabled:
 				SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
 				SetInteractivityState(EMixerInteractivityState::Interactive);
-				if (PreviousLoginState == EMixerLoginState::Logging_In)
-				{
-					LoginAttemptFinished(true);
-				}
 				break;
 			}
 		}
@@ -217,22 +196,24 @@ bool FMixerInteractivityModule_InteractiveCpp::Tick(float DeltaTime)
 
 void FMixerInteractivityModule_InteractiveCpp::StartInteractivity()
 {
-	switch (Microsoft::mixer::interactivity_manager::get_singleton_instance()->interactivity_state())
+	using namespace Microsoft::mixer;
+
+	switch (interactivity_manager::get_singleton_instance()->interactivity_state())
 	{
-	case Microsoft::mixer::interactivity_disabled:
+	case interactivity_disabled:
 		check(GetInteractivityState() == EMixerInteractivityState::Not_Interactive || GetInteractivityState() == EMixerInteractivityState::Interactivity_Stopping);
-		Microsoft::mixer::interactivity_manager::get_singleton_instance()->start_interactive();
+		interactivity_manager::get_singleton_instance()->start_interactive();
 		SetInteractivityState(EMixerInteractivityState::Interactivity_Starting);
 		break;
 
-	case Microsoft::mixer::interactivity_enabled:
-	case Microsoft::mixer::interactivity_pending:
+	case interactivity_enabled:
+	case interactivity_pending:
 		check(GetInteractivityState() == EMixerInteractivityState::Interactivity_Starting || GetInteractivityState() == EMixerInteractivityState::Interactive);
 		// No-op, but not a problem
 		break;
 
-	case Microsoft::mixer::not_initialized:
-	case Microsoft::mixer::initializing:
+	case not_initialized:
+	case initializing:
 		check(GetInteractivityState() == EMixerInteractivityState::Not_Interactive || GetInteractivityState() == EMixerInteractivityState::Interactivity_Stopping);
 		// Caller should wait!
 		// @TODO: tell them so.
@@ -247,24 +228,26 @@ void FMixerInteractivityModule_InteractiveCpp::StartInteractivity()
 
 void FMixerInteractivityModule_InteractiveCpp::StopInteractivity()
 {
-	switch (Microsoft::mixer::interactivity_manager::get_singleton_instance()->interactivity_state())
+	using namespace Microsoft::mixer;
+
+	switch (interactivity_manager::get_singleton_instance()->interactivity_state())
 	{
-	case Microsoft::mixer::interactivity_enabled:
-	case Microsoft::mixer::interactivity_pending:
+	case interactivity_enabled:
+	case interactivity_pending:
 		check(GetInteractivityState() == EMixerInteractivityState::Interactivity_Starting ||
 			GetInteractivityState() == EMixerInteractivityState::Interactivity_Stopping ||
 			GetInteractivityState() == EMixerInteractivityState::Interactive);
-		Microsoft::mixer::interactivity_manager::get_singleton_instance()->stop_interactive();
+		interactivity_manager::get_singleton_instance()->stop_interactive();
 		SetInteractivityState(EMixerInteractivityState::Interactivity_Stopping);
 		break;
 
-	case Microsoft::mixer::interactivity_disabled:
+	case interactivity_disabled:
 		check(GetInteractivityState() == EMixerInteractivityState::Not_Interactive || GetInteractivityState() == EMixerInteractivityState::Interactivity_Stopping);
 		// No-op, but not a problem
 		break;
 
-	case Microsoft::mixer::not_initialized:
-	case Microsoft::mixer::initializing:
+	case not_initialized:
+	case initializing:
 		check(GetInteractivityState() == EMixerInteractivityState::Not_Interactive || GetInteractivityState() == EMixerInteractivityState::Interactivity_Stopping);
 		// Caller should wait!
 		// @TODO: tell them so.

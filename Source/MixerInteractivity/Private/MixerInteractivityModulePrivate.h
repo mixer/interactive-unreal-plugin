@@ -88,10 +88,7 @@ public:
 
 	virtual EMixerInteractivityState GetInteractivityState();
 
-	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()
-	{
-		return CurrentUser;
-	}
+	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()				{ return CurrentUser; }
 
 	virtual TSharedPtr<class IOnlineChat> GetChatInterface();
 	virtual TSharedPtr<class IOnlineChatMixer> GetExtendedChatInterface();
@@ -108,21 +105,21 @@ public:
 
 protected:
 	virtual bool StartInteractiveConnection() = 0;
-
-protected:
-	void LoginAttemptFinished(bool Success);
-
-	EMixerLoginState GetUserAuthState() const							{ return UserAuthState; }
-	EMixerLoginState GetInteractiveConntectionAuthState() const			{ return InteractiveConnectionAuthState; }
-	void SetInteractiveConnectionAuthState(EMixerLoginState InState)	{ InteractiveConnectionAuthState = InState; }
+	EMixerLoginState GetInteractiveConnectionAuthState() const			{ return InteractiveConnectionAuthState; }
+	void SetInteractiveConnectionAuthState(EMixerLoginState InState);
 	EMixerInteractivityState GetInteractivityState() const				{ return InteractivityState; }
 	void SetInteractivityState(EMixerInteractivityState InState)		{ InteractivityState = InState; InteractivityStateChanged.Broadcast(InState); }
-
 #if PLATFORM_XBOXONE
 	Windows::Xbox::System::User^ GetXboxUser()							{ return XboxUserOperation.Get(); }
 #endif
 
 private:
+	EMixerLoginState GetUserAuthState() const { return UserAuthState; }
+	void SetUserAuthState(EMixerLoginState InState);
+	void HandleLoginStateChange(EMixerLoginState OldState, EMixerLoginState NewState);
+
+	bool LoginSilentlyInternal(TSharedPtr<const FUniqueNetId> UserId);
+	void LoginWithUIInternal(TSharedPtr<const FUniqueNetId> UserId);
 	bool LoginWithAuthCodeInternal(const FString& AuthCode, TSharedPtr<const FUniqueNetId> UserId);
 
 	void OnTokenRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
@@ -167,5 +164,4 @@ private:
 	TSharedPtr<class FOnlineChatMixer> ChatInterface;
 
 	bool RetryLoginWithUI;
-	bool HasCreatedGroups;
 };

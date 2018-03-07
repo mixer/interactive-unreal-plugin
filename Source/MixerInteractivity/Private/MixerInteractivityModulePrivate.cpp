@@ -44,7 +44,6 @@ void FMixerInteractivityModule::StartupModule()
 	UserAuthState = EMixerLoginState::Not_Logged_In;
 	InteractiveConnectionAuthState = EMixerLoginState::Not_Logged_In;
 	InteractivityState = EMixerInteractivityState::Not_Interactive;
-	HasCreatedGroups = false;
 
 	ChatInterface = MakeShared<FOnlineChatMixer>();
 }
@@ -56,51 +55,34 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 		return false;
 	}
 
-#if PLATFORM_XBOXONE
-	if (!UserId.IsValid())
+	if (!PLATFORM_XBOXONE && !PLATFORM_SUPPORTS_MIXER_OAUTH)
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("There is no supported user login flow for this platform."));
+		return false;
+	}
+
+	if (PLATFORM_XBOXONE && !UserId.IsValid())
 	{
 		UE_LOG(LogMixerInteractivity, Warning, TEXT("User id is required to login to Mixer on Xbox."));
 		return false;
 	}
 
-	FString Xuid = UserId->ToString();
+	return LoginSilentlyInternal(UserId);
+}
 
-	// Go async to avoid blocking the game thread on the cross-OS call
-	XboxUserOperation = Async<Windows::Xbox::System::User^>(EAsyncExecution::ThreadPool,
-	[Xuid]() -> Windows::Xbox::System::User^
-	{
-		for (uint32 i = 0; i < Windows::Xbox::System::User::Users->Size; ++i)
-		{
-			Windows::Xbox::System::User^ PlatformUser = Windows::Xbox::System::User::Users->GetAt(i);
-			if (PlatformUser != nullptr && Xuid == PlatformUser->XboxUserId->Data())
-			{
-				return PlatformUser;
-			}
-		}
-		return nullptr;
-	});
-#elif PLATFORM_SUPPORTS_MIXER_OAUTH
-	if (UserAuthState == EMixerLoginState::Logged_In)
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
+bool FMixerInteractivityModule::LoginSilentlyInternal(TSharedPtr<const FUniqueNetId> UserId)
+{
+	if (GetUserAuthState() == EMixerLoginState::Logged_In)
 	{
 		check(NeedsClientLibraryActive());
-
-		// User is already logged in, but client library not initialized.
-		// This case will occur during PIE when logging in for interactivity with the same Mixer user that owns the Editor settings.
-		if (StartInteractiveConnection())
-		{
-			// Set this immediately so that polling for state matches the event
-			OnLoginStateChanged().Broadcast(EMixerLoginState::Logging_In);
-			return true;
-		}
-		else
-		{
-			return false;
-		}
+		return StartInteractiveConnection();
 	}
 
 	const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
 	if (UserSettings->RefreshToken.IsEmpty())
 	{
+		SetUserAuthState(EMixerLoginState::Not_Logged_In);
 		return false;
 	}
 
@@ -125,82 +107,86 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 	TokenRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnTokenRequestComplete);
 	if (!TokenRequest->ProcessRequest())
 	{
+		SetUserAuthState(EMixerLoginState::Not_Logged_In);
 		return false;
 	}
-#else
-	UE_LOG(LogMixerInteractivity, Warning, TEXT("There is no supported user login flow for this platform."));
-	return false;
-#endif
 
+	SetUserAuthState(EMixerLoginState::Logging_In);
 	NetId = UserId;
-	UserAuthState = EMixerLoginState::Logging_In;
-	OnLoginStateChanged().Broadcast(EMixerLoginState::Logging_In);
 
 	return true;
 }
+#endif
 
 bool FMixerInteractivityModule::LoginWithUI(TSharedPtr<const FUniqueNetId> UserId)
 {
-#if PLATFORM_SUPPORTS_MIXER_OAUTH
+	if (!PLATFORM_SUPPORTS_MIXER_OAUTH)
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("LoginWithUI uses OAuth login flow which is not supported on this platform."));
+		return false;
+	}
+
 	if (GetLoginState() != EMixerLoginState::Not_Logged_In)
 	{
 		return false;
 	}
 
-	if (RetryLoginWithUI)
-	{
-		// This is already a retry attempt.  Don't allow another.
-		RetryLoginWithUI = false;
-	}
-	else if (LoginSilently(UserId))
+	LoginWithUIInternal(UserId);
+
+	return true;
+}
+
+void FMixerInteractivityModule::LoginWithUIInternal(TSharedPtr<const FUniqueNetId> UserId)
+{
+	check(PLATFORM_SUPPORTS_MIXER_OAUTH);
+
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
+	if (!RetryLoginWithUI && LoginSilentlyInternal(UserId))
 	{
 		RetryLoginWithUI = true;
-		return true;
-	}
-
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-#if WITH_EDITOR
-	const FText TitleText = FText::Format(NSLOCTEXT("MixerInteractivity", "LoginWindowTitle_Sandbox", "Login to Mixer - XBL Sandbox {0}"), FText::FromString(Settings->GetSandboxForOAuth()));
-#else
-	const FText TitleText = NSLOCTEXT("MixerInteractivity", "LoginWindowTitle", "Login to Mixer");
-#endif
-	LoginWindow = SNew(SWindow)
-		.Title(TitleText)
-		.SizingRule(ESizingRule::FixedSize)
-		.ClientSize(FVector2D(500.f, 500.f))
-		.AutoCenter(EAutoCenter::PreferredWorkArea)
-		.SupportsMinimize(false)
-		.SupportsMaximize(false);
-
-	LoginWindow->SetOnWindowClosed(FOnWindowClosed::CreateRaw(this, &FMixerInteractivityModule::OnLoginWindowClosed));
-	
-	LoginWindow->SetContent(
-		SNew(SMixerLoginPane)
-		.AllowSilentLogin(false)
-		.BackgroundColor(FColor(255, 255, 255, 255))
-		.OnAuthCodeReady_Raw(this, &FMixerInteractivityModule::OnAuthCodeReady)
-		.OnUIFlowFinished_Raw(this, &FMixerInteractivityModule::OnLoginUIFlowFinished)
-	);
-
-	TSharedPtr<SWindow> RootWindow = FGlobalTabmanager::Get()->GetRootWindow();
-	if (RootWindow.IsValid())
-	{
-		FSlateApplication::Get().AddWindowAsNativeChild(LoginWindow.ToSharedRef(), RootWindow.ToSharedRef());
 	}
 	else
 	{
-		FSlateApplication::Get().AddWindow(LoginWindow.ToSharedRef());
-	}
+		// This is already a retry attempt.  Don't allow another.
+		RetryLoginWithUI = false;
 
-	NetId = UserId;
-	UserAuthState = EMixerLoginState::Logging_In;
-	OnLoginStateChanged().Broadcast(EMixerLoginState::Logging_In);
-
-	return true;
+		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+#if WITH_EDITOR
+		const FText TitleText = FText::Format(NSLOCTEXT("MixerInteractivity", "LoginWindowTitle_Sandbox", "Login to Mixer - XBL Sandbox {0}"), FText::FromString(Settings->GetSandboxForOAuth()));
 #else
-	UE_LOG(LogMixerInteractivity, Warning, TEXT("OAuth login flow not supported on this platform."));
-	return false;
+		const FText TitleText = NSLOCTEXT("MixerInteractivity", "LoginWindowTitle", "Login to Mixer");
+#endif
+		LoginWindow = SNew(SWindow)
+			.Title(TitleText)
+			.SizingRule(ESizingRule::FixedSize)
+			.ClientSize(FVector2D(500.f, 500.f))
+			.AutoCenter(EAutoCenter::PreferredWorkArea)
+			.SupportsMinimize(false)
+			.SupportsMaximize(false);
 
+		LoginWindow->SetOnWindowClosed(FOnWindowClosed::CreateRaw(this, &FMixerInteractivityModule::OnLoginWindowClosed));
+
+		LoginWindow->SetContent(
+			SNew(SMixerLoginPane)
+			.AllowSilentLogin(false)
+			.BackgroundColor(FColor(255, 255, 255, 255))
+			.OnAuthCodeReady_Raw(this, &FMixerInteractivityModule::OnAuthCodeReady)
+			.OnUIFlowFinished_Raw(this, &FMixerInteractivityModule::OnLoginUIFlowFinished)
+		);
+
+		TSharedPtr<SWindow> RootWindow = FGlobalTabmanager::Get()->GetRootWindow();
+		if (RootWindow.IsValid())
+		{
+			FSlateApplication::Get().AddWindowAsNativeChild(LoginWindow.ToSharedRef(), RootWindow.ToSharedRef());
+		}
+		else
+		{
+			FSlateApplication::Get().AddWindow(LoginWindow.ToSharedRef());
+		}
+
+		NetId = UserId;
+		SetUserAuthState(EMixerLoginState::Logging_In);
+	}
 #endif
 }
 
@@ -235,73 +221,57 @@ void FMixerInteractivityModule::OnLoginWindowClosed(const TSharedRef<SWindow>&)
 	if (LoginWindow.IsValid())
 	{
 		// Closed before we were done.
-		LoginAttemptFinished(false);
+		SetUserAuthState(EMixerLoginState::Not_Logged_In);
 		LoginWindow.Reset();
 	}
 }
 
 bool FMixerInteractivityModule::LoginWithAuthCode(const FString& AuthCode, TSharedPtr<const FUniqueNetId> UserId)
 {
-#if PLATFORM_SUPPORTS_MIXER_OAUTH
+	if (!PLATFORM_SUPPORTS_MIXER_OAUTH)
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("LoginWithAuthCode is part of OAuth login flow which is not supported on this platform."));
+		return false;
+	}
+
 	if (GetLoginState() != EMixerLoginState::Not_Logged_In)
 	{
 		return false;
 	}
 
-	if (LoginWithAuthCodeInternal(AuthCode, UserId))
-	{
-		NetId = UserId;
-		UserAuthState = EMixerLoginState::Logging_In;
-		OnLoginStateChanged().Broadcast(EMixerLoginState::Logging_In);
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-#else
-	UE_LOG(LogMixerInteractivity, Warning, TEXT("OAuth login flow not supported on this platform."));
-	return false;
-#endif
+	return LoginWithAuthCodeInternal(AuthCode, UserId);
 }
 
 bool FMixerInteractivityModule::Logout()
 {
-	StopInteractivity();
-	CurrentUser.Reset();
-	NetId.Reset();
-#if PLATFORM_SUPPORTS_MIXER_OAUTH
-	UMixerInteractivityUserSettings* UserSettings = GetMutableDefault<UMixerInteractivityUserSettings>();
-	UserSettings->AccessToken = TEXT("");
-	UserSettings->RefreshToken = TEXT("");
-	UserSettings->SaveConfig();
-#endif
-	UserAuthState = EMixerLoginState::Not_Logged_In;
-	OnLoginStateChanged().Broadcast(EMixerLoginState::Not_Logged_In);
+	switch (GetLoginState())
+	{
+	case EMixerLoginState::Logged_In:
+	case EMixerLoginState::Logging_In:
+		StopInteractivity();
+		SetUserAuthState(EMixerLoginState::Logging_Out);
+		SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
+		SetUserAuthState(EMixerLoginState::Not_Logged_In);
+		return true;
 
-	return true;
+	default:
+		return false;
+	}
 }
 
 EMixerLoginState FMixerInteractivityModule::GetLoginState()
 {
-	switch (UserAuthState)
+	EMixerLoginState UserState = GetUserAuthState();
+	switch (UserState)
 	{
 	case EMixerLoginState::Logged_In:
 		check(CurrentUser.IsValid());
-		if (NeedsClientLibraryActive())
-		{
-			return InteractiveConnectionAuthState;
-		}
-		else
-		{
-			return EMixerLoginState::Logged_In;
-		}
-		break;
+		return NeedsClientLibraryActive() ? GetInteractiveConnectionAuthState() : UserState;
 
 	case EMixerLoginState::Logging_In:
 	case EMixerLoginState::Logging_Out:
 	case EMixerLoginState::Not_Logged_In:
-		return UserAuthState;
+		return UserState;
 
 	default:
 		// Internal error in Mixer plugin state management
@@ -322,8 +292,6 @@ bool FMixerInteractivityModule::Tick(float DeltaTime)
 	{
 		// Should really be Un-init if possible
 		StopInteractivity();
-
-		HasCreatedGroups = false;
 	}
 
 	return true;
@@ -391,7 +359,6 @@ bool FMixerInteractivityModule::LoginWithAuthCodeInternal(const FString& AuthCod
 	check(PLATFORM_SUPPORTS_MIXER_OAUTH);
 
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
-
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 	FString ContentString;
 	TSharedRef<TJsonWriter<>> JsonWriter = TJsonWriterFactory<>::Create(&ContentString);
@@ -412,13 +379,14 @@ bool FMixerInteractivityModule::LoginWithAuthCodeInternal(const FString& AuthCod
 	TokenRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnTokenRequestComplete);
 	if (!TokenRequest->ProcessRequest())
 	{
+		SetUserAuthState(EMixerLoginState::Not_Logged_In);
 		return false;
 	}
 
-	return true;
-#else
-	return false;
+	NetId = UserId;
+	SetUserAuthState(EMixerLoginState::Logging_In);
 #endif
+	return true;
 }
 
 void FMixerInteractivityModule::OnTokenRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
@@ -461,12 +429,12 @@ void FMixerInteractivityModule::OnTokenRequestComplete(FHttpRequestPtr HttpReque
 		UserRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnUserRequestComplete);
 		if (!UserRequest->ProcessRequest())
 		{
-			LoginAttemptFinished(false);
+			SetUserAuthState(EMixerLoginState::Not_Logged_In);
 		}
 	}
 	else
 	{
-		LoginAttemptFinished(false);
+		SetUserAuthState(EMixerLoginState::Not_Logged_In);
 	}
 #endif
 }
@@ -485,49 +453,7 @@ void FMixerInteractivityModule::OnUserRequestComplete(FHttpRequestPtr HttpReques
 		}
 	}
 
-	if (CurrentUser.IsValid())
-	{
-		UserAuthState = EMixerLoginState::Logged_In;
-
-		if (NeedsClientLibraryActive())
-		{
-			switch (InteractiveConnectionAuthState)
-			{
-			case EMixerLoginState::Not_Logged_In:
-				if (!StartInteractiveConnection())
-				{
-					LoginAttemptFinished(false);
-				}
-				else
-				{
-					check(InteractiveConnectionAuthState != EMixerLoginState::Not_Logged_In);
-				}
-				break;
-
-			case EMixerLoginState::Logging_In:
-				// Should naturally progress and we'll handle it in Tick
-				break;
-
-			case EMixerLoginState::Logged_In:
-				// We're already logged in
-				LoginAttemptFinished(true);
-				break;
-
-			default:
-				// Internal error in state management
-				check(false);
-				break;
-			}
-		}
-		else
-		{
-			LoginAttemptFinished(true);
-		}
-	}
-	else
-	{
-		LoginAttemptFinished(false);
-	}
+	SetUserAuthState(CurrentUser.IsValid() ? EMixerLoginState::Logged_In : EMixerLoginState::Not_Logged_In);
 }
 
 EMixerInteractivityState FMixerInteractivityModule::GetInteractivityState()
@@ -556,53 +482,6 @@ bool FMixerInteractivityModule::NeedsClientLibraryActive()
 #endif
 }
 
-void FMixerInteractivityModule::LoginAttemptFinished(bool Success)
-{
-	if (Success)
-	{
-		RetryLoginWithUI = false;
-		UserAuthState = EMixerLoginState::Logged_In;
-
-		// Should be fully logged in here (including client library init if relevant)
-		check(GetLoginState() == EMixerLoginState::Logged_In);
-
-		InitDesignTimeGroups();
-
-		OnLoginStateChanged().Broadcast(EMixerLoginState::Logged_In);
-
-		// If we arrive at Logged_In and are already broadcasting we
-		// should send a changed event - from the client's POV we weren't
-		// broadcasting before since we weren't logged in!
-		if (CurrentUser.IsValid() && CurrentUser->Channel.IsBroadcasting)
-		{
-			OnBroadcastingStateChanged().Broadcast(true);
-		}
-	}
-	else
-	{
-		CurrentUser.Reset();
-		UserAuthState = EMixerLoginState::Not_Logged_In;
-
-#if PLATFORM_SUPPORTS_MIXER_OAUTH
-		UMixerInteractivityUserSettings* UserSettings = GetMutableDefault<UMixerInteractivityUserSettings>();
-		UserSettings->AccessToken = TEXT("");
-		UserSettings->RefreshToken = TEXT("");
-		UserSettings->SaveConfig();
-#endif
-		if (RetryLoginWithUI)
-		{
-			LoginWithUI(NetId);
-		}
-		else
-		{
-			NetId.Reset();
-			OnLoginStateChanged().Broadcast(EMixerLoginState::Not_Logged_In);
-		}
-	}
-}
-
-
-
 void FMixerInteractivityModule::InitDesignTimeGroups()
 {
 	if (NeedsClientLibraryActive())
@@ -629,7 +508,175 @@ TSharedPtr<IOnlineChatMixer> FMixerInteractivityModule::GetExtendedChatInterface
 	return ChatInterface;
 }
 
+void FMixerInteractivityModule::SetInteractiveConnectionAuthState(EMixerLoginState InState)
+{
+	// Check for illegal transitions (indicate a logic error in plugin code)
+	switch (InteractiveConnectionAuthState)
+	{
+	case EMixerLoginState::Not_Logged_In:
+		check(InState != EMixerLoginState::Logged_In);
+		check(InState != EMixerLoginState::Logging_Out);
+		break;
+	case EMixerLoginState::Logging_In:
+		check(InState != EMixerLoginState::Logging_Out);
+		break;
+	case EMixerLoginState::Logged_In:
+		check(InState != EMixerLoginState::Logging_In);
+		break;
+	case EMixerLoginState::Logging_Out:
+		check(InState != EMixerLoginState::Logging_In);
+		check(InState != EMixerLoginState::Logged_In);
+		break;
+	default:
+		break;
+	}
+
+	// Outside the editor we should run a full logout if we lose the interactive connection.
+	if (!GIsEditor)
+	{
+		if (InteractiveConnectionAuthState != EMixerLoginState::Not_Logged_In && InState == EMixerLoginState::Not_Logged_In)
+		{
+			Logout();
+		}
+	}
+
+	EMixerLoginState PreviousFullLoginState = GetLoginState();
+	InteractiveConnectionAuthState = InState;
+	HandleLoginStateChange(PreviousFullLoginState, GetLoginState());
+}
+
+void FMixerInteractivityModule::SetUserAuthState(EMixerLoginState InState)
+{
+	// Check for illegal transitions (indicate a logic error in plugin code)
+	switch (UserAuthState)
+	{
+	case EMixerLoginState::Not_Logged_In:
+		check(InState != EMixerLoginState::Logged_In);
+		check(InState != EMixerLoginState::Logging_Out);
+		break;
+	case EMixerLoginState::Logging_In:
+		check(InState != EMixerLoginState::Logging_Out);
+		break;
+	case EMixerLoginState::Logged_In:
+		check(InState != EMixerLoginState::Logging_In);
+		break;
+	case EMixerLoginState::Logging_Out:
+		check(InState != EMixerLoginState::Logging_In);
+		check(InState != EMixerLoginState::Logged_In);
+		break;
+	default:
+		break;
+	}
+
+	// If we need an interactive connection then kick if off as soon as the user auth portion is completed.
+	if (NeedsClientLibraryActive())
+	{
+		if (UserAuthState == EMixerLoginState::Logging_In && InState == EMixerLoginState::Logged_In)
+		{
+			StartInteractiveConnection();
+		}
+	}
+
+	EMixerLoginState PreviousFullLoginState = GetLoginState();
+	UserAuthState = InState;
+	HandleLoginStateChange(PreviousFullLoginState, GetLoginState());
+}
+
+void FMixerInteractivityModule::HandleLoginStateChange(EMixerLoginState OldState, EMixerLoginState NewState)
+{
+	if (OldState != NewState)
+	{
+		TSharedPtr<const FUniqueNetId> RetryWithNetId = NetId;
+		if (GetUserAuthState() == EMixerLoginState::Not_Logged_In)
+		{
+			CurrentUser.Reset();
+			NetId.Reset();
+
+#if PLATFORM_SUPPORTS_MIXER_OAUTH
+			UMixerInteractivityUserSettings* UserSettings = GetMutableDefault<UMixerInteractivityUserSettings>();
+			UserSettings->AccessToken = TEXT("");
+			UserSettings->RefreshToken = TEXT("");
+			UserSettings->SaveConfig();
+#endif
 #if PLATFORM_XBOXONE
+			XboxUserOperation = TFuture<Windows::Xbox::System::User^>();
+			GetXTokenOperation = nullptr;
+#endif
+		}
+
+		switch (OldState)
+		{
+		case EMixerLoginState::Not_Logged_In:
+			check(NewState == EMixerLoginState::Logging_In);
+			OnLoginStateChanged().Broadcast(NewState);
+			break;
+
+		case EMixerLoginState::Logging_In:
+			if (NewState == EMixerLoginState::Logged_In)
+			{
+				RetryLoginWithUI = false;
+
+				InitDesignTimeGroups();
+
+				OnLoginStateChanged().Broadcast(EMixerLoginState::Logged_In);
+
+				// If we arrive at Logged_In and are already broadcasting we
+				// should send a changed event - from the client's POV we weren't
+				// broadcasting before since we weren't logged in!
+				if (CurrentUser.IsValid() && CurrentUser->Channel.IsBroadcasting)
+				{
+					OnBroadcastingStateChanged().Broadcast(true);
+				}
+			}
+			else if (RetryLoginWithUI)
+			{
+				LoginWithUIInternal(RetryWithNetId);
+			}
+			else
+			{
+				OnLoginStateChanged().Broadcast(NewState);
+			}
+			break;
+
+		case EMixerLoginState::Logged_In:
+			check(NewState != EMixerLoginState::Logging_In || (GIsEditor && NeedsClientLibraryActive()));
+			OnLoginStateChanged().Broadcast(NewState);
+			break;
+
+		case EMixerLoginState::Logging_Out:
+			check(NewState == EMixerLoginState::Not_Logged_In);
+			OnLoginStateChanged().Broadcast(NewState);
+			break;
+		}
+	}
+}
+
+#if PLATFORM_XBOXONE
+bool FMixerInteractivityModule::LoginSilentlyInternal(TSharedPtr<const FUniqueNetId> UserId)
+{
+	FString Xuid = UserId->ToString();
+
+	// Go async to avoid blocking the game thread on the cross-OS call
+	XboxUserOperation = Async<Windows::Xbox::System::User^>(EAsyncExecution::ThreadPool,
+		[Xuid]() -> Windows::Xbox::System::User^
+	{
+		for (uint32 i = 0; i < Windows::Xbox::System::User::Users->Size; ++i)
+		{
+			Windows::Xbox::System::User^ PlatformUser = Windows::Xbox::System::User::Users->GetAt(i);
+			if (PlatformUser != nullptr && Xuid == PlatformUser->XboxUserId->Data())
+			{
+				return PlatformUser;
+			}
+		}
+		return nullptr;
+	});
+
+	SetUserAuthState(EMixerLoginState::Logging_In);
+	NetId = UserId;
+
+	return true;
+}
+
 void FMixerInteractivityModule::TickXboxLogin()
 {
 	if (UserAuthState == EMixerLoginState::Logging_In)
@@ -685,9 +732,7 @@ void FMixerInteractivityModule::TickXboxLogin()
 		if (LoginError)
 		{
 			check(!GetXTokenOperation);
-			NetId.Reset();
-			UserAuthState = EMixerLoginState::Not_Logged_In;
-			LoginAttemptFinished(false);
+			SetUserAuthState(EMixerLoginState::Not_Logged_In);
 		}
 	}
 }
