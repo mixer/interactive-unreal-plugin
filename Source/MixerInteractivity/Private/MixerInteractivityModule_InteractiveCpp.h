@@ -1,4 +1,15 @@
+//*********************************************************
+//
+// Copyright (c) Microsoft. All rights reserved.
+// THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF
+// ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY
+// IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR
+// PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
+//
+//*********************************************************
 #pragma once
+
+#if MIXER_BACKEND_INTERACTIVE_CPP
 
 #include "MixerInteractivityModulePrivate.h"
 
@@ -64,3 +75,4 @@ private:
 	Microsoft::mixer::interactivity_state ClientLibraryState;
 };
 
+#endif // MIXER_BACKEND_INTERACTIVE_CPP

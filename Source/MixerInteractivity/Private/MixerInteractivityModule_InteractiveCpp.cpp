@@ -8,6 +8,9 @@
 //
 //*********************************************************
 #include "MixerInteractivityModule_InteractiveCpp.h"
+
+#if MIXER_BACKEND_INTERACTIVE_CPP
+
 #include "MixerInteractivityLog.h"
 #include "MixerInteractivitySettings.h"
 #include "MixerInteractivityUserSettings.h"
@@ -625,3 +628,8 @@ void FMixerRemoteUserCached::UpdateFromSourceParticipant()
 	std::shared_ptr<Microsoft::mixer::interactive_group> GroupInternal = SourceParticipant->group();
 	Group = GroupInternal ? FName(GroupInternal->group_id().c_str()) : NAME_DefaultMixerParticipantGroup;
 }
+
+#endif // MIXER_BACKEND_INTERACTIVE_CPP
+
+// Suppress linker warning "warning LNK4221: no public symbols found; archive member will be inaccessible"
+int32 MixerInteractiveCppLinkerHelper;

@@ -79,7 +79,7 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 		}
 		return nullptr;
 	});
-#else
+#elif PLATFORM_SUPPORTS_MIXER_OAUTH
 	if (UserAuthState == EMixerLoginState::Logged_In)
 	{
 		check(NeedsClientLibraryActive());
@@ -127,6 +127,9 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 	{
 		return false;
 	}
+#else
+	UE_LOG(LogMixerInteractivity, Warning, TEXT("There is no supported user login flow for this platform."));
+	return false;
 #endif
 
 	NetId = UserId;
@@ -288,25 +291,6 @@ EMixerLoginState FMixerInteractivityModule::GetLoginState()
 		if (NeedsClientLibraryActive())
 		{
 			return InteractiveConnectionAuthState;
-
-			//switch (ClientLibraryState)
-			//{
-			//case Microsoft::mixer::not_initialized:
-			//	return EMixerLoginState::Not_Logged_In;
-
-			//case Microsoft::mixer::initializing:
-			//	return EMixerLoginState::Logging_In;
-
-			//case Microsoft::mixer::interactivity_disabled:
-			//case Microsoft::mixer::interactivity_enabled:
-			//case Microsoft::mixer::interactivity_pending:
-			//	return EMixerLoginState::Logged_In;
-
-			//default:
-			//	// Internal error in Mixer client library state management
-			//	check(false);
-			//	return EMixerLoginState::Not_Logged_In;
-			//}
 		}
 		else
 		{
@@ -534,29 +518,6 @@ void FMixerInteractivityModule::OnUserRequestComplete(FHttpRequestPtr HttpReques
 				check(false);
 				break;
 			}
-
-			//switch (ClientLibraryState)
-			//{
-			//case Microsoft::mixer::not_initialized:
-			//	if (!Microsoft::mixer::interactivity_manager::get_singleton_instance()->initialize(*FString::FromInt(Settings->GameVersionId), false, *Settings->ShareCode))
-			//	{
-			//		LoginAttemptFinished(false);
-			//	}
-			//	else
-			//	{
-			//		// Set this immediately to avoid a temporary pop to Not_Logged_In
-			//		ClientLibraryState = Microsoft::mixer::initializing;
-			//	}
-			//	break;
-
-			//case Microsoft::mixer::initializing:
-			//	// Should naturally progress and we'll handle it in Tick
-			//	break;
-
-			//default:
-			//	// We're already logged in
-			//	LoginAttemptFinished(true);
-			//}
 		}
 		else
 		{
