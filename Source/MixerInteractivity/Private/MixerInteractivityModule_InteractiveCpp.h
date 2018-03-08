@@ -9,9 +9,9 @@
 //*********************************************************
 #pragma once
 
-#if MIXER_BACKEND_INTERACTIVE_CPP
-
 #include "MixerInteractivityModulePrivate.h"
+
+#if MIXER_BACKEND_INTERACTIVE_CPP
 
 namespace Microsoft
 {
