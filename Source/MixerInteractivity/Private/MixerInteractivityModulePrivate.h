@@ -142,7 +142,6 @@ private:
 #if PLATFORM_XBOXONE
 	TFuture<Windows::Xbox::System::User^> XboxUserOperation;
 	Windows::Foundation::IAsyncOperation<Windows::Xbox::System::GetTokenAndSignatureResult^>^ GetXTokenOperation;
-	Windows::Foundation::EventRegistrationToken UserRemovedToken;
 	void TickXboxLogin();
 	void OnXboxUserRemoved(Windows::Xbox::System::User^ RemovedUser);
 #endif

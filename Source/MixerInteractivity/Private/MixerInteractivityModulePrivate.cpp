@@ -37,6 +37,10 @@
 #include "SMixerLoginPane.h"
 #endif
 
+#if PLATFORM_XBOXONE
+#include "XboxOneInputInterface.h"
+#endif
+
 DEFINE_LOG_CATEGORY(LogMixerInteractivity);
 
 void FMixerInteractivityModule::StartupModule()
@@ -48,18 +52,16 @@ void FMixerInteractivityModule::StartupModule()
 	ChatInterface = MakeShared<FOnlineChatMixer>();
 
 #if PLATFORM_XBOXONE
-	UserRemovedToken = (Windows::Xbox::System::User::UserRemoved += ref new Windows::Foundation::EventHandler<Windows::Xbox::System::UserRemovedEventArgs^>(
-		[this](Platform::Object^, Windows::Xbox::System::UserRemovedEventArgs^ Args)
-	{
-		OnXboxUserRemoved(Args->User);
-	}));
+	check(FSlateApplication::IsInitialized());
+	static_cast<FXboxOneInputInterface*>(FSlateApplication::Get().GetInputInterface())->OnUserRemovedDelegates.AddRaw(this, &FMixerInteractivityModule::OnXboxUserRemoved);
 #endif
 }
 
 void FMixerInteractivityModule::ShutdownModule()
 {
 #if PLATFORM_XBOXONE
-	Windows::Xbox::System::User::UserRemoved -= UserRemovedToken;
+	check(FSlateApplication::IsInitialized());
+	static_cast<FXboxOneInputInterface*>(FSlateApplication::Get().GetInputInterface())->OnUserRemovedDelegates.RemoveAll(this);
 #endif
 }
 
