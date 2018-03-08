@@ -78,6 +78,7 @@ class FMixerInteractivityModule :
 {
 public:
 	virtual void StartupModule() override;
+	virtual void ShutdownModule() override;
 
 public:
 	virtual bool LoginSilently(TSharedPtr<const FUniqueNetId> UserId);
@@ -141,7 +142,9 @@ private:
 #if PLATFORM_XBOXONE
 	TFuture<Windows::Xbox::System::User^> XboxUserOperation;
 	Windows::Foundation::IAsyncOperation<Windows::Xbox::System::GetTokenAndSignatureResult^>^ GetXTokenOperation;
+	Windows::Foundation::EventRegistrationToken UserRemovedToken;
 	void TickXboxLogin();
+	void OnXboxUserRemoved(Windows::Xbox::System::User^ RemovedUser);
 #endif
 
 	TSharedPtr<SWindow> LoginWindow;

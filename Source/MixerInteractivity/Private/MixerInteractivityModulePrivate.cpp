@@ -46,6 +46,21 @@ void FMixerInteractivityModule::StartupModule()
 	InteractivityState = EMixerInteractivityState::Not_Interactive;
 
 	ChatInterface = MakeShared<FOnlineChatMixer>();
+
+#if PLATFORM_XBOXONE
+	UserRemovedToken = (Windows::Xbox::System::User::UserRemoved += ref new Windows::Foundation::EventHandler<Windows::Xbox::System::UserRemovedEventArgs^>(
+		[this](Platform::Object^, Windows::Xbox::System::UserRemovedEventArgs^ Args)
+	{
+		OnXboxUserRemoved(Args->User);
+	}));
+#endif
+}
+
+void FMixerInteractivityModule::ShutdownModule()
+{
+#if PLATFORM_XBOXONE
+	Windows::Xbox::System::User::UserRemoved -= UserRemovedToken;
+#endif
 }
 
 bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> UserId)
@@ -733,6 +748,17 @@ void FMixerInteractivityModule::TickXboxLogin()
 		{
 			check(!GetXTokenOperation);
 			SetUserAuthState(EMixerLoginState::Not_Logged_In);
+		}
+	}
+}
+
+void FMixerInteractivityModule::OnXboxUserRemoved(Windows::Xbox::System::User^ RemovedUser)
+{
+	if (RemovedUser != nullptr && NetId.IsValid())
+	{
+		if (NetId->ToString() == RemovedUser->XboxUserId->Data())
+		{
+			Logout();
 		}
 	}
 }
