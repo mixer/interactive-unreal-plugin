@@ -32,6 +32,8 @@ public class MixerInteractivity : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
 		{
 			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=1");
+			Definitions.Add("MIXER_BACKEND_INTERACTIVE_CPP=1");
+			Definitions.Add("MIXER_BACKEND_NULL=0");
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
@@ -47,6 +49,8 @@ public class MixerInteractivity : ModuleRules
 		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
 			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
+			Definitions.Add("MIXER_BACKEND_INTERACTIVE_CPP=1");
+			Definitions.Add("MIXER_BACKEND_NULL=0");
 
 			PublicAdditionalLibraries.Add("Interactivity.Xbox.Cpp.lib");
 			PublicAdditionalLibraries.Add("casablanca140.xbox.lib");
@@ -54,6 +58,8 @@ public class MixerInteractivity : ModuleRules
 		else
 		{
 			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
+			Definitions.Add("MIXER_BACKEND_NULL=1");
+			Definitions.Add("MIXER_BACKEND_INTERACTIVE_CPP=0");
 		}
 
 		bEnableExceptions = true;
