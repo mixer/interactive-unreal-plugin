@@ -308,6 +308,44 @@ public:
 	static void GetStickState(FMixerStickReference Stick, float& XAxis, float& YAxis, bool& Enabled, int32 ParticipantId = 0);
 
 	/**
+	* Change the text that will be displayed to remote users on a label.
+	*
+	* @param	Label			Reference to the label for which text should be set.
+	* @param	DisplayText		New text to display on the label.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Mixer|Interactivity")
+	static void SetLabelText(FMixerLabelReference Label, const FString& Text);
+
+	/**
+	* Retrieve information about properties of a label that are configured at design time and
+	* are expected to change infrequently (or not at all) during runtime.
+	*
+	* @param	Label			Reference to the label for which information should be returned.
+	* @param	Text			Text displayed on this label to remote users.
+	* @param	TextSize		Size in pts of the label text.
+	* @param	TextColor		Color of the the label text.
+	* @param	Bold			Whether the label text is bold.
+	* @param	Underline		Whether the label text is underlined.
+	* @param	Italic			Whether the label text is italicized.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity")
+	static void GetLabelDescription(FMixerLabelReference Label, FString& Text, int32& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic);
+
+	/**
+	* Retrieve information about properties of a textbox that are configured at design time and
+	* are expected to change infrequently (or not at all) during runtime.
+	*
+	* @param	Textbox				Reference to the textbox for which information should be returned.
+	* @param	PlaceholderText		Hint text displayed inside an empty textbox to prompt for user text entry.
+	* @param	Multiline			Whether the textbox supports entering multiple lines of text.
+	* @param	HasSubmit			Whether the textbox has an associated button that may be pressed to submit text.
+	* @param	SubmitText			Text displayed on the associated submit button (if in use).
+	* @param	SparkCost			Number of Sparks a remote user will be charged for submitting text via this box.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity")
+	static void GetTextboxDescription(FMixerTextboxReference Textbox, FString& PlaceholderText, bool& Multiline, bool& HasSubmit, FString& SubmitText, int32& SparkCost);
+
+	/**
 	* Request a change in the interactive scene displayed to remote users.
 	*
 	* @param	Scene			Reference to the new interactive scene to display.

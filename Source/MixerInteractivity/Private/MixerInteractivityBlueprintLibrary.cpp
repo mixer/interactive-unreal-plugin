@@ -244,6 +244,52 @@ void UMixerInteractivityBlueprintLibrary::GetStickState(FMixerStickReference Sti
 	}
 }
 
+void UMixerInteractivityBlueprintLibrary::SetLabelText(FMixerLabelReference Label, const FString& Text)
+{
+	IMixerInteractivityModule::Get().SetLabelText(Label.Name, Text);
+}
+
+void UMixerInteractivityBlueprintLibrary::GetLabelDescription(FMixerLabelReference Label, FString& Text, int32& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic)
+{
+	FMixerLabelDescription LabelDesc;
+	if (IMixerInteractivityModule::Get().GetLabelDescription(Label.Name, LabelDesc))
+	{
+		Text = LabelDesc.Text;
+		TextSize = LabelDesc.TextSize;
+		TextColor = LabelDesc.TextColor;
+		Bold = LabelDesc.Bold;
+		Underline = LabelDesc.Underline;
+		Italic = LabelDesc.Italic;
+	}
+	else
+	{
+		TextSize = 0;
+		TextColor = FColor::Black;
+		Bold = false;
+		Underline = false;
+		Italic = false;
+	}
+}
+
+void UMixerInteractivityBlueprintLibrary::GetTextboxDescription(FMixerTextboxReference Textbox, FString& PlaceholderText, bool& Multiline, bool& HasSubmit, FString& SubmitText, int32& SparkCost)
+{
+	FMixerTextboxDescription TextboxDesc;
+	if (IMixerInteractivityModule::Get().GetTextboxDescription(Textbox.Name, TextboxDesc))
+	{
+		PlaceholderText = TextboxDesc.Placeholder;
+		Multiline = TextboxDesc.Multiline;
+		HasSubmit = TextboxDesc.HasSubmit;
+		SubmitText = TextboxDesc.SubmitText;
+		SparkCost = TextboxDesc.SparkCost;
+	}
+	else
+	{
+		Multiline = false;
+		HasSubmit = false;
+		SparkCost = 0;
+	}
+}
+
 void UMixerInteractivityBlueprintLibrary::SetCurrentScene(FMixerSceneReference Scene, FMixerGroupReference Group)
 {
 	IMixerInteractivityModule::Get().SetCurrentScene(Scene.Name, Group.Name);
