@@ -965,6 +965,30 @@ bool FMixerInteractivityModule::GetStickState(FName Stick, uint32 ParticipantId,
 	return false;
 }
 
+void FMixerInteractivityModule::SetLabelText(FName Label, const FString& DisplayText)
+{
+	// @TODO - need to discover scene name
+	FName SceneName; // = ????
+	TSharedRef<FJsonObject> UpdateJson = MakeShared<FJsonObject>();
+	UpdateJson->SetStringField(TEXT("text"), DisplayText);
+	UpdateRemoteControl(SceneName, Label, UpdateJson);
+}
+
+bool FMixerInteractivityModule::GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc)
+{
+	return false;
+}
+
+bool FMixerInteractivityModule::GetTextboxDescription(FName Textbox, FMixerTextboxDescription& OutDesc)
+{
+	return false;
+}
+
+bool FMixerInteractivityModule::GetTextboxState(FName Textbox, FMixerTextboxState& OutState)
+{
+	return false;
+}
+
 bool FMixerInteractivityModule::GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObj)
 {
 	OutControlObj = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(ForWorld)->GetUnmappedCustomControl(ControlName);
@@ -1289,8 +1313,23 @@ void FMixerInteractivityModule::HandleCustomControlInputMessage(FJsonObject* Par
 
 void FMixerInteractivityModule::UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate)
 {
+	// @TODO - centralize field name constants
+	static const FString ControlIdField = TEXT("controlID");
+
+	FString ControlNameString = ControlName.ToString();
+
 	TArray<TSharedPtr<FJsonValue>>& ControlsForScene = PendingControlUpdates.FindOrAdd(SceneName);
-	PropertiesToUpdate->SetStringField(TEXT("controlID"), ControlName.ToString());
+	for (TSharedPtr<FJsonValue>& ExistingControlUpdate : ControlsForScene)
+	{
+		TSharedPtr<FJsonObject> UpdateObject = ExistingControlUpdate->AsObject();
+		if (UpdateObject->GetStringField(ControlIdField) == ControlNameString)
+		{
+			UpdateObject->Values.Append(PropertiesToUpdate->Values);
+			return;
+		}
+	}
+
+	PropertiesToUpdate->SetStringField(ControlIdField, ControlName.ToString());
 	ControlsForScene.Add(MakeShared<FJsonValueObject>(PropertiesToUpdate));
 }
 

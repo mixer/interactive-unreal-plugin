@@ -207,6 +207,41 @@ struct FMixerButtonEventDetails
 	bool Pressed;
 };
 
+struct FMixerLabelDescription
+{
+	FString Text;
+
+	uint32 TextSize;
+
+	FColor TextColor;
+
+	bool Bold;
+
+	bool Underline;
+
+	bool Italic;
+};
+
+struct FMixerTextboxDescription
+{
+	FString Placeholder;
+
+	FString SubmitText;
+
+	uint32 SparkCost;
+
+	bool Multiline;
+
+	bool HasSubmit;
+};
+
+struct FMixerTextboxState
+{
+	FString Text;
+
+	bool Enabled;
+};
+
 enum class EMixerLoginState : uint8
 {
 	Not_Logged_In,

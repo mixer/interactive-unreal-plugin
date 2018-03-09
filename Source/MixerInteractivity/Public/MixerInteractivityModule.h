@@ -19,6 +19,9 @@ struct FMixerButtonDescription;
 struct FMixerButtonState;
 struct FMixerStickDescription;
 struct FMixerStickState;
+struct FMixerLabelDescription;
+struct FMixerTextboxDescription;
+struct FMixerTextboxState;
 struct FMixerButtonEventDetails;
 class FUniqueNetId;
 class FJsonObject;
@@ -222,6 +225,14 @@ public:
 	*/
 	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState) = 0;
 
+	virtual void SetLabelText(FName Label, const FString& DisplayText) = 0;
+
+	virtual bool GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc) = 0;
+
+	virtual bool GetTextboxDescription(FName Textbox, FMixerTextboxDescription& OutDesc) = 0;
+
+	virtual bool GetTextboxState(FName Textbox, FMixerTextboxState& OutState) = 0;
+
 	/**
 	* Retrieve information about a named custom control.  Information may include both static 
 	* (similar to Get*Description methods above) and dynamic (similar to Get*State methods) data.
@@ -341,6 +352,9 @@ public:
 
 	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnStickEvent, FName, TSharedPtr<const FMixerRemoteUser>, FVector2D);
 	virtual FOnStickEvent& OnStickEvent() = 0;
+
+	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnTextboxSubmitEvent, FName, TSharedPtr<const FMixerRemoteUser>, const FString&);
+	virtual FOnTextboxSubmitEvent OnTextboxSubmitEvent() = 0;
 
 	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnBroadcastingStateChanged, bool);
 	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged() = 0;

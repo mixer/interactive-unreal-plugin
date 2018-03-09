@@ -122,6 +122,10 @@ public:
 	virtual bool GetStickDescription(FName Stick, FMixerStickDescription& OutDesc);
 	virtual bool GetStickState(FName Stick, FMixerStickState& OutState);
 	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState);
+	virtual void SetLabelText(FName Label, const FString& DisplayText);
+	virtual bool GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc);
+	virtual bool GetTextboxDescription(FName Textbox, FMixerTextboxDescription& OutDesc);
+	virtual bool GetTextboxState(FName Textbox, FMixerTextboxState& OutState);
 	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObject);
 	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, class UMixerCustomControl*& OutControlObject);
 
@@ -151,6 +155,7 @@ public:
 	virtual FOnCustomControlInput& OnCustomControlInput()						{ return CustomControlInputEvent; }
 	virtual FOnCustomControlPropertyUpdate& OnCustomControlPropertyUpdate()		{ return CustomControlPropertyUpdate; }
 	virtual FOnCustomMethodCall& OnCustomMethodCall()							{ return CustomMethodCall; }
+	virtual FOnTextboxSubmitEvent OnTextboxSubmitEvent()						{ return TextboxSubmitEvent; }
 
 public:
 
@@ -214,6 +219,7 @@ private:
 	FOnCustomControlInput CustomControlInputEvent;
 	FOnCustomControlPropertyUpdate CustomControlPropertyUpdate;
 	FOnCustomMethodCall CustomMethodCall;
+	FOnTextboxSubmitEvent TextboxSubmitEvent;
 
 	TSharedPtr<class FOnlineChatMixer> ChatInterface;
 
