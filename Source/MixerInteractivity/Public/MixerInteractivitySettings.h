@@ -123,6 +123,7 @@ public:
 	}
 
 #if WITH_EDITORONLY_DATA
+	static void GetAllControls(const FString& Kind, TArray<FString>& OutControls);
 	static void GetAllSticks(TArray<FString>& OutSticks);
 	static void GetAllButtons(TArray<FString>& OutButtons);
 	static void GetAllUnmappedCustomControls(TArray<FString>& OutCustomControls);

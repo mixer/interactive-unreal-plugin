@@ -14,6 +14,16 @@
 
 #if WITH_EDITORONLY_DATA
 
+void UMixerInteractivitySettings::GetAllControls(const FString& Kind, TArray<FString>& OutControls)
+{
+	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+	UMixerProjectAsset* ProjectAsset = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
+	if (ProjectAsset != nullptr)
+	{
+		ProjectAsset->GetAllControls([Kind](const FMixerInteractiveControl& C) { return C.Kind == Kind; }, OutControls);
+	}
+}
+
 void UMixerInteractivitySettings::GetAllSticks(TArray<FString>& OutSticks)
 {
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();

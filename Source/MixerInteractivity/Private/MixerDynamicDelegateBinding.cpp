@@ -48,6 +48,7 @@ void UMixerInteractivityBlueprintEventSource::RegisterForMixerEvents()
 	InteractivityModule.OnCustomControlInput().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnCustomControlInputNativeEvent);
 	InteractivityModule.OnCustomControlPropertyUpdate().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnCustomControlPropertyUpdateNativeEvent);
 	InteractivityModule.OnCustomMethodCall().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnCustomMethodCallNativeEvent);
+	InteractivityModule.OnTextboxSubmitEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnTextboxSubmitNativeEvent);
 }
 
 
@@ -83,6 +84,15 @@ void UMixerInteractivityBlueprintEventSource::AddCustomMethodBinding(FName Event
 		DelegateWrapper.PrototypeReference.SetExternalMember(TargetFunctionName, TargetObject->GetClass());
 		DelegateWrapper.FunctionPrototype = DelegateWrapper.PrototypeReference.ResolveMember<UFunction>(static_cast<UClass*>(nullptr));
 	}
+}
+
+void UMixerInteractivityBlueprintEventSource::AddTextSubmittedBinding(FName TextboxName, UObject* TargetObject, FName TargetFunctionName)
+{
+	FMixerTextboxEventDynamicDelegateWrapper& DelegateWrapper = TextboxDelegates.FindOrAdd(TextboxName);
+	FScriptDelegate NewDelegate;
+	NewDelegate.BindUFunction(TargetObject, TargetFunctionName);
+	DelegateWrapper.SubmittedDelegate.AddUnique(NewDelegate);
+
 }
 
 FMixerStickEventDynamicDelegate* UMixerInteractivityBlueprintEventSource::GetStickEvent(FName StickName)
@@ -237,6 +247,17 @@ void UMixerInteractivityBlueprintEventSource::OnCustomControlPropertyUpdateNativ
 			ControlRef.Name = ControlName;
 			Wrapper->UpdateDelegate.Broadcast(ControlRef);
 		}
+	}
+}
+
+void UMixerInteractivityBlueprintEventSource::OnTextboxSubmitNativeEvent(FName TextboxName, TSharedPtr<const FMixerRemoteUser> Participant, const FString& Text)
+{
+	FMixerTextboxEventDynamicDelegateWrapper* DelegateWrapper = TextboxDelegates.Find(TextboxName);
+	if (DelegateWrapper)
+	{
+		FMixerTextboxReference TextboxRef;
+		TextboxRef.Name = TextboxName;
+		DelegateWrapper->SubmittedDelegate.Broadcast(TextboxRef, static_cast<int32>(Participant->Id), Text);
 	}
 }
 
@@ -427,6 +448,11 @@ void UMixerDelegateBinding::AddCustomControlUpdateBinding(const FMixerCustomCont
 	CustomControlUpdateBindings.Add(BindingInfo);
 }
 
+void UMixerDelegateBinding::AddGenericBinding(const FMixerGenericEventBinding& BindingInfo)
+{
+	GenericBindings.Add(BindingInfo);
+}
+
 void UMixerDelegateBinding::BindDynamicDelegates(UObject* InInstance) const
 {
 	UMixerInteractivityBlueprintEventSource* EventSource = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(InInstance->GetWorld());
@@ -451,6 +477,36 @@ void UMixerDelegateBinding::BindDynamicDelegates(UObject* InInstance) const
 			FScriptDelegate Delegate;
 			Delegate.BindUFunction(InInstance, StickBinding.TargetFunctionName);
 			Event->AddUnique(Delegate);
+		}
+	}
+
+	for (const FMixerGenericEventBinding& GenericBinding : GenericBindings)
+	{
+		switch (GenericBinding.BindingType)
+		{
+		case EMixerGenericEventBindingType::Stick:
+			{
+				FMixerStickEventDynamicDelegate * Event = EventSource->GetStickEvent(GenericBinding.NameParam);
+				if (Event)
+				{
+					FScriptDelegate Delegate;
+					Delegate.BindUFunction(InInstance, GenericBinding.TargetFunctionName);
+					Event->AddUnique(Delegate);
+				}
+			}
+			break;
+
+		case EMixerGenericEventBindingType::CustomMethod:
+			EventSource->AddCustomMethodBinding(GenericBinding.NameParam, InInstance, GenericBinding.TargetFunctionName);
+			break;
+
+		case EMixerGenericEventBindingType::TextSubmitted:
+			EventSource->AddTextSubmittedBinding(GenericBinding.NameParam, InInstance, GenericBinding.TargetFunctionName);
+			break;
+
+		default:
+			UE_LOG(LogMixerInteractivity, Error, TEXT("Failed to bind blueprint delegates with unknown binding type %d, target %s, name param %s"), static_cast<int32>(GenericBinding.BindingType), *GenericBinding.TargetFunctionName.ToString(), *GenericBinding.NameParam.ToString());
+			break;
 		}
 	}
 
