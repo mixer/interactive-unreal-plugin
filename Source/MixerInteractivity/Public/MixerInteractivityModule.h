@@ -225,13 +225,37 @@ public:
 	*/
 	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState) = 0;
 
+	/**
+	* Change the text that will be displayed to remote users on the named label.
+	*
+	* @param	Label			Name of the label for which text should be set.
+	* @param	DisplayText		New text to display on the label.
+	*/
 	virtual void SetLabelText(FName Label, const FString& DisplayText) = 0;
 
+	/**
+	* Retrieve information about properties of a label that are configured at design time and
+	* are expected to change infrequently (or not at all) during runtime.
+	* See FMixerLabelDescription for details.
+	*
+	* @param	Label			Name of the label for which information should be returned.
+	* @param	OutDesc			Out parameter filled in with information about the label upon success.
+	*
+	* @Return					True if label was found and OutDesc is valid.
+	*/
 	virtual bool GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc) = 0;
 
+	/**
+	* Retrieve information about properties of a textbox that are configured at design time and
+	* are expected to change infrequently (or not at all) during runtime.
+	* See FMixerTextboxDescription for details.
+	*
+	* @param	Textbox			Name of the textbox for which information should be returned.
+	* @param	OutDesc			Out parameter filled in with information about the textbox upon success.
+	*
+	* @Return					True if textbox was found and OutDesc is valid.
+	*/
 	virtual bool GetTextboxDescription(FName Textbox, FMixerTextboxDescription& OutDesc) = 0;
-
-	virtual bool GetTextboxState(FName Textbox, FMixerTextboxState& OutState) = 0;
 
 	/**
 	* Retrieve information about a named custom control.  Information may include both static 

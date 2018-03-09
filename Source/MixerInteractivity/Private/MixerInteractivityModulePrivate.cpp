@@ -525,11 +525,6 @@ bool FMixerInteractivityModule::GetTextboxDescription(FName Textbox, FMixerTextb
 	return false;
 }
 
-bool FMixerInteractivityModule::GetTextboxState(FName Textbox, FMixerTextboxState& OutState)
-{
-	return false;
-}
-
 bool FMixerInteractivityModule::GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObj)
 {
 	OutControlObj = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(ForWorld)->GetUnmappedCustomControl(ControlName);

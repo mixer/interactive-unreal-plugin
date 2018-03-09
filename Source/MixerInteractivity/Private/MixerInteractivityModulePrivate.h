@@ -92,7 +92,6 @@ public:
 	virtual void SetLabelText(FName Label, const FString& DisplayText);
 	virtual bool GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc);
 	virtual bool GetTextboxDescription(FName Textbox, FMixerTextboxDescription& OutDesc);
-	virtual bool GetTextboxState(FName Textbox, FMixerTextboxState& OutState);
 	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObject);
 	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, class UMixerCustomControl*& OutControlObject);
 	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()				{ return CurrentUser; }
