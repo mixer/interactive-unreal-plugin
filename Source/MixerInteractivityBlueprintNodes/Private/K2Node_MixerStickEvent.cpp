@@ -17,6 +17,7 @@
 #include "KismetCompiler.h"
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivitySettings.h"
+#include "MixerInteractivityJsonTypes.h"
 #include "MixerInteractivityProjectAsset.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
@@ -26,7 +27,7 @@ void UK2Node_MixerStickEvent::ValidateNodeDuringCompilation(class FCompilerResul
 	Super::ValidateNodeDuringCompilation(MessageLog);
 
 	TArray<FString> Sticks;
-	UMixerInteractivitySettings::GetAllSticks(Sticks);
+	UMixerInteractivitySettings::GetAllControls(FMixerInteractiveControl::JoystickKind, Sticks);
 	if (!Sticks.Contains(StickId.ToString()))
 	{
 		MessageLog.Warning(*FText::Format(LOCTEXT("MixerStickNode_UnknownStickWarning", "Mixer Stick Event specifies invalid stick id '{0}' for @@"), FText::FromName(StickId)).ToString(), this);
@@ -47,7 +48,7 @@ void UK2Node_MixerStickEvent::GetMenuActions(FBlueprintActionDatabaseRegistrar& 
 	if (ActionRegistrar.IsOpenForRegistration(ActionKey))
 	{
 		TArray<FString> Sticks;
-		UMixerInteractivitySettings::GetAllSticks(Sticks);
+		UMixerInteractivitySettings::GetAllControls(FMixerInteractiveControl::JoystickKind, Sticks);
 		for (const FString& StickName : Sticks)
 		{
 			UBlueprintNodeSpawner* NodeSpawner = UBlueprintNodeSpawner::Create(GetClass());
@@ -93,12 +94,13 @@ UClass* UK2Node_MixerStickEvent::GetDynamicBindingClass() const
 
 void UK2Node_MixerStickEvent::RegisterDynamicBinding(UDynamicBlueprintBinding* BindingObject) const
 {
-	FMixerStickEventBinding BindingInfo;
+	FMixerGenericEventBinding BindingInfo;
 	BindingInfo.TargetFunctionName = CustomFunctionName;
-	BindingInfo.StickId = StickId;
+	BindingInfo.NameParam = StickId;
+	BindingInfo.BindingType = EMixerGenericEventBindingType::Stick;
 
-	UMixerDelegateBinding* MixerBindingObject =  CastChecked<UMixerDelegateBinding>(BindingObject);
-	MixerBindingObject->AddStickBinding(BindingInfo);
+	UMixerDelegateBinding* MixerBindingObject = CastChecked<UMixerDelegateBinding>(BindingObject);
+	MixerBindingObject->AddGenericBinding(BindingInfo);
 }
 
 #undef LOCTEXT_NAMESPACE

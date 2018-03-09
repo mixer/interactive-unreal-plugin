@@ -24,26 +24,6 @@ void UMixerInteractivitySettings::GetAllControls(const FString& Kind, TArray<FSt
 	}
 }
 
-void UMixerInteractivitySettings::GetAllSticks(TArray<FString>& OutSticks)
-{
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	UMixerProjectAsset* ProjectAsset = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
-	if (ProjectAsset != nullptr)
-	{
-		ProjectAsset->GetAllControls([](const FMixerInteractiveControl& C) { return C.IsJoystick(); }, OutSticks);
-	}
-}
-
-void UMixerInteractivitySettings::GetAllButtons(TArray<FString>& OutButtons)
-{
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	UMixerProjectAsset* ProjectAsset = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
-	if (ProjectAsset != nullptr)
-	{
-		ProjectAsset->GetAllControls([](const FMixerInteractiveControl& C) { return C.IsButton(); }, OutButtons);
-	}
-}
-
 void UMixerInteractivitySettings::GetAllUnmappedCustomControls(TArray<FString>& OutCustomControls)
 {
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();

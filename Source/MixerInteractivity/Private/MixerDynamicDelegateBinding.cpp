@@ -428,16 +428,6 @@ void UMixerDelegateBinding::AddButtonBinding(const FMixerButtonEventBinding& Bin
 	ButtonEventBindings.Add(BindingInfo);
 }
 
-void UMixerDelegateBinding::AddStickBinding(const FMixerStickEventBinding& BindingInfo)
-{
-	StickEventBindings.Add(BindingInfo);
-}
-
-void UMixerDelegateBinding::AddCustomMethodBinding(const FMixerCustomMethodBinding& BindingInfo)
-{
-	CustomMethodBindings.Add(BindingInfo);
-}
-
 void UMixerDelegateBinding::AddCustomControlInputBinding(const FMixerCustomControlEventBinding& BindingInfo)
 {
 	CustomControlInputBindings.Add(BindingInfo);
@@ -465,17 +455,6 @@ void UMixerDelegateBinding::BindDynamicDelegates(UObject* InInstance) const
 		{
 			FScriptDelegate Delegate;
 			Delegate.BindUFunction(InInstance, ButtonBinding.TargetFunctionName);
-			Event->AddUnique(Delegate);
-		}
-	}
-
-	for (const FMixerStickEventBinding& StickBinding : StickEventBindings)
-	{
-		FMixerStickEventDynamicDelegate* Event = EventSource->GetStickEvent(StickBinding.StickId);
-		if (Event)
-		{
-			FScriptDelegate Delegate;
-			Delegate.BindUFunction(InInstance, StickBinding.TargetFunctionName);
 			Event->AddUnique(Delegate);
 		}
 	}
@@ -508,11 +487,6 @@ void UMixerDelegateBinding::BindDynamicDelegates(UObject* InInstance) const
 			UE_LOG(LogMixerInteractivity, Error, TEXT("Failed to bind blueprint delegates with unknown binding type %d, target %s, name param %s"), static_cast<int32>(GenericBinding.BindingType), *GenericBinding.TargetFunctionName.ToString(), *GenericBinding.NameParam.ToString());
 			break;
 		}
-	}
-
-	for (const FMixerCustomMethodBinding& CustomEventBinding : CustomMethodBindings)
-	{
-		EventSource->AddCustomMethodBinding(CustomEventBinding.EventName, InInstance, CustomEventBinding.TargetFunctionName);
 	}
 
 	for (const FMixerCustomControlEventBinding& CustomControlBinding : CustomControlInputBindings)

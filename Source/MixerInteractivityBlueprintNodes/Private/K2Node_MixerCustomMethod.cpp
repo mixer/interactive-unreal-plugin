@@ -68,12 +68,13 @@ FText UK2Node_MixerCustomMethod::GetMenuCategory() const
 
 void UK2Node_MixerCustomMethod::RegisterDynamicBinding(UDynamicBlueprintBinding* BindingObject) const
 {
-	FMixerCustomMethodBinding BindingInfo;
+	FMixerGenericEventBinding BindingInfo;
 	BindingInfo.TargetFunctionName = CustomFunctionName;
-	BindingInfo.EventName = EventName;
+	BindingInfo.NameParam = EventName;
+	BindingInfo.BindingType = EMixerGenericEventBindingType::CustomMethod;
 
 	UMixerDelegateBinding* MixerBindingObject = CastChecked<UMixerDelegateBinding>(BindingObject);
-	MixerBindingObject->AddCustomMethodBinding(BindingInfo);
+	MixerBindingObject->AddGenericBinding(BindingInfo);
 }
 
 FText UK2Node_MixerCustomMethod::GetNodeTitle(ENodeTitleType::Type TitleType) const

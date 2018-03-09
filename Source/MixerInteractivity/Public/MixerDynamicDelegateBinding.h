@@ -189,30 +189,6 @@ struct FMixerButtonEventBinding
 	bool Pressed;
 };
 
-USTRUCT()
-struct FMixerStickEventBinding
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FName TargetFunctionName;
-
-	UPROPERTY()
-	FName StickId;
-};
-
-USTRUCT()
-struct FMixerCustomMethodBinding
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FName TargetFunctionName;
-
-	UPROPERTY()
-	FName EventName;
-};
-
 UENUM()
 enum class EMixerGenericEventBindingType : uint8
 {
@@ -270,8 +246,6 @@ public:
 	FName BroadcastingStoppedBinding;
 
 	void AddButtonBinding(const FMixerButtonEventBinding& BindingInfo);
-	void AddStickBinding(const FMixerStickEventBinding& BindingInfo);
-	void AddCustomMethodBinding(const FMixerCustomMethodBinding& BindingInfo);
 	void AddCustomControlInputBinding(const FMixerCustomControlEventBinding& BindingInfo);
 	void AddCustomControlUpdateBinding(const FMixerCustomControlEventBinding& BindingInfo);
 	void AddGenericBinding(const FMixerGenericEventBinding& BindingInfo);
@@ -284,12 +258,6 @@ private:
 
 	UPROPERTY()
 	TArray<FMixerButtonEventBinding> ButtonEventBindings;
-
-	UPROPERTY()
-	TArray<FMixerStickEventBinding> StickEventBindings;
-
-	UPROPERTY()
-	TArray<FMixerCustomMethodBinding> CustomMethodBindings;
 
 	UPROPERTY()
 	TArray<FMixerCustomControlEventBinding> CustomControlInputBindings;
