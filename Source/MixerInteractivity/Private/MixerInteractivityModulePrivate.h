@@ -94,7 +94,6 @@ public:
 	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()				{ return CurrentUser; }
 
 	virtual void UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate);
-	virtual void CallRemoteMethod(const FString& MethodName, const TSharedRef<FJsonObject> MethodParams);
 
 	virtual TSharedPtr<class IOnlineChat> GetChatInterface();
 	virtual TSharedPtr<class IOnlineChatMixer> GetExtendedChatInterface();

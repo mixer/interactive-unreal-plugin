@@ -504,6 +504,8 @@ bool FMixerInteractivityModule::NeedsClientLibraryActive()
 #else
 	return true;
 #endif
+}
+
 bool FMixerInteractivityModule::GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObj)
 {
 	OutControlObj = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(ForWorld)->GetUnmappedCustomControl(ControlName);
@@ -514,8 +516,6 @@ bool FMixerInteractivityModule::GetCustomControl(UWorld* ForWorld, FName Control
 {
 	OutControlObj = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(ForWorld)->GetMappedCustomControl(ControlName);
 	return OutControlObj != nullptr;
-}
-
 }
 
 void FMixerInteractivityModule::InitDesignTimeGroups()
@@ -621,15 +621,6 @@ void FMixerInteractivityModule::FlushControlUpdates()
 	}
 
 	PendingControlUpdates.Empty();
-}
-
-void FMixerInteractivityModule::CallRemoteMethod(const FString& MethodName, const TSharedRef<FJsonObject> MethodParams)
-{
-	FString SerializedParams;
-	TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&SerializedParams, 0);
-	FJsonSerializer::Serialize(MethodParams, Writer);
-
-	Microsoft::mixer::interactivity_manager::get_singleton_instance()->send_rpc_message(*MethodName, *SerializedParams);
 }
 
 TSharedPtr<IOnlineChat> FMixerInteractivityModule::GetChatInterface()
