@@ -18,6 +18,8 @@
 #include "Resources/Version.h"
 #include "JsonObjectConverter.h"
 
+const FName MixerObjectKindMetadataTag = "MixerObjectKind";
+
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
 struct FMixerInteractivityChangeAction : public FPendingLatentAction

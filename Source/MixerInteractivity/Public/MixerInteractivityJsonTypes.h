@@ -22,9 +22,13 @@ public:
 public:
 	static const FString ButtonKind;
 	static const FString JoystickKind;
+	static const FString LabelKind;
+	static const FString TextboxKind;
 
 	bool IsButton() const { return Kind == ButtonKind; }
 	bool IsJoystick() const { return Kind == JoystickKind; }
+	bool IsLabel() const { return Kind == LabelKind; }
+	bool IsTextbox() const { return Kind == TextboxKind; }
 	bool IsCustom() const;
 
 public:

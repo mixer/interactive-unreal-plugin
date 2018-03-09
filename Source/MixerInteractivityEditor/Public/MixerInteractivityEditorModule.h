@@ -37,11 +37,7 @@ public:
 
 	virtual bool RequestInteractiveControlsForGameVersion(const FMixerInteractiveGameVersion& Version, FOnMixerInteractiveControlsRequestFinished OnFinished) = 0;
 
-	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeButtons() = 0;
-	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeSticks() = 0;
-	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeScenes() = 0;
-	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeGroups() = 0;
-	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeSimpleCustomControls() = 0;
+	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeObjects(FString ObjectKind) = 0;
 
 	virtual void RefreshDesignTimeObjects() = 0;
 

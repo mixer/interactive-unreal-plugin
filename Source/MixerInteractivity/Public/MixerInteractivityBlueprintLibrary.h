@@ -17,6 +17,8 @@
 #include "TextProperty.h"
 #include "MixerInteractivityBlueprintLibrary.generated.h"
 
+extern MIXERINTERACTIVITY_API const FName MixerObjectKindMetadataTag;
+
 USTRUCT(BlueprintType)
 struct MIXERINTERACTIVITY_API FMixerObjectReference
 {
@@ -43,7 +45,7 @@ public:
 	}
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta=(MixerObjectKind="button"))
 struct MIXERINTERACTIVITY_API FMixerButtonReference : public FMixerObjectReference
 {
 public:
@@ -60,7 +62,7 @@ struct TStructOpsTypeTraits<FMixerButtonReference> : public TStructOpsTypeTraits
 	};
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "scene"))
 struct MIXERINTERACTIVITY_API FMixerSceneReference : public FMixerObjectReference
 {
 public:
@@ -77,7 +79,7 @@ struct TStructOpsTypeTraits<FMixerSceneReference> : public TStructOpsTypeTraitsB
 	};
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "stick"))
 struct MIXERINTERACTIVITY_API FMixerStickReference : public FMixerObjectReference
 {
 public:
@@ -94,7 +96,7 @@ struct TStructOpsTypeTraits<FMixerStickReference> : public TStructOpsTypeTraitsB
 	};
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "group"))
 struct MIXERINTERACTIVITY_API FMixerGroupReference : public FMixerObjectReference
 {
 public:
@@ -116,7 +118,7 @@ struct TStructOpsTypeTraits<FMixerGroupReference> : public TStructOpsTypeTraitsB
 	};
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "custom"))
 struct MIXERINTERACTIVITY_API FMixerCustomControlReference : public FMixerObjectReference
 {
 public:
@@ -125,6 +127,40 @@ public:
 
 template<>
 struct TStructOpsTypeTraits<FMixerCustomControlReference> : public TStructOpsTypeTraitsBase2<FMixerCustomControlReference>
+{
+	enum
+	{
+		WithExportTextItem = true,
+		WithImportTextItem = true
+	};
+};
+
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "label"))
+struct MIXERINTERACTIVITY_API FMixerLabelReference : public FMixerObjectReference
+{
+public:
+	GENERATED_BODY()
+};
+
+template<>
+struct TStructOpsTypeTraits<FMixerLabelReference> : public TStructOpsTypeTraitsBase2<FMixerLabelReference>
+{
+	enum
+	{
+		WithExportTextItem = true,
+		WithImportTextItem = true
+	};
+};
+
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "textbox"))
+struct MIXERINTERACTIVITY_API FMixerTextboxReference : public FMixerObjectReference
+{
+public:
+	GENERATED_BODY()
+};
+
+template<>
+struct TStructOpsTypeTraits<FMixerTextboxReference> : public TStructOpsTypeTraitsBase2<FMixerTextboxReference>
 {
 	enum
 	{
