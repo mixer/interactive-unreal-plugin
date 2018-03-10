@@ -14,13 +14,12 @@
 #include "MixerInteractivityUserSettings.h"
 #include "OnlineChatMixer.h"
 #include "OnlineChatMixerPrivate.h"
+#include "MixerJsonHelpers.h"
 
 #include "HttpModule.h"
 #include "PlatformHttp.h"
 #include "JsonTypes.h"
 #include "JsonPrintPolicy.h"
-#include "Dom/JsonValue.h"
-#include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 #include "Serialization/JsonSerializer.h"
@@ -29,94 +28,6 @@
 #include "OnlineSubsystemTypes.h"
 
 DEFINE_LOG_CATEGORY(LogMixerChat);
-
-namespace MixerChatStringConstants
-{
-	namespace MessageTypes
-	{
-		const FString Method = TEXT("method");
-		const FString Reply = TEXT("reply");
-		const FString Event = TEXT("event");
-	}
-
-	namespace MethodNames
-	{
-		const FString Auth = TEXT("auth");
-		const FString Msg = TEXT("msg");
-		const FString Whisper = TEXT("whisper");
-		const FString History = TEXT("history");
-		const FString VoteStart = TEXT("vote:start");
-		const FString VoteChoose = TEXT("vote:choose");
-	}
-
-	namespace EventTypes
-	{
-		const FString Welcome = TEXT("WelcomeEvent");
-		const FString ChatMessage = TEXT("ChatMessage");
-		const FString UserJoin = TEXT("UserJoin");
-		const FString UserLeave = TEXT("UserLeave");
-		const FString DeleteMessage = TEXT("DeleteMessage");
-		const FString ClearMessages = TEXT("ClearMessages");
-		const FString PurgeMessage = TEXT("PurgeMessage");
-		const FString PollStart = TEXT("PollStart");
-		const FString PollEnd = TEXT("PollEnd");
-	}
-
-	namespace FieldNames
-	{
-		const FString Type = TEXT("type");
-		const FString Event = TEXT("event");
-		const FString Data = TEXT("data");
-		const FString Message = TEXT("message");
-		const FString UserNameNoUnderscore = TEXT("username");
-		const FString UserNameWithUnderscore = TEXT("user_name");
-		const FString Id = TEXT("id");
-		const FString Meta = TEXT("meta");
-		const FString Me = TEXT("me");
-		const FString Whisper = TEXT("whisper");
-		const FString Method = TEXT("method");
-		const FString Arguments = TEXT("arguments");
-		const FString Error = TEXT("error");
-		const FString Text = TEXT("text");
-		const FString Endpoints = TEXT("endpoints");
-		const FString AuthKey = TEXT("authkey");
-		const FString UserId = TEXT("user_id");
-		const FString UserLevel = TEXT("user_level");
-		const FString Q = TEXT("q");
-		const FString EndsAt = TEXT("endsAt");
-		const FString Voters = TEXT("voters");
-		const FString Answers = TEXT("answers");
-		const FString ResponsesByIndex = TEXT("responsesByIndex");
-		const FString Author = TEXT("author");
-		const FString Permissions = TEXT("permissions");
-	}
-
-	namespace Permissions
-	{
-		const FString Connect = TEXT("connect");
-		const FString Chat = TEXT("chat");
-		const FString Whisper = TEXT("whisper");
-		const FString PollStart = TEXT("poll_start");
-		const FString PollVote = TEXT("poll_vote");
-		const FString ClearMessages = TEXT("clear_messages");
-		const FString Purge = TEXT("purge");
-		const FString GiveawayStart = TEXT("giveaway_start");
-	}
-}
-
-#define GET_JSON_FIELD_RETURN_FAILURE(JsonType, JsonNameConstant, UEType, UEName) \
-UEType UEName; \
-if (!JsonObj->TryGet##JsonType##Field(MixerChatStringConstants::FieldNames::##JsonNameConstant, UEName)) \
-{ \
-	UE_LOG(LogMixerChat, Error, TEXT("Missing required %s field in json payload"), *MixerChatStringConstants::FieldNames::##JsonNameConstant); \
-	return false; \
-}
-
-#define GET_JSON_STRING_RETURN_FAILURE(JsonNameConstant, UEName)	GET_JSON_FIELD_RETURN_FAILURE(String, JsonNameConstant, FString, UEName)
-#define GET_JSON_INT_RETURN_FAILURE(JsonNameConstant, UEName)		GET_JSON_FIELD_RETURN_FAILURE(Number, JsonNameConstant, int32, UEName)
-#define GET_JSON_DOUBLE_RETURN_FAILURE(JsonNameConstant, UEName)	GET_JSON_FIELD_RETURN_FAILURE(Number, JsonNameConstant, double, UEName)
-#define GET_JSON_OBJECT_RETURN_FAILURE(JsonNameConstant, UEName)	GET_JSON_FIELD_RETURN_FAILURE(Object, JsonNameConstant, const TSharedPtr<FJsonObject>*, UEName)
-#define GET_JSON_ARRAY_RETURN_FAILURE(JsonNameConstant, UEName)		GET_JSON_FIELD_RETURN_FAILURE(Array, JsonNameConstant, const TArray<TSharedPtr<FJsonValue>> *, UEName)
 
 namespace
 {
@@ -156,12 +67,12 @@ namespace
 		FString MethodPacketString;
 		TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&MethodPacketString);
 		Writer->WriteObjectStart();
-		Writer->WriteValue(MixerChatStringConstants::FieldNames::Type, MixerChatStringConstants::MessageTypes::Method);
-		Writer->WriteValue(MixerChatStringConstants::FieldNames::Method, MethodName);
-		Writer->WriteArrayStart(MixerChatStringConstants::FieldNames::Arguments);
+		Writer->WriteValue(MixerStringConstants::FieldNames::Type, MixerStringConstants::MessageTypes::Method);
+		Writer->WriteValue(MixerStringConstants::FieldNames::Method, MethodName);
+		Writer->WriteArrayStart(MixerStringConstants::FieldNames::Arguments);
 		WriteRemoteMethodParams(Writer.Get(), Args...);
 		Writer->WriteArrayEnd();
-		Writer->WriteValue(MixerChatStringConstants::FieldNames::Id, MessageId);
+		Writer->WriteValue(MixerStringConstants::FieldNames::Id, MessageId);
 		Writer->WriteObjectEnd();
 		Writer->Close();
 
@@ -242,7 +153,7 @@ void FMixerChatConnection::OnGetChannelInfoForRoomIdComplete(FHttpRequestPtr Htt
 			if (FJsonSerializer::Deserialize(JsonReader, JsonObject) &&
 				JsonObject.IsValid())
 			{
-				JsonObject->TryGetNumberField(MixerChatStringConstants::FieldNames::Id, ChannelId);
+				JsonObject->TryGetNumberField(MixerStringConstants::FieldNames::Id, ChannelId);
 			}
 		}
 	}
@@ -272,25 +183,25 @@ void FMixerChatConnection::OnDiscoverChatServersComplete(FHttpRequestPtr HttpReq
 				JsonObject.IsValid())
 			{
 				const TArray<TSharedPtr<FJsonValue>> *JsonEndpoints;
-				if (JsonObject->TryGetArrayField(MixerChatStringConstants::FieldNames::Endpoints, JsonEndpoints))
+				if (JsonObject->TryGetArrayField(MixerStringConstants::FieldNames::Endpoints, JsonEndpoints))
 				{
 					for (const TSharedPtr<FJsonValue>& Endpoint : *JsonEndpoints)
 					{
 						Endpoints.Add(Endpoint->AsString());
 					}
 
-					JsonObject->TryGetStringField(MixerChatStringConstants::FieldNames::AuthKey, AuthKey);
+					JsonObject->TryGetStringField(MixerStringConstants::FieldNames::AuthKey, AuthKey);
 					const TArray<TSharedPtr<FJsonValue>>* JsonPermissions;
-					if (JsonObject->TryGetArrayField(MixerChatStringConstants::FieldNames::Permissions, JsonPermissions))
+					if (JsonObject->TryGetArrayField(MixerStringConstants::FieldNames::Permissions, JsonPermissions))
 					{
-						Permissions.bConnect = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::Connect; });
-						Permissions.bChat = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::Chat; });
-						Permissions.bWhisper = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::Chat; });
-						Permissions.bPollStart = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::PollStart; });
-						Permissions.bPollVote = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::PollVote; });
-						Permissions.bClearMessages = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::ClearMessages; });
-						Permissions.bPurge = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::Purge; });
-						Permissions.bGiveawayStart = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerChatStringConstants::Permissions::GiveawayStart; });
+						Permissions.bConnect = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::Connect; });
+						Permissions.bChat = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::Chat; });
+						Permissions.bWhisper = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::Chat; });
+						Permissions.bPollStart = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::PollStart; });
+						Permissions.bPollVote = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::PollVote; });
+						Permissions.bClearMessages = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::ClearMessages; });
+						Permissions.bPurge = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::Purge; });
+						Permissions.bGiveawayStart = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::GiveawayStart; });
 
 						OpenWebSocket();
 					}
@@ -372,7 +283,7 @@ bool FMixerChatConnection::OnChatPacketInternal(FJsonObject* JsonObj)
 {
 	bool bHandled = false;
 	GET_JSON_STRING_RETURN_FAILURE(Type, MessageType);
-	if (MessageType == MixerChatStringConstants::MessageTypes::Reply)
+	if (MessageType == MixerStringConstants::MessageTypes::Reply)
 	{
 		GET_JSON_INT_RETURN_FAILURE(Id, ReplyingToMessageId);
 
@@ -390,7 +301,7 @@ bool FMixerChatConnection::OnChatPacketInternal(FJsonObject* JsonObj)
 			UE_LOG(LogMixerChat, Error, TEXT("Received unexpected reply for unknown message id %d"), ReplyingToMessageId);
 		}
 	}
-	else if (MessageType == MixerChatStringConstants::MessageTypes::Event)
+	else if (MessageType == MixerStringConstants::MessageTypes::Event)
 	{
 		GET_JSON_STRING_RETURN_FAILURE(Event, EventType);
 		GET_JSON_OBJECT_RETURN_FAILURE(Data, Data);
@@ -477,7 +388,7 @@ bool FMixerChatConnection::HandleChatMessageEventInternal(FJsonObject* JsonObj, 
 		bSendJoinEvent = true;
 	}
 	check(FromUserObject);
-	if (!JsonObj->TryGetNumberField(MixerChatStringConstants::FieldNames::UserLevel, (*FromUserObject)->Level))
+	if (!JsonObj->TryGetNumberField(MixerStringConstants::FieldNames::UserLevel, (*FromUserObject)->Level))
 	{
 		// This one's less serious.
 		UE_LOG(LogMixerChat, Warning, TEXT("Missing user_level field for chat event"));
@@ -511,10 +422,10 @@ bool FMixerChatConnection::HandleChatMessageEventMessageObject(FJsonObject* Json
 	const TSharedPtr<FJsonObject>* Metadata;
 	bool bIsWhisper = false;
 	bool bIsAction = false;
-	if (JsonObj->TryGetObjectField(MixerChatStringConstants::FieldNames::Meta, Metadata))
+	if (JsonObj->TryGetObjectField(MixerStringConstants::FieldNames::Meta, Metadata))
 	{
-		JsonObj->TryGetBoolField(MixerChatStringConstants::FieldNames::Whisper, bIsWhisper);
-		JsonObj->TryGetBoolField(MixerChatStringConstants::FieldNames::Me, bIsAction);
+		JsonObj->TryGetBoolField(MixerStringConstants::FieldNames::Whisper, bIsWhisper);
+		JsonObj->TryGetBoolField(MixerStringConstants::FieldNames::Me, bIsAction);
 	}
 
 	if (bIsWhisper)
@@ -655,9 +566,9 @@ bool FMixerChatConnection::HandlePollStartEvent(FJsonObject* JsonObj)
 		GET_JSON_ARRAY_RETURN_FAILURE(Answers, Answers);
 
 		int32 AskingUserIdRaw;
-		if (!(*Author)->TryGetNumberField(MixerChatStringConstants::FieldNames::UserId, AskingUserIdRaw))
+		if (!(*Author)->TryGetNumberField(MixerStringConstants::FieldNames::UserId, AskingUserIdRaw))
 		{
-			UE_LOG(LogMixerChat, Error, TEXT("Missing required %s field in json payload"), *MixerChatStringConstants::FieldNames::UserId);
+			UE_LOG(LogMixerChat, Error, TEXT("Missing required %s field in json payload"), *MixerStringConstants::FieldNames::UserId);
 			return false;
 		}
 
@@ -668,9 +579,9 @@ bool FMixerChatConnection::HandlePollStartEvent(FJsonObject* JsonObj)
 		if (CachedUser == nullptr)
 		{
 			FString AskingUsername;
-			if (!(*Author)->TryGetStringField(MixerChatStringConstants::FieldNames::UserNameWithUnderscore, AskingUsername))
+			if (!(*Author)->TryGetStringField(MixerStringConstants::FieldNames::UserNameWithUnderscore, AskingUsername))
 			{
-				UE_LOG(LogMixerChat, Error, TEXT("Missing required %s field in json payload"), *MixerChatStringConstants::FieldNames::UserNameWithUnderscore);
+				UE_LOG(LogMixerChat, Error, TEXT("Missing required %s field in json payload"), *MixerStringConstants::FieldNames::UserNameWithUnderscore);
 				return false;
 			}
 			CachedUser = &CachedUsers.Add(AskingUserId, MakeShared<FMixerChatUser>(AskingUsername, AskingUserIdRaw));
@@ -679,7 +590,7 @@ bool FMixerChatConnection::HandlePollStartEvent(FJsonObject* JsonObj)
 			ChatInterface->TriggerOnChatRoomMemberJoinDelegates(*User, RoomId, (*CachedUser)->GetUniqueNetId());
 		}
 
-		(*Author)->TryGetNumberField(MixerChatStringConstants::FieldNames::UserLevel, (*CachedUser)->Level);
+		(*Author)->TryGetNumberField(MixerStringConstants::FieldNames::UserLevel, (*CachedUser)->Level);
 
 		ActivePoll = MakeShared<FChatPollMixerImpl>(CachedUser->ToSharedRef(), Question, EndsAt);
 		bIsNewPoll = true;
@@ -803,7 +714,7 @@ bool FMixerChatConnection::SendChatMessage(const FString& MessageBody)
 	check(WebSocket.IsValid());
 	check(WebSocket->IsConnected());
 
-	FString MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::Msg, MessageId, MessageBody);
+	FString MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::Msg, MessageId, MessageBody);
 	SendMethodPacket(MethodPacket, nullptr);
 
 	return true;
@@ -829,7 +740,7 @@ bool FMixerChatConnection::SendWhisper(const FString& ToUser, const FString& Mes
 		return false;
 	}
 
-	FString MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::Whisper, MessageId, ToUser, MessageBody);
+	FString MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::Whisper, MessageId, ToUser, MessageBody);
 	SendMethodPacket(MethodPacket, nullptr);
 
 	return true;
@@ -855,7 +766,7 @@ bool FMixerChatConnection::SendVoteStart(const FString& Question, const TArray<F
 		return false;
 	}
 
-	FString MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::VoteStart, MessageId, Question, Answers, Duration.GetTotalSeconds());
+	FString MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::VoteStart, MessageId, Question, Answers, Duration.GetTotalSeconds());
 	SendMethodPacket(MethodPacket, nullptr);
 
 	return true;
@@ -887,7 +798,7 @@ bool FMixerChatConnection::SendVoteChoose(const FChatPollMixer& Poll, int32 Answ
 		return false;
 	}
 
-	FString MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::VoteChoose, MessageId, AnswerIndex);
+	FString MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::VoteChoose, MessageId, AnswerIndex);
 	SendMethodPacket(MethodPacket, nullptr);
 
 	return true;
@@ -899,19 +810,19 @@ void FMixerChatConnection::SendAuth(int32 ChannelId, const FMixerLocalUser* User
 	if (User != nullptr && !AuthKey.IsEmpty())
 	{
 		UE_LOG(LogMixerChat, Log, TEXT("Authenticating to chat room %s as user '%s'"), *RoomId, *User->Name);
-		MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::Auth, MessageId, ChannelId, User->Id, AuthKey);
+		MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::Auth, MessageId, ChannelId, User->Id, AuthKey);
 	}
 	else
 	{
 		UE_LOG(LogMixerChat, Log, TEXT("Authenticating to chat room %s anonymously"), *RoomId);
-		MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::Auth, MessageId, ChannelId);
+		MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::Auth, MessageId, ChannelId);
 	}
 	SendMethodPacket(MethodPacket, &FMixerChatConnection::HandleAuthReply);
 }
 
 void FMixerChatConnection::SendHistory(int32 MessageCount)
 {
-	FString MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::History, MessageId, MessageCount);
+	FString MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::History, MessageId, MessageCount);
 	SendMethodPacket(MethodPacket, &FMixerChatConnection::HandleHistoryReply);
 }
 
@@ -1056,10 +967,10 @@ void FMixerChatConnection::DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<
 bool FMixerChatConnection::HandleAuthReply(FJsonObject* JsonObj)
 {
 	const TSharedPtr<FJsonObject>* Error;
-	if (JsonObj->TryGetObjectField(MixerChatStringConstants::FieldNames::Error, Error))
+	if (JsonObj->TryGetObjectField(MixerStringConstants::FieldNames::Error, Error))
 	{
 		FString ErrorMessage;
-		(*Error)->TryGetStringField(MixerChatStringConstants::FieldNames::Message, ErrorMessage);
+		(*Error)->TryGetStringField(MixerStringConstants::FieldNames::Message, ErrorMessage);
 		ChatInterface->ConnectAttemptFinished(*User, RoomId, false, ErrorMessage);
 
 		// Note: we have probably self-destructed at this point
@@ -1160,15 +1071,15 @@ FMixerChatConnection::FServerMessageHandler FMixerChatConnection::GetEventHandle
 	static TMap<const FString, FServerMessageHandler> EventHandlers;
 	if (EventHandlers.Num() == 0)
 	{
-		EventHandlers.Add(MixerChatStringConstants::EventTypes::Welcome, &FMixerChatConnection::HandleWelcomeEvent);
-		EventHandlers.Add(MixerChatStringConstants::EventTypes::ChatMessage, &FMixerChatConnection::HandleChatMessageEvent);
-		EventHandlers.Add(MixerChatStringConstants::EventTypes::UserJoin, &FMixerChatConnection::HandleUserJoinEvent);
-		EventHandlers.Add(MixerChatStringConstants::EventTypes::UserLeave, &FMixerChatConnection::HandleUserLeaveEvent);
-		EventHandlers.Add(MixerChatStringConstants::EventTypes::DeleteMessage, &FMixerChatConnection::HandleDeleteMessageEvent);
-		EventHandlers.Add(MixerChatStringConstants::EventTypes::ClearMessages, &FMixerChatConnection::HandleClearMessagesEvent);
-		EventHandlers.Add(MixerChatStringConstants::EventTypes::PurgeMessage, &FMixerChatConnection::HandlePurgeMessageEvent);
-		EventHandlers.Add(MixerChatStringConstants::EventTypes::PollStart, &FMixerChatConnection::HandlePollStartEvent);
-		EventHandlers.Add(MixerChatStringConstants::EventTypes::PollEnd, &FMixerChatConnection::HandlePollEndEvent);
+		EventHandlers.Add(MixerStringConstants::EventTypes::Welcome, &FMixerChatConnection::HandleWelcomeEvent);
+		EventHandlers.Add(MixerStringConstants::EventTypes::ChatMessage, &FMixerChatConnection::HandleChatMessageEvent);
+		EventHandlers.Add(MixerStringConstants::EventTypes::UserJoin, &FMixerChatConnection::HandleUserJoinEvent);
+		EventHandlers.Add(MixerStringConstants::EventTypes::UserLeave, &FMixerChatConnection::HandleUserLeaveEvent);
+		EventHandlers.Add(MixerStringConstants::EventTypes::DeleteMessage, &FMixerChatConnection::HandleDeleteMessageEvent);
+		EventHandlers.Add(MixerStringConstants::EventTypes::ClearMessages, &FMixerChatConnection::HandleClearMessagesEvent);
+		EventHandlers.Add(MixerStringConstants::EventTypes::PurgeMessage, &FMixerChatConnection::HandlePurgeMessageEvent);
+		EventHandlers.Add(MixerStringConstants::EventTypes::PollStart, &FMixerChatConnection::HandlePollStartEvent);
+		EventHandlers.Add(MixerStringConstants::EventTypes::PollEnd, &FMixerChatConnection::HandlePollEndEvent);
 	}
 
 	FServerMessageHandler* Handler = EventHandlers.Find(EventType);
