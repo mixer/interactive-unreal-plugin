@@ -43,6 +43,11 @@ struct MIXERINTERACTIVITY_API FMixerButtonEventDynamicDelegateWrapper
 
 	UPROPERTY()
 	FMixerButtonEventDynamicDelegate ReleasedDelegate;
+
+	bool IsBound()
+	{
+		return PressedDelegate.IsBound() || ReleasedDelegate.IsBound();
+	}
 };
 
 USTRUCT()
@@ -52,6 +57,11 @@ struct MIXERINTERACTIVITY_API FMixerStickEventDynamicDelegateWrapper
 
 	UPROPERTY()
 	FMixerStickEventDynamicDelegate Delegate;
+
+	bool IsBound()
+	{
+		return Delegate.IsBound();
+	}
 };
 
 USTRUCT()
@@ -61,6 +71,11 @@ struct MIXERINTERACTIVITY_API FMixerTextboxEventDynamicDelegateWrapper
 
 	UPROPERTY()
 	FMixerTextSubmittedEventDynamicDelegate SubmittedDelegate;
+
+	bool IsBound()
+	{
+		return SubmittedDelegate.IsBound();
+	}
 };
 
 USTRUCT()
@@ -78,6 +93,11 @@ struct MIXERINTERACTIVITY_API FMixerCustomControlDelegateWrapper
 	FMixerCustomControlInputDynamicDelegate InputDelegate;
 
 	TSharedPtr<FJsonObject> UnmappedControl;
+
+	bool IsBound()
+	{
+		return MappedControl != nullptr || UpdateDelegate.IsBound() || InputDelegate.IsBound();
+	}
 };
 
 USTRUCT()
@@ -93,6 +113,11 @@ struct MIXERINTERACTIVITY_API FMixerCustomMethodStubDelegateWrapper
 
 	UPROPERTY()
 	FMixerCustomMethodStubDelegate Delegate;
+
+	bool IsBound()
+	{
+		return Delegate.IsBound();
+	}
 };
 
 
@@ -126,7 +151,9 @@ public:
 	FMixerCustomControlInputDynamicDelegate& GetCustomControlInputEvent(FName ControlName);
 	FMixerCustomControlUpdateDynamicDelegate& GetCustomControlUpdateEvent(FName ControlName);
 	void AddCustomMethodBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName);
+	void RemoveCustomMethodBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName);
 	void AddTextSubmittedBinding(FName TextboxName, UObject* TargetObject, FName TargetFunctionName);
+	void RemoveTextSubmittedBinding(FName TextboxName, UObject* TargetObject, FName TargetFunctionName);
 
 	void OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerButtonEventDetails& Details);
 	void OnParticipantStateChangedNativeEvent(TSharedPtr<const FMixerRemoteUser> Participant, EMixerInteractivityParticipantState NewState);

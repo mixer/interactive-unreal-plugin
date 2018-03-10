@@ -41,14 +41,35 @@ void UMixerInteractivityBlueprintEventSource::RegisterForMixerEvents()
 {
 	// Use GetModuleChecked here to avoid unsafe non-game thread warning
 	IMixerInteractivityModule& InteractivityModule = FModuleManager::GetModuleChecked<IMixerInteractivityModule>("MixerInteractivity");
-	InteractivityModule.OnButtonEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnButtonNativeEvent);
-	InteractivityModule.OnParticipantStateChanged().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnParticipantStateChangedNativeEvent);
-	InteractivityModule.OnStickEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnStickNativeEvent);
-	InteractivityModule.OnBroadcastingStateChanged().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnBroadcastingStateChangedNativeEvent);
-	InteractivityModule.OnCustomControlInput().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnCustomControlInputNativeEvent);
-	InteractivityModule.OnCustomControlPropertyUpdate().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnCustomControlPropertyUpdateNativeEvent);
-	InteractivityModule.OnCustomMethodCall().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnCustomMethodCallNativeEvent);
-	InteractivityModule.OnTextboxSubmitEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnTextboxSubmitNativeEvent);
+	if (ButtonDelegates.Num() > 0)
+	{
+		InteractivityModule.OnButtonEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnButtonNativeEvent);
+	}
+	if (StickDelegates.Num() > 0)
+	{
+		InteractivityModule.OnStickEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnStickNativeEvent);
+	}
+	if (TextboxDelegates.Num() > 0)
+	{
+		InteractivityModule.OnTextboxSubmitEvent().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnTextboxSubmitNativeEvent);
+	}
+	if (CustomControlDelegates.Num() > 0)
+	{
+		InteractivityModule.OnCustomControlInput().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnCustomControlInputNativeEvent);
+		InteractivityModule.OnCustomControlPropertyUpdate().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnCustomControlPropertyUpdateNativeEvent);
+	}
+	if (ParticipantJoinedDelegate.IsBound() || ParticipantLeftDelegate.IsBound() || ParticipantInputDisabledDelegate.IsBound())
+	{
+		InteractivityModule.OnParticipantStateChanged().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnParticipantStateChangedNativeEvent);
+	}
+	if (BroadcastingStartedDelegate.IsBound() || BroadcastingStoppedDelegate.IsBound())
+	{
+		InteractivityModule.OnBroadcastingStateChanged().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnBroadcastingStateChangedNativeEvent);
+	}
+	if (CustomMethodDelegates.Num() > 0)
+	{
+		InteractivityModule.OnCustomMethodCall().AddUObject(this, &UMixerInteractivityBlueprintEventSource::OnCustomMethodCallNativeEvent);
+	}
 }
 
 
@@ -86,13 +107,38 @@ void UMixerInteractivityBlueprintEventSource::AddCustomMethodBinding(FName Event
 	}
 }
 
+void UMixerInteractivityBlueprintEventSource::RemoveCustomMethodBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName)
+{
+	FMixerCustomMethodStubDelegateWrapper* DelegateWrapper = CustomMethodDelegates.Find(EventName);
+	if (DelegateWrapper != nullptr)
+	{
+		DelegateWrapper->Delegate.Remove(TargetObject, TargetFunctionName);
+		if (!DelegateWrapper->IsBound())
+		{
+			CustomMethodDelegates.Remove(EventName);
+		}
+	}
+}
+
 void UMixerInteractivityBlueprintEventSource::AddTextSubmittedBinding(FName TextboxName, UObject* TargetObject, FName TargetFunctionName)
 {
 	FMixerTextboxEventDynamicDelegateWrapper& DelegateWrapper = TextboxDelegates.FindOrAdd(TextboxName);
 	FScriptDelegate NewDelegate;
 	NewDelegate.BindUFunction(TargetObject, TargetFunctionName);
 	DelegateWrapper.SubmittedDelegate.AddUnique(NewDelegate);
+}
 
+void UMixerInteractivityBlueprintEventSource::RemoveTextSubmittedBinding(FName TextboxName, UObject* TargetObject, FName TargetFunctionName)
+{
+	FMixerTextboxEventDynamicDelegateWrapper* DelegateWrapper = TextboxDelegates.Find(TextboxName);
+	if (DelegateWrapper != nullptr)
+	{
+		DelegateWrapper->SubmittedDelegate.Remove(TargetObject, TargetFunctionName);
+		if (!DelegateWrapper->IsBound())
+		{
+			TextboxDelegates.Remove(TextboxName);
+		}
+	}
 }
 
 FMixerStickEventDynamicDelegate* UMixerInteractivityBlueprintEventSource::GetStickEvent(FName StickName)
@@ -353,47 +399,35 @@ UWorld* UMixerInteractivityBlueprintEventSource::GetWorld() const
 	return Cast<UWorld>(GetOuter());
 }
 
+namespace
+{
+	template <class DELEGATE_WRAPPER>
+	bool TrimStaleDelegatesHelper(TMap<FName, DELEGATE_WRAPPER>& Delegates)
+	{
+		bool bAnyTrimmed = false;
+		for (TMap<FName, DELEGATE_WRAPPER>::TIterator It(Delegates); It; ++It)
+		{
+			if (!It->Value.IsBound())
+			{
+				bAnyTrimmed = true;
+				It.RemoveCurrent();
+			}
+		}
+		return bAnyTrimmed;
+	}
+}
+
 void UMixerInteractivityBlueprintEventSource::PostLoad() 
 {
 	Super::PostLoad();
 
 #if WITH_EDITOR
-	bool bFoundOutOfDateEvents = false;
-	for (TMap<FName, FMixerButtonEventDynamicDelegateWrapper>::TIterator It(ButtonDelegates); It; ++It)
-	{
-		if (!It->Value.PressedDelegate.IsBound() && !It->Value.ReleasedDelegate.IsBound())
-		{
-			bFoundOutOfDateEvents = true;
-			It.RemoveCurrent();
-		}
-	}
+	bool bFoundOutOfDateEvents = TrimStaleDelegatesHelper(ButtonDelegates);
+	bFoundOutOfDateEvents |= TrimStaleDelegatesHelper(StickDelegates);
+	bFoundOutOfDateEvents |= TrimStaleDelegatesHelper(CustomMethodDelegates);
+	bFoundOutOfDateEvents |= TrimStaleDelegatesHelper(CustomControlDelegates);
+	bFoundOutOfDateEvents |= TrimStaleDelegatesHelper(TextboxDelegates);
 
-	for (TMap<FName, FMixerStickEventDynamicDelegateWrapper>::TIterator It(StickDelegates); It; ++It)
-	{
-		if (!It->Value.Delegate.IsBound())
-		{
-			bFoundOutOfDateEvents = true;
-			It.RemoveCurrent();
-		}
-	}
-#endif
-
-	for (TMap<FName, FMixerCustomMethodStubDelegateWrapper>::TIterator It(CustomMethodDelegates); It; ++It)
-	{
-#if WITH_EDITOR
-		if (!It->Value.Delegate.IsBound())
-		{
-			bFoundOutOfDateEvents = true;
-			It.RemoveCurrent();
-		}
-		else
-#endif
-		{
-			It->Value.FunctionPrototype = It->Value.PrototypeReference.ResolveMember<UFunction>(static_cast<UClass*>(nullptr));
-		}
-	}
-
-#if WITH_EDITOR
 	if (GIsEditor && bFoundOutOfDateEvents)
 	{
 		GetOutermost()->SetDirtyFlag(true);
@@ -403,6 +437,11 @@ void UMixerInteractivityBlueprintEventSource::PostLoad()
 			->AddToken(FTextToken::Create(NSLOCTEXT("MixerInteractivity", "ResaveNeeded_OutOfDateEvents", "References to out-of-date Mixer events found.  Please resave.")));
 	}
 #endif
+
+	for (TMap<FName, FMixerCustomMethodStubDelegateWrapper>::TIterator It(CustomMethodDelegates); It; ++It)
+	{
+		It->Value.FunctionPrototype = It->Value.PrototypeReference.ResolveMember<UFunction>(static_cast<UClass*>(nullptr));
+	}
 
 	UWorld* World = GetWorld();
 	if (World != nullptr && World->IsGameWorld())
@@ -552,6 +591,46 @@ void UMixerDelegateBinding::UnbindDynamicDelegates(UObject* InInstance) const
 		if (Event)
 		{
 			Event->Remove(InInstance, ButtonBinding.TargetFunctionName);
+		}
+	}
+
+	for (const FMixerCustomControlEventBinding& CustomControlBinding : CustomControlInputBindings)
+	{
+		FMixerCustomControlInputDynamicDelegate& Event = EventSource->GetCustomControlInputEvent(CustomControlBinding.ControlId);
+		Event.Remove(InInstance, CustomControlBinding.TargetFunctionName);
+	}
+
+	for (const FMixerCustomControlEventBinding& CustomControlBinding : CustomControlUpdateBindings)
+	{
+		FMixerCustomControlUpdateDynamicDelegate& Event = EventSource->GetCustomControlUpdateEvent(CustomControlBinding.ControlId);
+		Event.Remove(InInstance, CustomControlBinding.TargetFunctionName);
+	}
+
+	for (const FMixerGenericEventBinding& GenericBinding : GenericBindings)
+	{
+		switch (GenericBinding.BindingType)
+		{
+		case EMixerGenericEventBindingType::Stick:
+			{
+				FMixerStickEventDynamicDelegate* Event = EventSource->GetStickEvent(GenericBinding.NameParam);
+				if (Event)
+				{
+					Event->Remove(InInstance, GenericBinding.TargetFunctionName);
+				}
+			}
+			break;
+
+		case EMixerGenericEventBindingType::CustomMethod:
+			EventSource->RemoveCustomMethodBinding(GenericBinding.NameParam, InInstance, GenericBinding.TargetFunctionName);
+			break;
+
+		case EMixerGenericEventBindingType::TextSubmitted:
+			EventSource->RemoveTextSubmittedBinding(GenericBinding.NameParam, InInstance, GenericBinding.TargetFunctionName);
+			break;
+
+		default:
+			UE_LOG(LogMixerInteractivity, Error, TEXT("Failed to unbind blueprint delegates with unknown binding type %d, target %s, name param %s"), static_cast<int32>(GenericBinding.BindingType), *GenericBinding.TargetFunctionName.ToString(), *GenericBinding.NameParam.ToString());
+			break;
 		}
 	}
 
