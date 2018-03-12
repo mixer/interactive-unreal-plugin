@@ -60,11 +60,13 @@ namespace MixerStringConstants
 		extern const FString Whisper;
 		extern const FString Method;
 		extern const FString Arguments;
+		extern const FString Params;
 		extern const FString Error;
 		extern const FString Text;
 		extern const FString Endpoints;
 		extern const FString AuthKey;
-		extern const FString UserId;
+		extern const FString UserIdNoUnderscore;
+		extern const FString UserIdWithUnderscore;
 		extern const FString UserLevel;
 		extern const FString Q;
 		extern const FString EndsAt;
@@ -73,6 +75,13 @@ namespace MixerStringConstants
 		extern const FString ResponsesByIndex;
 		extern const FString Author;
 		extern const FString Permissions;
+		extern const FString Level;
+		extern const FString LastInputAt;
+		extern const FString ConnectedAt;
+		extern const FString GroupId;
+		extern const FString SessionId;
+		extern const FString Participants;
+		extern const FString IsReady;
 	}
 
 	namespace Permissions
@@ -101,3 +110,4 @@ if (!JsonObj->TryGet##JsonType##Field(MixerStringConstants::FieldNames::##JsonNa
 #define GET_JSON_DOUBLE_RETURN_FAILURE(JsonNameConstant, UEName)	GET_JSON_FIELD_RETURN_FAILURE(Number, JsonNameConstant, double, UEName)
 #define GET_JSON_OBJECT_RETURN_FAILURE(JsonNameConstant, UEName)	GET_JSON_FIELD_RETURN_FAILURE(Object, JsonNameConstant, const TSharedPtr<FJsonObject>*, UEName)
 #define GET_JSON_ARRAY_RETURN_FAILURE(JsonNameConstant, UEName)		GET_JSON_FIELD_RETURN_FAILURE(Array, JsonNameConstant, const TArray<TSharedPtr<FJsonValue>> *, UEName)
+#define GET_JSON_BOOL_RETURN_FAILURE(JsonNameConstant, UEName)		GET_JSON_FIELD_RETURN_FAILURE(Bool, JsonNameConstant, bool, UEName)

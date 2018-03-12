@@ -55,11 +55,13 @@ namespace MixerStringConstants
 		const FString Whisper = TEXT("whisper");
 		const FString Method = TEXT("method");
 		const FString Arguments = TEXT("arguments");
+		const FString Params = TEXT("params");
 		const FString Error = TEXT("error");
 		const FString Text = TEXT("text");
 		const FString Endpoints = TEXT("endpoints");
 		const FString AuthKey = TEXT("authkey");
-		const FString UserId = TEXT("user_id");
+		const FString UserIdNoUnderscore = TEXT("userID");
+		const FString UserIdWithUnderscore = TEXT("user_id");
 		const FString UserLevel = TEXT("user_level");
 		const FString Q = TEXT("q");
 		const FString EndsAt = TEXT("endsAt");
@@ -68,6 +70,13 @@ namespace MixerStringConstants
 		const FString ResponsesByIndex = TEXT("responsesByIndex");
 		const FString Author = TEXT("author");
 		const FString Permissions = TEXT("permissions");
+		const FString Level = TEXT("level");
+		const FString LastInputAt = TEXT("lastInputAt");
+		const FString ConnectedAt = TEXT("connectedAt");
+		const FString GroupId = TEXT("groupID");
+		const FString SessionId = TEXT("sessionID");
+		const FString Participants = TEXT("participants");
+		const FString IsReady = TEXT("isReady");
 	}
 
 	namespace Permissions

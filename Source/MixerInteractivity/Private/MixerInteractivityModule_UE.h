@@ -11,14 +11,23 @@
 
 #include "MixerInteractivityModulePrivate.h"
 
-//#define MIXER_BACKEND_UE 1
+
+#define MIXER_BACKEND_UE 1
 #if MIXER_BACKEND_UE
 
-class FMixerInteractivityModule_UE : public FMixerInteractivityModule
+#include "MixerWebSocketOwnerBase.h"
+
+
+class FMixerInteractivityModule_UE
+	: public FMixerInteractivityModule
+	, public TMixerWebSocketOwnerBase<FMixerInteractivityModule_UE>
 {
 public:
-	virtual void StartInteractivity() {}
-	virtual void StopInteractivity() {}
+	FMixerInteractivityModule_UE();
+
+public:
+	virtual void StartInteractivity();
+	virtual void StopInteractivity();
 	virtual void SetCurrentScene(FName Scene, FName GroupName = NAME_None) {}
 	virtual FName GetCurrentScene(FName GroupName = NAME_None) { return NAME_None; }
 	virtual void TriggerButtonCooldown(FName Button, FTimespan CooldownTime) {}
@@ -37,22 +46,31 @@ public:
 protected:
 	virtual bool StartInteractiveConnection();
 
+protected:
+	virtual void RegisterAllServerMessageHandlers();
+
+	virtual void HandleSocketConnected();
+	virtual void HandleSocketConnectionError();
+	virtual void HandleSocketClosed(bool bWasClean);
+
 private:
 	void OnHostsRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
 
 	void OpenWebSocket();
-	void CloseWebSocket();
 
-	void OnSocketConnected();
-	void OnSocketConnectionError(const FString& ErrorMessage);
-	void OnSocketMessage(const FString& MessageJsonString);
-	void OnSocketClosed(int32 StatusCode, const FString& Reason, bool bWasClean);
+	bool HandleHello(FJsonObject* JsonObj);
+	bool HandleGiveInput(FJsonObject* JsonObj);
+	bool HandleParticipantJoin(FJsonObject* JsonObj);
+	bool HandleReadyStateChange(FJsonObject* JsonObj);
 
-	bool OnSocketMessageInternal(FJsonObject* JsonObj);
+	bool HandleGetScenesReply(FJsonObject* JsonObj);
+
+	bool HandleSingleJoiningParticipant(const FJsonObject* JsonObj);
 
 private:
 	TArray<FString> Endpoints;
-	TSharedPtr<class IWebSocket> WebSocket;
+	TMap<FGuid, TSharedPtr<FMixerRemoteUser>> RemoteParticipantCacheByGuid;
+	TMap<uint32, TSharedPtr<FMixerRemoteUser>> RemoteParticipantCachedByUint;
 };
 
 #endif

@@ -362,7 +362,7 @@ bool FMixerChatConnection::HandleChatMessageEvent(FJsonObject* JsonObj)
 
 bool FMixerChatConnection::HandleChatMessageEventInternal(FJsonObject* JsonObj, TSharedPtr<FChatMessageMixerImpl>& OutChatMessage)
 {
-	GET_JSON_INT_RETURN_FAILURE(UserId, FromUserIdRaw);
+	GET_JSON_INT_RETURN_FAILURE(UserIdWithUnderscore, FromUserIdRaw);
 	GET_JSON_OBJECT_RETURN_FAILURE(Message, MessageJson);
 	GET_JSON_STRING_RETURN_FAILURE(Id, IdString);
 
@@ -530,7 +530,7 @@ bool FMixerChatConnection::HandleClearMessagesEvent(FJsonObject* JsonObj)
 
 bool FMixerChatConnection::HandlePurgeMessageEvent(FJsonObject* JsonObj)
 {
-	GET_JSON_INT_RETURN_FAILURE(UserId, UserId);
+	GET_JSON_INT_RETURN_FAILURE(UserIdWithUnderscore, UserId);
 
 	DeleteFromChatHistoryIf([UserId](TSharedPtr<FChatMessageMixerImpl> ChatMessage)
 	{
@@ -566,9 +566,9 @@ bool FMixerChatConnection::HandlePollStartEvent(FJsonObject* JsonObj)
 		GET_JSON_ARRAY_RETURN_FAILURE(Answers, Answers);
 
 		int32 AskingUserIdRaw;
-		if (!(*Author)->TryGetNumberField(MixerStringConstants::FieldNames::UserId, AskingUserIdRaw))
+		if (!(*Author)->TryGetNumberField(MixerStringConstants::FieldNames::UserIdWithUnderscore, AskingUserIdRaw))
 		{
-			UE_LOG(LogMixerChat, Error, TEXT("Missing required %s field in json payload"), *MixerStringConstants::FieldNames::UserId);
+			UE_LOG(LogMixerChat, Error, TEXT("Missing required %s field in json payload"), *MixerStringConstants::FieldNames::UserIdWithUnderscore);
 			return false;
 		}
 

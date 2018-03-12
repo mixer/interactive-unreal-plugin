@@ -14,6 +14,7 @@
 #include "MixerInteractivityLog.h"
 #include "MixerInteractivitySettings.h"
 #include "MixerInteractivityUserSettings.h"
+#include "MixerInteractivityBlueprintLibrary.h"
 #include "MixerJsonHelpers.h"
 #include "HttpModule.h"
 #include "PlatformHttp.h"
@@ -25,6 +26,52 @@
 #endif
 
 IMPLEMENT_MODULE(FMixerInteractivityModule_UE, MixerInteractivity);
+
+FMixerInteractivityModule_UE::FMixerInteractivityModule_UE()
+	: TMixerWebSocketOwnerBase<FMixerInteractivityModule_UE>(MixerStringConstants::MessageTypes::Method, MixerStringConstants::FieldNames::Method, MixerStringConstants::FieldNames::Params)
+{
+
+}
+
+void FMixerInteractivityModule_UE::StartInteractivity()
+{
+	switch (GetInteractivityState())
+	{
+	case EMixerInteractivityState::Interactivity_Stopping:
+	case EMixerInteractivityState::Not_Interactive:
+		if (GetInteractiveConnectionAuthState() == EMixerLoginState::Logged_In)
+		{
+			TSharedPtr<FJsonObject> ReadyParams = MakeShared<FJsonObject>();
+			ReadyParams->SetBoolField(MixerStringConstants::FieldNames::IsReady, true);
+			SendMethodMessage(TEXT("ready"), nullptr, ReadyParams);
+			SetInteractivityState(EMixerInteractivityState::Interactivity_Starting);
+		}
+		break;
+
+	default:
+		break;
+	}
+}
+
+void FMixerInteractivityModule_UE::StopInteractivity()
+{
+	switch (GetInteractivityState())
+	{
+	case EMixerInteractivityState::Interactivity_Starting:
+	case EMixerInteractivityState::Interactive:
+		if (GetInteractiveConnectionAuthState() == EMixerLoginState::Logged_In)
+		{
+			TSharedPtr<FJsonObject> ReadyParams = MakeShared<FJsonObject>();
+			ReadyParams->SetBoolField(MixerStringConstants::FieldNames::IsReady, false);
+			SendMethodMessage(TEXT("ready"), nullptr, ReadyParams);
+			SetInteractivityState(EMixerInteractivityState::Interactivity_Stopping);
+		}
+		break;
+
+	default:
+		break;
+	}
+}
 
 bool FMixerInteractivityModule_UE::StartInteractiveConnection()
 {
@@ -103,102 +150,101 @@ void FMixerInteractivityModule_UE::OpenWebSocket()
 		*SharecodeParam);
 	UE_LOG(LogMixerInteractivity, Verbose, TEXT("Opening web socket to %s for interactivity"), *Endpoints[0]);
 
-	// Explicitly list protocols for the benefit of Xbox
-	TArray<FString> Protocols;
-	Protocols.Add(TEXT("wss"));
-	Protocols.Add(TEXT("ws"));
-	WebSocket = FModuleManager::LoadModuleChecked<FWebSocketsModule>("WebSockets").CreateWebSocket(EndpointWithAuth, Protocols);
 	Endpoints.RemoveAtSwap(0);
-
-	if (WebSocket.IsValid())
-	{
-		WebSocket->OnConnected().AddRaw(this, &FMixerInteractivityModule_UE::OnSocketConnected);
-		WebSocket->OnConnectionError().AddRaw(this, &FMixerInteractivityModule_UE::OnSocketConnectionError);
-		WebSocket->OnMessage().AddRaw(this, &FMixerInteractivityModule_UE::OnSocketMessage);
-		WebSocket->OnClosed().AddRaw(this, &FMixerInteractivityModule_UE::OnSocketClosed);
-
-		WebSocket->Connect();
-	}
+	InitConnection(EndpointWithAuth);
 }
 
-void FMixerInteractivityModule_UE::CloseWebSocket()
+void FMixerInteractivityModule_UE::HandleSocketConnected()
 {
-	if (WebSocket.IsValid())
-	{
-		WebSocket->OnConnected().RemoveAll(this);
-		WebSocket->OnConnectionError().RemoveAll(this);
-		WebSocket->OnMessage().RemoveAll(this);
-		WebSocket->OnClosed().RemoveAll(this);
-
-		if (WebSocket->IsConnected())
-		{
-			WebSocket->Close();
-		}
-
-		WebSocket.Reset();
-	}
-}
-
-void FMixerInteractivityModule_UE::OnSocketConnected()
-{
-	UE_LOG(LogMixerInteractivity, Verbose, TEXT("Interactivity socket connected!"));
-
 	// No real action here - we'll wait for a hello
 }
 
-void FMixerInteractivityModule_UE::OnSocketConnectionError(const FString& ErrorMessage)
+void FMixerInteractivityModule_UE::HandleSocketConnectionError()
 {
-	UE_LOG(LogMixerInteractivity, Warning, TEXT("Failed to connect web socket for interactivity with error %s"), *ErrorMessage);
-	CloseWebSocket();
+	// Retry if we still have endpoints available
 	OpenWebSocket();
 }
 
-void FMixerInteractivityModule_UE::OnSocketMessage(const FString& MessageJsonString)
+void FMixerInteractivityModule_UE::HandleSocketClosed( bool bWasClean)
 {
-	UE_LOG(LogMixerInteractivity, Verbose, TEXT("Interactivity message %s"), *MessageJsonString);
-
-	bool bHandled = false;
-	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(MessageJsonString);
-	TSharedPtr<FJsonObject> JsonObj;
-	if (FJsonSerializer::Deserialize(JsonReader, JsonObj) && JsonObj.IsValid())
-	{
-		bHandled = OnSocketMessageInternal(JsonObj.Get());
-	}
-
-	if (!bHandled)
-	{
-		UE_LOG(LogMixerInteractivity, Error, TEXT("Failed to handle interactivity message from server: %s"), *MessageJsonString);
-	}
-}
-
-void FMixerInteractivityModule_UE::OnSocketClosed(int32 StatusCode, const FString& Reason, bool bWasClean)
-{
-	UE_LOG(LogMixerInteractivity, Warning, TEXT("Interactivity websocket closed with reason '%s'."), *Reason);
-
-	CloseWebSocket();
-
 	// Attempt to reconnect
 	OpenWebSocket();
 }
 
-bool FMixerInteractivityModule_UE::OnSocketMessageInternal(FJsonObject* JsonObj)
+void FMixerInteractivityModule_UE::RegisterAllServerMessageHandlers()
 {
-	bool bHandled = false;
-	GET_JSON_STRING_RETURN_FAILURE(Type, MessageType);
-	if (MessageType == MixerStringConstants::MessageTypes::Reply)
+	RegisterServerMessageHandler(TEXT("hello"), &FMixerInteractivityModule_UE::HandleHello);
+	RegisterServerMessageHandler(TEXT("giveInput"), &FMixerInteractivityModule_UE::HandleGiveInput);
+	RegisterServerMessageHandler(TEXT("onParticipantJoin"), &FMixerInteractivityModule_UE::HandleParticipantJoin);
+	RegisterServerMessageHandler(TEXT("onReady"), &FMixerInteractivityModule_UE::HandleReadyStateChange);
+}
+
+bool FMixerInteractivityModule_UE::HandleHello(FJsonObject* JsonObj)
+{
+	SendMethodMessage(TEXT("getScenes"), &FMixerInteractivityModule_UE::HandleGetScenesReply, nullptr);
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::HandleGiveInput(FJsonObject* JsonObj)
+{
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::HandleParticipantJoin(FJsonObject* JsonObj)
+{
+	GET_JSON_ARRAY_RETURN_FAILURE(Participants, JoiningParticipants);
+
+	bool bHandled = true;
+	for (const TSharedPtr<FJsonValue>& JoiningParticipant : *JoiningParticipants)
 	{
+		bHandled &= HandleSingleJoiningParticipant(JoiningParticipant->AsObject().Get());
 	}
-	else if (MessageType == MixerStringConstants::MessageTypes::Method)
+	return bHandled;
+}
+
+bool FMixerInteractivityModule_UE::HandleReadyStateChange(FJsonObject* JsonObj)
+{
+	GET_JSON_BOOL_RETURN_FAILURE(IsReady, bIsReady);
+	SetInteractivityState(bIsReady ? EMixerInteractivityState::Interactive : EMixerInteractivityState::Not_Interactive);
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::HandleGetScenesReply(FJsonObject* JsonObj)
+{
+	// @TODO - parse scenes
+	SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::HandleSingleJoiningParticipant(const FJsonObject* JsonObj)
+{
+	GET_JSON_STRING_RETURN_FAILURE(UserNameNoUnderscore, Username);
+	GET_JSON_INT_RETURN_FAILURE(UserIdNoUnderscore, UserId);
+	GET_JSON_INT_RETURN_FAILURE(Level, UserLevel);
+	GET_JSON_DOUBLE_RETURN_FAILURE(LastInputAt, LastInputAtDouble);
+	GET_JSON_DOUBLE_RETURN_FAILURE(ConnectedAt, ConnectedAtDouble);
+	GET_JSON_STRING_RETURN_FAILURE(GroupId, GroupId);
+	GET_JSON_STRING_RETURN_FAILURE(SessionId, SessionGuidString);
+
+	FGuid SessionGuid;
+	if (!FGuid::Parse(SessionGuidString, SessionGuid))
 	{
-		GET_JSON_STRING_RETURN_FAILURE(Method, MethodType);
-		if (MethodType == TEXT("hello"))
-		{
-			SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
-			bHandled = true;
-		}
+		UE_LOG(LogMixerInteractivity, Error, TEXT("sessionID field %s for onParticipantJoin was not in the expected format (guid)"), *SessionGuidString);
+		return false;
 	}
 
-	return bHandled;
+	TSharedPtr<FMixerRemoteUser> RemoteUser = MakeShared<FMixerRemoteUser>();
+	RemoteUser->Name = Username;
+	RemoteUser->Id = UserId;
+	RemoteUser->Level = UserLevel;
+	RemoteUser->ConnectedAt = FDateTime::FromUnixTimestamp(static_cast<int64>(ConnectedAtDouble / 1000.0));
+	RemoteUser->InputAt = FDateTime::FromUnixTimestamp(static_cast<int64>(LastInputAtDouble / 1000.0));
+	RemoteUser->Group = *GroupId;
+	RemoteParticipantCacheByGuid.Add(SessionGuid, RemoteUser);
+	RemoteParticipantCachedByUint.Add(RemoteUser->Id, RemoteUser);
+	OnParticipantStateChanged().Broadcast(RemoteUser, EMixerInteractivityParticipantState::Joined);
+
+	return true;
 }
 
 #endif
