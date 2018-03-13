@@ -27,6 +27,71 @@
 
 IMPLEMENT_MODULE(FMixerInteractivityModule_UE, MixerInteractivity);
 
+struct FMixerReadyMessageParams : public FJsonSerializable
+{
+public:
+	bool bReady;
+public:
+	BEGIN_JSON_SERIALIZER
+		JSON_SERIALIZE("isReady", bReady);
+	END_JSON_SERIALIZER
+};
+
+struct FMixerUpdateGroupMessageParamsEntry : public FJsonSerializable
+{
+public:
+	FString GroupId;
+	FString SceneId;
+public:
+	BEGIN_JSON_SERIALIZER
+		JSON_SERIALIZE("groupID", GroupId);
+		JSON_SERIALIZE("sceneID", SceneId);
+	END_JSON_SERIALIZER
+};
+
+struct FMixerUpdateGroupMessageParams : public FJsonSerializable
+{
+public:
+	TArray<FMixerUpdateGroupMessageParamsEntry> Groups;
+public:
+	BEGIN_JSON_SERIALIZER
+		JSON_SERIALIZE_ARRAY_SERIALIZABLE("groups", Groups, FMixerUpdateGroupMessageParamsEntry);
+	END_JSON_SERIALIZER
+};
+
+struct FMixerUpdateParticipantGroupParamsEntry : public FJsonSerializable
+{
+public:
+	FString ParticipantSessionGuid;
+	FString GroupId;
+public:
+	BEGIN_JSON_SERIALIZER
+		JSON_SERIALIZE("sessionID", ParticipantSessionGuid);
+		JSON_SERIALIZE("groupID", GroupId);
+	END_JSON_SERIALIZER
+};
+
+struct FMixerUpdateParticipantGroupParams : public FJsonSerializable
+{
+public:
+	TArray<FMixerUpdateParticipantGroupParamsEntry> Participants;
+public:
+	BEGIN_JSON_SERIALIZER
+		JSON_SERIALIZE_ARRAY_SERIALIZABLE("participants", Participants, FMixerUpdateParticipantGroupParamsEntry);
+	END_JSON_SERIALIZER
+};
+
+struct FMixerCaptureTransactionParams : public FJsonSerializable
+{
+public:
+	FString TransactionId;
+public:
+	BEGIN_JSON_SERIALIZER
+		JSON_SERIALIZE("transactionID", TransactionId);
+	END_JSON_SERIALIZER
+};
+
+
 FMixerInteractivityModule_UE::FMixerInteractivityModule_UE()
 	: TMixerWebSocketOwnerBase<FMixerInteractivityModule_UE>(MixerStringConstants::MessageTypes::Method, MixerStringConstants::FieldNames::Method, MixerStringConstants::FieldNames::Params)
 {
@@ -40,9 +105,9 @@ void FMixerInteractivityModule_UE::StartInteractivity()
 	case EMixerInteractivityState::Not_Interactive:
 		if (GetInteractiveConnectionAuthState() == EMixerLoginState::Logged_In)
 		{
-			TSharedPtr<FJsonObject> ReadyParams = MakeShared<FJsonObject>();
-			ReadyParams->SetBoolField(MixerStringConstants::FieldNames::IsReady, true);
-			SendMethodMessage(TEXT("ready"), nullptr, ReadyParams);
+			FMixerReadyMessageParams Params;
+			Params.bReady = true;
+			SendMethodMessageObjectParams(TEXT("ready"), nullptr, Params);
 			SetInteractivityState(EMixerInteractivityState::Interactivity_Starting);
 		}
 		break;
@@ -60,9 +125,9 @@ void FMixerInteractivityModule_UE::StopInteractivity()
 	case EMixerInteractivityState::Interactive:
 		if (GetInteractiveConnectionAuthState() == EMixerLoginState::Logged_In)
 		{
-			TSharedPtr<FJsonObject> ReadyParams = MakeShared<FJsonObject>();
-			ReadyParams->SetBoolField(MixerStringConstants::FieldNames::IsReady, false);
-			SendMethodMessage(TEXT("ready"), nullptr, ReadyParams);
+			FMixerReadyMessageParams Params;
+			Params.bReady = false;
+			SendMethodMessageObjectParams(TEXT("ready"), nullptr, Params);
 			SetInteractivityState(EMixerInteractivityState::Interactivity_Stopping);
 		}
 		break;
@@ -74,14 +139,65 @@ void FMixerInteractivityModule_UE::StopInteractivity()
 
 void FMixerInteractivityModule_UE::SetCurrentScene(FName Scene, FName GroupName)
 {
-	TSharedPtr<FJsonObject> SingleGroup = MakeShared<FJsonObject>();
-	SingleGroup->SetStringField(MixerStringConstants::FieldNames::GroupId, GroupName != NAME_None ? GroupName.ToString() : TEXT("default"));
-	SingleGroup->SetStringField(MixerStringConstants::FieldNames::SceneId, Scene.ToString());
-	TArray<TSharedPtr<FJsonValue>> GroupsArray;
-	GroupsArray.Add(MakeShared<FJsonValueObject>(SingleGroup));
-	TSharedPtr<FJsonObject> UpdateGroupsParams = MakeShared<FJsonObject>();
-	UpdateGroupsParams->SetArrayField(TEXT("groups"), GroupsArray);
-	SendMethodMessage(TEXT("updateGroups"), nullptr, UpdateGroupsParams);
+	CreateOrUpdateGroup(TEXT("updateGroups"), Scene, GroupName);
+}
+
+TSharedPtr<const FMixerRemoteUser> FMixerInteractivityModule_UE::GetParticipant(uint32 ParticipantId)
+{
+	TSharedPtr<FMixerRemoteUserCached>* ExistingUser = RemoteParticipantCacheByUint.Find(ParticipantId);
+	return ExistingUser != nullptr ? *ExistingUser : nullptr;
+}
+
+bool FMixerInteractivityModule_UE::CreateGroup(FName GroupName, FName InitialScene)
+{
+	return CreateOrUpdateGroup(TEXT("createGroups"), InitialScene, GroupName);
+}
+
+bool FMixerInteractivityModule_UE::GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants)
+{
+	for (TMap<uint32, TSharedPtr<FMixerRemoteUserCached>>::TConstIterator It(RemoteParticipantCacheByUint); It; ++It)
+	{
+		if (It->Value->Group == GroupName)
+		{
+			OutParticipants.Add(It->Value);
+		}
+	}
+
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::MoveParticipantToGroup(FName GroupName, uint32 ParticipantId)
+{
+	if (GetInteractiveConnectionAuthState() != EMixerLoginState::Logged_In)
+	{
+		return false;
+	}
+
+	TSharedPtr<FMixerRemoteUserCached>* ExistingUser = RemoteParticipantCacheByUint.Find(ParticipantId);
+	if (ExistingUser == nullptr)
+	{
+		return false;
+	}
+
+	FMixerUpdateParticipantGroupParamsEntry ParamEntry;
+	ParamEntry.ParticipantSessionGuid = (*ExistingUser)->SessionGuid.ToString(EGuidFormats::DigitsWithHyphens).ToLower();
+	ParamEntry.GroupId = GroupName.ToString();
+
+	FMixerUpdateParticipantGroupParams Params;
+	Params.Participants.Add(ParamEntry);
+	SendMethodMessageObjectParams(TEXT("updateParticipants"), nullptr, Params);
+
+	return true;
+}
+
+void FMixerInteractivityModule_UE::CaptureSparkTransaction(const FString& TransactionId)
+{
+	if (GetInteractiveConnectionAuthState() == EMixerLoginState::Logged_In)
+	{
+		FMixerCaptureTransactionParams Params;
+		Params.TransactionId = TransactionId;
+		SendMethodMessageObjectParams(TEXT("capture"), nullptr, Params);
+	}
 }
 
 bool FMixerInteractivityModule_UE::StartInteractiveConnection()
@@ -165,6 +281,23 @@ void FMixerInteractivityModule_UE::OpenWebSocket()
 	InitConnection(EndpointWithAuth);
 }
 
+bool FMixerInteractivityModule_UE::CreateOrUpdateGroup(const FString& MethodName, FName Scene, FName GroupName)
+{
+	if (GetInteractiveConnectionAuthState() != EMixerLoginState::Logged_In)
+	{
+		return false;
+	}
+
+	FMixerUpdateGroupMessageParamsEntry ParamEntry;
+	ParamEntry.GroupId = GroupName.ToString();
+	ParamEntry.SceneId = Scene != NAME_None ? Scene.ToString() : TEXT("default");
+	FMixerUpdateGroupMessageParams Params;
+	Params.Groups.Add(ParamEntry);
+
+	SendMethodMessageObjectParams(MethodName, nullptr, Params);
+	return true;
+}
+
 void FMixerInteractivityModule_UE::HandleSocketConnected()
 {
 	// No real action here - we'll wait for a hello
@@ -194,7 +327,7 @@ void FMixerInteractivityModule_UE::RegisterAllServerMessageHandlers()
 
 bool FMixerInteractivityModule_UE::HandleHello(FJsonObject* JsonObj)
 {
-	SendMethodMessage(TEXT("getScenes"), &FMixerInteractivityModule_UE::HandleGetScenesReply, nullptr);
+	SendMethodMessageNoParams(TEXT("getScenes"), &FMixerInteractivityModule_UE::HandleGetScenesReply);
 	return true;
 }
 
@@ -211,7 +344,7 @@ bool FMixerInteractivityModule_UE::HandleGiveInput(FJsonObject* JsonObj)
 
 	GET_JSON_OBJECT_RETURN_FAILURE(Input, InputObj);
 
-	TSharedPtr<FMixerRemoteUser>* RemoteUser = RemoteParticipantCacheByGuid.Find(ParticipantGuid);
+	TSharedPtr<FMixerRemoteUserCached>* RemoteUser = RemoteParticipantCacheByGuid.Find(ParticipantGuid);
 	return HandleGiveInput(RemoteUser ? *RemoteUser : nullptr, JsonObj, InputObj->Get());
 }
 
@@ -335,8 +468,8 @@ bool FMixerInteractivityModule_UE::HandleSingleParticipantChange(const FJsonObje
 		return false;
 	}
 
-	TSharedPtr<FMixerRemoteUser> RemoteUser;
-	TSharedPtr<FMixerRemoteUser>* ExistingUser = RemoteParticipantCacheByUint.Find(UserId);
+	TSharedPtr<FMixerRemoteUserCached> RemoteUser;
+	TSharedPtr<FMixerRemoteUserCached>* ExistingUser = RemoteParticipantCacheByUint.Find(UserId);
 	bool bOldInputEnabled = false;
 	if (ExistingUser != nullptr)
 	{
@@ -345,8 +478,9 @@ bool FMixerInteractivityModule_UE::HandleSingleParticipantChange(const FJsonObje
 	}
 	else
 	{
-		RemoteUser = MakeShared<FMixerRemoteUser>();
+		RemoteUser = MakeShared<FMixerRemoteUserCached>();
 		RemoteUser->Id = UserId;
+		RemoteUser->SessionGuid = SessionGuid;
 		RemoteUser->ConnectedAt = FDateTime::FromUnixTimestamp(static_cast<int64>(ConnectedAtDouble / 1000.0));
 
 		if (EventType != EMixerInteractivityParticipantState::Left)

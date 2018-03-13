@@ -17,6 +17,11 @@
 
 #include "MixerWebSocketOwnerBase.h"
 
+struct FMixerRemoteUserCached : public FMixerRemoteUser
+{
+public:
+	FGuid SessionGuid;
+};
 
 class FMixerInteractivityModule_UE
 	: public FMixerInteractivityModule
@@ -37,11 +42,11 @@ public:
 	virtual bool GetStickDescription(FName Stick, FMixerStickDescription& OutDesc) { return false; }
 	virtual bool GetStickState(FName Stick, FMixerStickState& OutState) { return false; }
 	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState) { return false; }
-	virtual TSharedPtr<const FMixerRemoteUser> GetParticipant(uint32 ParticipantId) { return nullptr; }
-	virtual bool CreateGroup(FName GroupName, FName InitialScene = NAME_None) { return false; }
-	virtual bool GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants) { return false; }
-	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId) { return false; }
-	virtual void CaptureSparkTransaction(const FString& TransactionId) {}
+	virtual TSharedPtr<const FMixerRemoteUser> GetParticipant(uint32 ParticipantId);
+	virtual bool CreateGroup(FName GroupName, FName InitialScene = NAME_None);
+	virtual bool GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants);
+	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId);
+	virtual void CaptureSparkTransaction(const FString& TransactionId);
 
 protected:
 	virtual bool StartInteractiveConnection();
@@ -58,6 +63,8 @@ private:
 
 	void OpenWebSocket();
 
+	bool CreateOrUpdateGroup(const FString& MethodName, FName Scene, FName GroupName);
+
 	bool HandleHello(FJsonObject* JsonObj);
 	bool HandleGiveInput(FJsonObject* JsonObj);
 	bool HandleParticipantJoin(FJsonObject* JsonObj);
@@ -73,8 +80,8 @@ private:
 
 private:
 	TArray<FString> Endpoints;
-	TMap<FGuid, TSharedPtr<FMixerRemoteUser>> RemoteParticipantCacheByGuid;
-	TMap<uint32, TSharedPtr<FMixerRemoteUser>> RemoteParticipantCacheByUint;
+	TMap<FGuid, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCacheByGuid;
+	TMap<uint32, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCacheByUint;
 };
 
 #endif
