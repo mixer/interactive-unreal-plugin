@@ -598,7 +598,8 @@ void FMixerInteractivityModule_InteractiveCpp::CallRemoteMethod(const FString& M
 	TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&SerializedParams, 0);
 	FJsonSerializer::Serialize(MethodParams, Writer);
 
-	Microsoft::mixer::interactivity_manager::get_singleton_instance()->send_rpc_message(*MethodName, *SerializedParams);
+	// Not available in the version of interactive-cpp currently in use
+	//Microsoft::mixer::interactivity_manager::get_singleton_instance()->send_rpc_message(*MethodName, *SerializedParams);
 }
 
 FMixerRemoteUserCached::FMixerRemoteUserCached(std::shared_ptr<Microsoft::mixer::interactive_participant> InParticipant)
