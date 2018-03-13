@@ -77,6 +77,13 @@ namespace MixerStringConstants
 		const FString SessionId = TEXT("sessionID");
 		const FString Participants = TEXT("participants");
 		const FString IsReady = TEXT("isReady");
+		const FString ParticipantId = TEXT("participantID");
+		const FString Input = TEXT("input");
+		const FString TransactionId = TEXT("transactionID");
+		const FString ControlId = TEXT("controlID");
+		const FString X = TEXT("x");
+		const FString Y = TEXT("y");
+		const FString SceneId = TEXT("sceneID");
 	}
 
 	namespace Permissions

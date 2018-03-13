@@ -82,6 +82,13 @@ namespace MixerStringConstants
 		extern const FString SessionId;
 		extern const FString Participants;
 		extern const FString IsReady;
+		extern const FString ParticipantId;
+		extern const FString Input;
+		extern const FString TransactionId;
+		extern const FString ControlId;
+		extern const FString X;
+		extern const FString Y;
+		extern const FString SceneId;
 	}
 
 	namespace Permissions

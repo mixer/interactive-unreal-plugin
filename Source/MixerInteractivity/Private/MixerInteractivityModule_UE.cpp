@@ -30,7 +30,6 @@ IMPLEMENT_MODULE(FMixerInteractivityModule_UE, MixerInteractivity);
 FMixerInteractivityModule_UE::FMixerInteractivityModule_UE()
 	: TMixerWebSocketOwnerBase<FMixerInteractivityModule_UE>(MixerStringConstants::MessageTypes::Method, MixerStringConstants::FieldNames::Method, MixerStringConstants::FieldNames::Params)
 {
-
 }
 
 void FMixerInteractivityModule_UE::StartInteractivity()
@@ -71,6 +70,18 @@ void FMixerInteractivityModule_UE::StopInteractivity()
 	default:
 		break;
 	}
+}
+
+void FMixerInteractivityModule_UE::SetCurrentScene(FName Scene, FName GroupName)
+{
+	TSharedPtr<FJsonObject> SingleGroup = MakeShared<FJsonObject>();
+	SingleGroup->SetStringField(MixerStringConstants::FieldNames::GroupId, GroupName != NAME_None ? GroupName.ToString() : TEXT("default"));
+	SingleGroup->SetStringField(MixerStringConstants::FieldNames::SceneId, Scene.ToString());
+	TArray<TSharedPtr<FJsonValue>> GroupsArray;
+	GroupsArray.Add(MakeShared<FJsonValueObject>(SingleGroup));
+	TSharedPtr<FJsonObject> UpdateGroupsParams = MakeShared<FJsonObject>();
+	UpdateGroupsParams->SetArrayField(TEXT("groups"), GroupsArray);
+	SendMethodMessage(TEXT("updateGroups"), nullptr, UpdateGroupsParams);
 }
 
 bool FMixerInteractivityModule_UE::StartInteractiveConnection()
@@ -176,6 +187,8 @@ void FMixerInteractivityModule_UE::RegisterAllServerMessageHandlers()
 	RegisterServerMessageHandler(TEXT("hello"), &FMixerInteractivityModule_UE::HandleHello);
 	RegisterServerMessageHandler(TEXT("giveInput"), &FMixerInteractivityModule_UE::HandleGiveInput);
 	RegisterServerMessageHandler(TEXT("onParticipantJoin"), &FMixerInteractivityModule_UE::HandleParticipantJoin);
+	RegisterServerMessageHandler(TEXT("onParticipantLeave"), &FMixerInteractivityModule_UE::HandleParticipantLeave);
+	RegisterServerMessageHandler(TEXT("onParticipantUpdate"), &FMixerInteractivityModule_UE::HandleParticipantUpdate);
 	RegisterServerMessageHandler(TEXT("onReady"), &FMixerInteractivityModule_UE::HandleReadyStateChange);
 }
 
@@ -187,19 +200,34 @@ bool FMixerInteractivityModule_UE::HandleHello(FJsonObject* JsonObj)
 
 bool FMixerInteractivityModule_UE::HandleGiveInput(FJsonObject* JsonObj)
 {
-	return true;
+	GET_JSON_STRING_RETURN_FAILURE(ParticipantId, ParticipantGuidString);
+
+	FGuid ParticipantGuid;
+	if (!FGuid::Parse(ParticipantGuidString, ParticipantGuid))
+	{
+		UE_LOG(LogMixerInteractivity, Error, TEXT("%s field %s for input event was not in the expected format (guid)"), *MixerStringConstants::FieldNames::ParticipantId, *ParticipantGuidString);
+		return false;
+	}
+
+	GET_JSON_OBJECT_RETURN_FAILURE(Input, InputObj);
+
+	TSharedPtr<FMixerRemoteUser>* RemoteUser = RemoteParticipantCacheByGuid.Find(ParticipantGuid);
+	return HandleGiveInput(RemoteUser ? *RemoteUser : nullptr, JsonObj, InputObj->Get());
 }
 
 bool FMixerInteractivityModule_UE::HandleParticipantJoin(FJsonObject* JsonObj)
 {
-	GET_JSON_ARRAY_RETURN_FAILURE(Participants, JoiningParticipants);
+	return HandleParticipantEvent(JsonObj, EMixerInteractivityParticipantState::Joined);
+}
 
-	bool bHandled = true;
-	for (const TSharedPtr<FJsonValue>& JoiningParticipant : *JoiningParticipants)
-	{
-		bHandled &= HandleSingleJoiningParticipant(JoiningParticipant->AsObject().Get());
-	}
-	return bHandled;
+bool FMixerInteractivityModule_UE::HandleParticipantLeave(FJsonObject* JsonObj)
+{
+	return HandleParticipantEvent(JsonObj, EMixerInteractivityParticipantState::Left);
+}
+
+bool FMixerInteractivityModule_UE::HandleParticipantUpdate(FJsonObject* JsonObj)
+{
+	return HandleParticipantEvent(JsonObj, EMixerInteractivityParticipantState::Input_Disabled);
 }
 
 bool FMixerInteractivityModule_UE::HandleReadyStateChange(FJsonObject* JsonObj)
@@ -216,7 +244,81 @@ bool FMixerInteractivityModule_UE::HandleGetScenesReply(FJsonObject* JsonObj)
 	return true;
 }
 
-bool FMixerInteractivityModule_UE::HandleSingleJoiningParticipant(const FJsonObject* JsonObj)
+bool FMixerInteractivityModule_UE::HandleGiveInput(TSharedPtr<FMixerRemoteUser> Participant, FJsonObject* FullParamsJson, FJsonObject* InputObjJson)
+{
+	// Alias so macros work
+	FJsonObject* JsonObj = InputObjJson;
+
+	GET_JSON_STRING_RETURN_FAILURE(ControlId, ControlId);
+	GET_JSON_STRING_RETURN_FAILURE(Event, EventType);
+
+	// @TODO -
+	// Need additional checks in case multiple types support
+	// the same event.  Requires that we maintain scene structure 
+	// so we can lookup control kind.
+	FString ControlKind;
+	if (EventType == TEXT("mousedown")) // && ControlKind == TEXT("button"))
+	{
+		FMixerButtonEventDetails EventDetails;
+		EventDetails.Pressed = true;
+		if (FullParamsJson->TryGetStringField(MixerStringConstants::FieldNames::TransactionId, EventDetails.TransactionId))
+		{
+			// @TODO
+			// Lookup actual Spark cost.  Requires scene structure. 
+		}
+		else
+		{
+			EventDetails.SparkCost = 0;
+		}
+		OnButtonEvent().Broadcast(*ControlId, Participant, EventDetails);
+		return true;
+	}
+	else if (EventType == TEXT("mouseup")) // && ControlKind == TEXT("button"))
+	{
+		FMixerButtonEventDetails EventDetails;
+		EventDetails.Pressed = false;
+		if (FullParamsJson->TryGetStringField(MixerStringConstants::FieldNames::TransactionId, EventDetails.TransactionId))
+		{
+			// @TODO
+			// Lookup actual Spark cost.  Requires scene structure. 
+		}
+		else
+		{
+			EventDetails.SparkCost = 0;
+		}
+		EventDetails.SparkCost = 0; //?
+		OnButtonEvent().Broadcast(*ControlId, Participant, EventDetails);
+		return true;
+	}
+	else if (EventType == TEXT("move")) // && ControlKind == TEXT("joystick"))
+	{
+		GET_JSON_DOUBLE_RETURN_FAILURE(X, X);
+		GET_JSON_DOUBLE_RETURN_FAILURE(Y, Y);
+
+		OnStickEvent().Broadcast(*ControlId, Participant, FVector2D(static_cast<float>(X), static_cast<float>(Y)));
+		return true;
+	}
+	else
+	{
+		// Custom/unknown control event
+		// Pretend it's handled for now
+		return true;
+	}
+}
+
+bool FMixerInteractivityModule_UE::HandleParticipantEvent(FJsonObject* JsonObj, EMixerInteractivityParticipantState EventType)
+{
+	GET_JSON_ARRAY_RETURN_FAILURE(Participants, ChangingParticipants);
+
+	bool bHandled = true;
+	for (const TSharedPtr<FJsonValue>& Participant : *ChangingParticipants)
+	{
+		bHandled &= HandleSingleParticipantChange(Participant->AsObject().Get(), EventType);
+	}
+	return bHandled;
+}
+
+bool FMixerInteractivityModule_UE::HandleSingleParticipantChange(const FJsonObject* JsonObj, EMixerInteractivityParticipantState EventType)
 {
 	GET_JSON_STRING_RETURN_FAILURE(UserNameNoUnderscore, Username);
 	GET_JSON_INT_RETURN_FAILURE(UserIdNoUnderscore, UserId);
@@ -229,20 +331,41 @@ bool FMixerInteractivityModule_UE::HandleSingleJoiningParticipant(const FJsonObj
 	FGuid SessionGuid;
 	if (!FGuid::Parse(SessionGuidString, SessionGuid))
 	{
-		UE_LOG(LogMixerInteractivity, Error, TEXT("sessionID field %s for onParticipantJoin was not in the expected format (guid)"), *SessionGuidString);
+		UE_LOG(LogMixerInteractivity, Error, TEXT("sessionID field %s for participant event was not in the expected format (guid)"), *SessionGuidString);
 		return false;
 	}
 
-	TSharedPtr<FMixerRemoteUser> RemoteUser = MakeShared<FMixerRemoteUser>();
+	TSharedPtr<FMixerRemoteUser> RemoteUser;
+	TSharedPtr<FMixerRemoteUser>* ExistingUser = RemoteParticipantCacheByUint.Find(UserId);
+	if (ExistingUser != nullptr)
+	{
+		RemoteUser = *ExistingUser;
+	}
+	else
+	{
+		RemoteUser = MakeShared<FMixerRemoteUser>();
+		RemoteUser->Id = UserId;
+		RemoteUser->ConnectedAt = FDateTime::FromUnixTimestamp(static_cast<int64>(ConnectedAtDouble / 1000.0));
+
+		if (EventType != EMixerInteractivityParticipantState::Left)
+		{
+			RemoteParticipantCacheByGuid.Add(SessionGuid, RemoteUser);
+			RemoteParticipantCacheByUint.Add(RemoteUser->Id, RemoteUser);
+		}
+	}
+
 	RemoteUser->Name = Username;
-	RemoteUser->Id = UserId;
 	RemoteUser->Level = UserLevel;
-	RemoteUser->ConnectedAt = FDateTime::FromUnixTimestamp(static_cast<int64>(ConnectedAtDouble / 1000.0));
 	RemoteUser->InputAt = FDateTime::FromUnixTimestamp(static_cast<int64>(LastInputAtDouble / 1000.0));
 	RemoteUser->Group = *GroupId;
-	RemoteParticipantCacheByGuid.Add(SessionGuid, RemoteUser);
-	RemoteParticipantCachedByUint.Add(RemoteUser->Id, RemoteUser);
-	OnParticipantStateChanged().Broadcast(RemoteUser, EMixerInteractivityParticipantState::Joined);
+
+	OnParticipantStateChanged().Broadcast(RemoteUser, EventType);
+
+	if (ExistingUser != nullptr && EventType == EMixerInteractivityParticipantState::Left)
+	{
+		RemoteParticipantCacheByGuid.Remove(SessionGuid);
+		RemoteParticipantCacheByUint.Remove(UserId);
+	}
 
 	return true;
 }

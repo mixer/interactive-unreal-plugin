@@ -28,7 +28,7 @@ public:
 public:
 	virtual void StartInteractivity();
 	virtual void StopInteractivity();
-	virtual void SetCurrentScene(FName Scene, FName GroupName = NAME_None) {}
+	virtual void SetCurrentScene(FName Scene, FName GroupName = NAME_None);
 	virtual FName GetCurrentScene(FName GroupName = NAME_None) { return NAME_None; }
 	virtual void TriggerButtonCooldown(FName Button, FTimespan CooldownTime) {}
 	virtual bool GetButtonDescription(FName Button, FMixerButtonDescription& OutDesc) { return false; }
@@ -61,16 +61,20 @@ private:
 	bool HandleHello(FJsonObject* JsonObj);
 	bool HandleGiveInput(FJsonObject* JsonObj);
 	bool HandleParticipantJoin(FJsonObject* JsonObj);
+	bool HandleParticipantLeave(FJsonObject* JsonObj);
+	bool HandleParticipantUpdate(FJsonObject* JsonObj);
 	bool HandleReadyStateChange(FJsonObject* JsonObj);
 
 	bool HandleGetScenesReply(FJsonObject* JsonObj);
 
-	bool HandleSingleJoiningParticipant(const FJsonObject* JsonObj);
+	bool HandleGiveInput(TSharedPtr<FMixerRemoteUser> Participant, FJsonObject* FullParamsJson, FJsonObject* InputObjJson);
+	bool HandleParticipantEvent(FJsonObject* JsonObj, EMixerInteractivityParticipantState EventType);
+	bool HandleSingleParticipantChange(const FJsonObject* JsonObj, EMixerInteractivityParticipantState EventType);
 
 private:
 	TArray<FString> Endpoints;
 	TMap<FGuid, TSharedPtr<FMixerRemoteUser>> RemoteParticipantCacheByGuid;
-	TMap<uint32, TSharedPtr<FMixerRemoteUser>> RemoteParticipantCachedByUint;
+	TMap<uint32, TSharedPtr<FMixerRemoteUser>> RemoteParticipantCacheByUint;
 };
 
 #endif
