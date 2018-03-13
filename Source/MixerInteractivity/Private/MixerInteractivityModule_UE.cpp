@@ -337,9 +337,11 @@ bool FMixerInteractivityModule_UE::HandleSingleParticipantChange(const FJsonObje
 
 	TSharedPtr<FMixerRemoteUser> RemoteUser;
 	TSharedPtr<FMixerRemoteUser>* ExistingUser = RemoteParticipantCacheByUint.Find(UserId);
+	bool bOldInputEnabled = false;
 	if (ExistingUser != nullptr)
 	{
 		RemoteUser = *ExistingUser;
+		bOldInputEnabled = RemoteUser->InputEnabled;
 	}
 	else
 	{
@@ -359,7 +361,10 @@ bool FMixerInteractivityModule_UE::HandleSingleParticipantChange(const FJsonObje
 	RemoteUser->InputAt = FDateTime::FromUnixTimestamp(static_cast<int64>(LastInputAtDouble / 1000.0));
 	RemoteUser->Group = *GroupId;
 
-	OnParticipantStateChanged().Broadcast(RemoteUser, EventType);
+	if (EventType != EMixerInteractivityParticipantState::Input_Disabled || bOldInputEnabled != RemoteUser->InputEnabled)
+	{
+		OnParticipantStateChanged().Broadcast(RemoteUser, EventType);
+	}
 
 	if (ExistingUser != nullptr && EventType == EMixerInteractivityParticipantState::Left)
 	{
