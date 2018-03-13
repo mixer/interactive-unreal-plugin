@@ -16,27 +16,124 @@
 #include "MixerInteractivityLog.h"
 #include "StringConv.h"
 
+void FMixerInteractivityModule_InteractiveCpp2::StartInteractivity()
+{
+	if (InteractiveSession != nullptr)
+	{
+		if (mixer::interactive_set_ready(InteractiveSession, true) == mixer::MIXER_OK)
+		{
+			SetInteractivityState(EMixerInteractivityState::Interactivity_Starting);
+		}
+	}
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::StopInteractivity()
+{
+	if (InteractiveSession != nullptr)
+	{
+		if (mixer::interactive_set_ready(InteractiveSession, false) == mixer::MIXER_OK)
+		{
+			SetInteractivityState(EMixerInteractivityState::Interactivity_Stopping);
+		}
+	}
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::SetCurrentScene(FName Scene, FName GroupName)
+{
+	if (InteractiveSession != nullptr)
+	{
+		mixer::interactive_group_set_scene(InteractiveSession, GroupName != NAME_None ? GroupName.GetPlainANSIString() : "default", Scene.GetPlainANSIString());
+	}
+}
+
+FName FMixerInteractivityModule_InteractiveCpp2::GetCurrentScene(FName GroupName)
+{
+	FGetCurrentSceneEnumContext Context;
+	Context.GroupName = GroupName != NAME_None ? GroupName : FName("default");
+	Context.OutSceneName = NAME_None;
+	if (InteractiveSession != nullptr)
+	{
+		mixer::interactive_set_session_context(InteractiveSession, &Context);
+		mixer::interactive_get_groups(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateForGetCurrentScene);
+		mixer::interactive_set_session_context(InteractiveSession, nullptr);
+	}
+	return Context.OutSceneName;
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::TriggerButtonCooldown(FName Button, FTimespan CooldownTime)
+{
+	if (InteractiveSession != nullptr)
+	{
+		mixer::interactive_control_trigger_cooldown(InteractiveSession, Button.GetPlainANSIString(), static_cast<uint32>(CooldownTime.GetTotalMilliseconds()));
+	}
+}
+
+bool FMixerInteractivityModule_InteractiveCpp2::CreateGroup(FName GroupName, FName InitialScene)
+{
+	if (InteractiveSession == nullptr)
+	{
+		return false;
+	}
+
+	return mixer::interactive_create_group(InteractiveSession, GroupName.GetPlainANSIString(), InitialScene != NAME_None ? InitialScene.GetPlainANSIString() : "default") == mixer::MIXER_OK;
+}
+
+bool FMixerInteractivityModule_InteractiveCpp2::GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants)
+{
+	if (InteractiveSession == nullptr)
+	{
+		return false;
+	}
+
+	FGetParticipantsInGroupEnumContext Context;
+	Context.MixerModule = this;
+	Context.GroupName = GroupName != NAME_None ? GroupName : FName("default");
+	Context.OutParticipants = &OutParticipants;
+	mixer::interactive_set_session_context(InteractiveSession, &Context);
+	int32 EnumResult = mixer::interactive_get_participants(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateForGetParticipantsInGroup);
+	mixer::interactive_set_session_context(InteractiveSession, nullptr);
+	return EnumResult == mixer::MIXER_OK;
+}
+
+bool FMixerInteractivityModule_InteractiveCpp2::MoveParticipantToGroup(FName GroupName, uint32 ParticipantId)
+{
+	if (InteractiveSession == nullptr)
+	{
+		return false;
+	}
+
+	TSharedPtr<FMixerRemoteUserCached>* Participant = RemoteParticipantCacheByUint.Find(ParticipantId);
+	if (Participant == nullptr)
+	{
+		return false;
+	}
+
+	return mixer::interactive_set_participant_group(
+		InteractiveSession,
+		TCHAR_TO_UTF8(*(*Participant)->SessionGuid.ToString(EGuidFormats::DigitsWithHyphens).ToLower()),
+		GroupName.GetPlainANSIString()) == mixer::MIXER_OK;
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::CaptureSparkTransaction(const FString& TransactionId)
+{
+	if (InteractiveSession != nullptr)
+	{
+		mixer::interactive_capture_transaction(InteractiveSession, TCHAR_TO_UTF8(*TransactionId));
+	}
+}
+
 bool FMixerInteractivityModule_InteractiveCpp2::StartInteractiveConnection()
 {
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 	const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
 
-	mixer::interactive_config Config;
-	FTCHARToUTF8 AuthCodeUtf8(*UserSettings->AccessToken);
-	Config.authorization = AuthCodeUtf8.Get();
-	Config.authorizationLength = AuthCodeUtf8.Length();
-	FTCHARToUTF8 ShareCodeUtf8(*Settings->ShareCode);
-	Config.shareCode = ShareCodeUtf8.Get();
-	Config.shareCodeLength = ShareCodeUtf8.Length();
-	FTCHARToUTF8 VersionIdUtf8(*FString::FromInt(Settings->GameVersionId));
-	Config.versionId = VersionIdUtf8.Get();
-	Config.versionIdLength = VersionIdUtf8.Length();
-	Config.manualStart = true;
-
-	// Don't cache participante internally, we'll do it ourselves
-	Config.cacheParticipants = false;
-
-	if (mixer::interactive_connect(&Config, nullptr, &InteractiveSession) != mixer::MIXER_OK)
+	int32 ConnectResult = mixer::interactive_connect(
+							TCHAR_TO_UTF8(*UserSettings->AccessToken),
+							TCHAR_TO_UTF8(*FString::FromInt(Settings->GameVersionId)),
+							TCHAR_TO_UTF8(*Settings->ShareCode),
+							true,
+							&InteractiveSession);
+	if (ConnectResult != mixer::MIXER_OK)
 	{
 		return false;
 	}
@@ -54,7 +151,7 @@ bool FMixerInteractivityModule_InteractiveCpp2::Tick(float DeltaTime)
 {
 	FMixerInteractivityModule::Tick(DeltaTime);
 
-	mixer::interactive_run_one(InteractiveSession);
+	mixer::interactive_run(InteractiveSession, 10);
 
 	return true;
 }
@@ -96,7 +193,7 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput(void* Conte
 		return;
 	}
 
-	TSharedPtr<FMixerRemoteUser> ButtonUser = InteractiveModule.RemoteParticipantCacheByGuid.FindChecked(ParticipantGuid);
+	TSharedPtr<FMixerRemoteUserCached> ButtonUser = InteractiveModule.RemoteParticipantCacheByGuid.FindChecked(ParticipantGuid);
 	FMixerButtonEventDetails ButtonEventDetails;
 	ButtonEventDetails.Pressed = Input->action == mixer::down;
 	ButtonEventDetails.SparkCost = 0;
@@ -114,7 +211,7 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput(void* C
 		return;
 	}
 
-	TSharedPtr<FMixerRemoteUser> StickUser = InteractiveModule.RemoteParticipantCacheByGuid.FindChecked(ParticipantGuid);
+	TSharedPtr<FMixerRemoteUserCached> StickUser = InteractiveModule.RemoteParticipantCacheByGuid.FindChecked(ParticipantGuid);
 	InteractiveModule.OnStickEvent().Broadcast(Input->control.id, StickUser, FVector2D(Input->x, Input->y));
 }
 
@@ -122,10 +219,10 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(voi
 {
 	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
 
-	FGuid ParticipantGuid;
-	if (!FGuid::Parse(Participant->id, ParticipantGuid))
+	FGuid SessionGuid;
+	if (!FGuid::Parse(Participant->id, SessionGuid))
 	{
-		UE_LOG(LogMixerInteractivity, Error, TEXT("Participant id %hs was not in the expected format (guid)"), Participant->id);
+		UE_LOG(LogMixerInteractivity, Error, TEXT("Participant session id %hs was not in the expected format (guid)"), Participant->id);
 		return;
 	}
 
@@ -133,38 +230,39 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(voi
 	{
 	case mixer::participant_join:
 		{
-			check(!InteractiveModule.RemoteParticipantCacheByGuid.Contains(ParticipantGuid));
+			check(!InteractiveModule.RemoteParticipantCacheByGuid.Contains(SessionGuid));
 
-			TSharedPtr<FMixerRemoteUser> CachedParticipant = MakeShared<FMixerRemoteUser>();
+			TSharedPtr<FMixerRemoteUserCached> CachedParticipant = MakeShared<FMixerRemoteUserCached>();
 			CachedParticipant->Id = Participant->userId;
+			CachedParticipant->SessionGuid = SessionGuid;
 			CachedParticipant->Name = UTF8_TO_TCHAR(Participant->userName);
 			CachedParticipant->Level = Participant->level;
-			CachedParticipant->Group = UTF8_TO_TCHAR(Participant->groupId);
+			CachedParticipant->Group = Participant->groupId;
 			CachedParticipant->InputEnabled = !Participant->disabled;
 			// Timestamps are in ms since January 1 1970
 			CachedParticipant->ConnectedAt = FDateTime::FromUnixTimestamp(static_cast<int64>(Participant->connectedAtMs / 1000.0));
 			CachedParticipant->InputAt = FDateTime::FromUnixTimestamp(static_cast<int64>(Participant->lastInputAtMs / 1000.0));
 
-			InteractiveModule.RemoteParticipantCacheByGuid.Add(ParticipantGuid, CachedParticipant);
-			InteractiveModule.RemoteParticipantCachedByUint.Add(CachedParticipant->Id, CachedParticipant);
+			InteractiveModule.RemoteParticipantCacheByGuid.Add(CachedParticipant->SessionGuid, CachedParticipant);
+			InteractiveModule.RemoteParticipantCacheByUint.Add(CachedParticipant->Id, CachedParticipant);
 	}
 		break;
 
 	case mixer::participant_leave:
 		{
-			TSharedPtr<FMixerRemoteUser> RemovedUser = InteractiveModule.RemoteParticipantCacheByGuid.FindAndRemoveChecked(ParticipantGuid);
-			InteractiveModule.RemoteParticipantCachedByUint.FindAndRemoveChecked(RemovedUser->Id);
+			TSharedPtr<FMixerRemoteUser> RemovedUser = InteractiveModule.RemoteParticipantCacheByGuid.FindAndRemoveChecked(SessionGuid);
+			InteractiveModule.RemoteParticipantCacheByUint.FindAndRemoveChecked(RemovedUser->Id);
 		}
 		break;
 
 	case mixer::participant_update:
 		{
-			TSharedPtr<FMixerRemoteUser> CachedParticipant = InteractiveModule.RemoteParticipantCacheByGuid.FindChecked(ParticipantGuid);
+			TSharedPtr<FMixerRemoteUser> CachedParticipant = InteractiveModule.RemoteParticipantCacheByGuid.FindChecked(SessionGuid);
 			check(CachedParticipant.IsValid());
 			check(CachedParticipant->Id == Participant->userId);
 			CachedParticipant->Name = UTF8_TO_TCHAR(Participant->userName);
 			CachedParticipant->Level = Participant->level;
-			CachedParticipant->Group = UTF8_TO_TCHAR(Participant->groupId);
+			CachedParticipant->Group = Participant->groupId;
 			CachedParticipant->InputAt = FDateTime::FromUnixTimestamp(static_cast<int64>(Participant->lastInputAtMs / 1000.0));
 			CachedParticipant->InputEnabled = !Participant->disabled;
 	}
@@ -176,11 +274,10 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(voi
 	}
 }
 
-template <size_t N>
-bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char (&PropertyName)[N], uint32& Result)
+bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char *PropertyName, uint32& Result)
 {
 	int SignedResult;
-	if (mixer::interactive_control_get_property_int(Session, ControlName.Get(), ControlName.Length(), PropertyName, N, &SignedResult) != mixer::MIXER_OK)
+	if (mixer::interactive_control_get_property_int(Session, ControlName.Get(), PropertyName, &SignedResult) != mixer::MIXER_OK)
 	{
 		return false;
 	}
@@ -189,18 +286,17 @@ bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARTo
 	return true;
 }
 
-template <size_t N>
-bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char (&PropertyName)[N], FText& Result)
+bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char *PropertyName, FText& Result)
 {
 	size_t RequiredSize;
 	TArray<char> Utf8String;
-	if (mixer::interactive_control_get_property_string(Session, ControlName.Get(), ControlName.Length(), PropertyName, N, nullptr, &RequiredSize) != mixer::MIXER_ERROR_BUFFER_SIZE)
+	if (mixer::interactive_control_get_property_string(Session, ControlName.Get(), PropertyName, nullptr, &RequiredSize) != mixer::MIXER_ERROR_BUFFER_SIZE)
 	{
 		return false;
 	}
 
 	Utf8String.AddUninitialized(RequiredSize);
-	if (mixer::interactive_control_get_property_string(Session, ControlName.Get(), ControlName.Length(), PropertyName, N, Utf8String.GetData(), &RequiredSize) != mixer::MIXER_OK)
+	if (mixer::interactive_control_get_property_string(Session, ControlName.Get(), PropertyName, Utf8String.GetData(), &RequiredSize) != mixer::MIXER_OK)
 	{
 		return false;
 	}
@@ -209,16 +305,14 @@ bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARTo
 	return true;
 }
 
-template <size_t N>
-bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char(&PropertyName)[N], float& Result)
+bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char *PropertyName, float& Result)
 {
-	return mixer::interactive_control_get_property_float(Session, ControlName.Get(), ControlName.Length(), PropertyName, N, &Result) == mixer::MIXER_OK;
+	return mixer::interactive_control_get_property_float(Session, ControlName.Get(), PropertyName, &Result) == mixer::MIXER_OK;
 }
 
-template <size_t N>
-bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char(&PropertyName)[N], bool& Result)
+bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char *PropertyName, bool& Result)
 {
-	return mixer::interactive_control_get_property_bool(Session, ControlName.Get(), ControlName.Length(), PropertyName, N, &Result) == mixer::MIXER_OK;
+	return mixer::interactive_control_get_property_bool(Session, ControlName.Get(), PropertyName, &Result) == mixer::MIXER_OK;
 }
 
 
@@ -311,8 +405,30 @@ bool FMixerInteractivityModule_InteractiveCpp2::GetStickState(FName Stick, uint3
 
 TSharedPtr<const FMixerRemoteUser> FMixerInteractivityModule_InteractiveCpp2::GetParticipant(uint32 ParticipantId)
 {
-	TSharedPtr<FMixerRemoteUser>* FoundUser = RemoteParticipantCachedByUint.Find(ParticipantId);
+	TSharedPtr<FMixerRemoteUserCached>* FoundUser = RemoteParticipantCacheByUint.Find(ParticipantId);
 	return FoundUser ? *FoundUser : TSharedPtr<const FMixerRemoteUser>();
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateForGetCurrentScene(void* Context, mixer::interactive_session Session, mixer::interactive_group* Group)
+{
+	FGetCurrentSceneEnumContext* GetSceneContext = static_cast<FGetCurrentSceneEnumContext*>(Context);
+	if (GetSceneContext->GroupName == Group->id)
+	{
+		GetSceneContext->OutSceneName = Group->sceneId;
+	}
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateForGetParticipantsInGroup(void* Context, mixer::interactive_session Session, mixer::interactive_participant* Participant)
+{
+	FGetParticipantsInGroupEnumContext* GetParticipantsContext = static_cast<FGetParticipantsInGroupEnumContext*>(Context);
+	if (GetParticipantsContext->GroupName == Participant->groupId)
+	{
+		TSharedPtr<FMixerRemoteUserCached>* User = GetParticipantsContext->MixerModule->RemoteParticipantCacheByUint.Find(Participant->userId);
+		if (User != nullptr)
+		{
+			GetParticipantsContext->OutParticipants->Add(*User);
+		}
+	}
 }
 
 #endif

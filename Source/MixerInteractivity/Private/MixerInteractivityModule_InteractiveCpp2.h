@@ -11,11 +11,17 @@
 
 #include "MixerInteractivityModulePrivate.h"
 
-//#define MIXER_BACKEND_INTERACTIVE_CPP_2 1
+#define MIXER_BACKEND_INTERACTIVE_CPP_2 1
 #if MIXER_BACKEND_INTERACTIVE_CPP_2
 
 #include "MixerInteractivityTypes.h"
 #include <interactive-cpp-2/Mixer.h>
+
+struct FMixerRemoteUserCached : public FMixerRemoteUser
+{
+public:
+	FGuid SessionGuid;
+};
 
 class FMixerInteractivityModule_InteractiveCpp2 : public FMixerInteractivityModule
 {
@@ -51,9 +57,26 @@ private:
 	static void OnSessionCoordinateInput(void* Context, mixer::interactive_session Session, const mixer::interactive_coordinate_input* Input);
 	static void OnSessionParticipantsChanged(void* Context, mixer::interactive_session Session, mixer::participant_action Action, const mixer::interactive_participant* Participant);
 
+	struct FGetCurrentSceneEnumContext
+	{
+		FName GroupName;
+		FName OutSceneName;
+	};
+
+	static void OnEnumerateForGetCurrentScene(void* Context, mixer::interactive_session Session, mixer::interactive_group* Group);
+
+	struct FGetParticipantsInGroupEnumContext
+	{
+		FMixerInteractivityModule_InteractiveCpp2* MixerModule;
+		FName GroupName;
+		TArray<TSharedPtr<const FMixerRemoteUser>>* OutParticipants;
+	};
+
+	static void OnEnumerateForGetParticipantsInGroup(void* Context, mixer::interactive_session Session, mixer::interactive_participant* Participant);
+
 	mixer::interactive_session InteractiveSession;
-	TMap<FGuid, TSharedPtr<FMixerRemoteUser>> RemoteParticipantCacheByGuid;
-	TMap<uint32, TSharedPtr<FMixerRemoteUser>> RemoteParticipantCachedByUint;
+	TMap<FGuid, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCacheByGuid;
+	TMap<uint32, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCacheByUint;
 };
 
 #endif
