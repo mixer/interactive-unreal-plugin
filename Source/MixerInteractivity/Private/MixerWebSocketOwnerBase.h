@@ -24,6 +24,7 @@ protected:
 
 	void SendMethodMessageNoParams(const FString& MethodName, FServerMessageHandler Handler);
 	void SendMethodMessageObjectParams(const FString& MethodName, FServerMessageHandler Handler, const FJsonSerializable& ObjectStyleParams);
+	void SendMethodMessageObjectParams(const FString& MethodName, FServerMessageHandler Handler, const TSharedRef<FJsonObject> ObjectStyleParams);
 
 	template <class ... ArgTypes>
 	void SendMethodMessageArrayParams(const FString& MethodName, FServerMessageHandler Handler, ArgTypes... ArrayStyleParams);
@@ -181,6 +182,17 @@ void TMixerWebSocketOwnerBase<T>::SendMethodMessageObjectParams(const FString& M
 	TSharedRef<CondensedWriterType> Writer = StartMethodMessage(MethodName, PayloadString);
 	Writer->WriteIdentifierPrefix(MixerStringConstants::FieldNames::Params);
 	ObjectStyleParams.ToJson(Writer, false);
+	FinishMethodMessage(Writer);
+	ActuallySendMethodMessage(Handler, PayloadString);
+}
+
+template <class T>
+void TMixerWebSocketOwnerBase<T>::SendMethodMessageObjectParams(const FString& MethodName, FServerMessageHandler Handler, const TSharedRef<FJsonObject> ObjectStyleParams)
+{
+	FString PayloadString;
+	TSharedRef<CondensedWriterType> Writer = StartMethodMessage(MethodName, PayloadString);
+	Writer->WriteIdentifierPrefix(MixerStringConstants::FieldNames::Params);
+	FJsonSerializer::Serialize(ObjectStyleParams, Writer, false);
 	FinishMethodMessage(Writer);
 	ActuallySendMethodMessage(Handler, PayloadString);
 }

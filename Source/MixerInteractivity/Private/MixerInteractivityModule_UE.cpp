@@ -200,6 +200,11 @@ void FMixerInteractivityModule_UE::CaptureSparkTransaction(const FString& Transa
 	}
 }
 
+void FMixerInteractivityModule_UE::CallRemoteMethod(const FString& MethodName, const TSharedRef<FJsonObject> MethodParams)
+{
+	SendMethodMessageObjectParams(MethodName, nullptr, MethodParams);
+}
+
 bool FMixerInteractivityModule_UE::StartInteractiveConnection()
 {
 	if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
