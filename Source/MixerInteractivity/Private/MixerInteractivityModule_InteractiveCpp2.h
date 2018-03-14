@@ -15,7 +15,7 @@
 #if MIXER_BACKEND_INTERACTIVE_CPP_2
 
 #include "MixerInteractivityTypes.h"
-#include <interactive-cpp-2/Mixer.h>
+#include <interactive-cpp-v2/source/interactivity.h>
 
 struct FMixerRemoteUserCached : public FMixerRemoteUser
 {
@@ -42,6 +42,7 @@ public:
 	virtual bool GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants);
 	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId);
 	virtual void CaptureSparkTransaction(const FString& TransactionId);
+	virtual void CallRemoteMethod(const FString& MethodName, const TSharedRef<FJsonObject> MethodParams);
 
 public:
 	virtual bool Tick(float DeltaTime) override;

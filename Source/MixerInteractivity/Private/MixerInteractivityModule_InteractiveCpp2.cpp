@@ -16,6 +16,10 @@
 #include "MixerInteractivityLog.h"
 #include "StringConv.h"
 
+#include <interactive-cpp-v2/source/interactivity.cpp>
+
+IMPLEMENT_MODULE(FMixerInteractivityModule_InteractiveCpp2, MixerInteractivity);
+
 void FMixerInteractivityModule_InteractiveCpp2::StartInteractivity()
 {
 	if (InteractiveSession != nullptr)
@@ -122,13 +126,35 @@ void FMixerInteractivityModule_InteractiveCpp2::CaptureSparkTransaction(const FS
 	}
 }
 
+void FMixerInteractivityModule_InteractiveCpp2::CallRemoteMethod(const FString& MethodName, const TSharedRef<FJsonObject> MethodParams)
+{
+	if (InteractiveSession != nullptr)
+	{
+		FString SerializedParams;
+		TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&SerializedParams, 0);
+		FJsonSerializer::Serialize(MethodParams, Writer);
+
+		uint32 MessageId = 0;
+		mixer::interactive_send_method(InteractiveSession, TCHAR_TO_UTF8(*MethodName), TCHAR_TO_UTF8(*SerializedParams), true, &MessageId);
+	}
+}
+
 bool FMixerInteractivityModule_InteractiveCpp2::StartInteractiveConnection()
 {
+	if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("StartInteractiveConnection failed - plugin state %d."),
+			static_cast<int32>(GetInteractiveConnectionAuthState()));
+		return false;
+	}
+
+	SetInteractiveConnectionAuthState(EMixerLoginState::Logging_In);
+
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 	const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
 
 	int32 ConnectResult = mixer::interactive_connect(
-							TCHAR_TO_UTF8(*UserSettings->AccessToken),
+							TCHAR_TO_UTF8(*UserSettings->GetAuthZHeaderValue()),
 							TCHAR_TO_UTF8(*FString::FromInt(Settings->GameVersionId)),
 							TCHAR_TO_UTF8(*Settings->ShareCode),
 							true,
@@ -143,6 +169,8 @@ bool FMixerInteractivityModule_InteractiveCpp2::StartInteractiveConnection()
 	mixer::interactive_reg_button_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput);
 	mixer::interactive_reg_coordinate_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput);
 	mixer::interactive_reg_participants_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged);
+
+	SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
 
 	return true;
 }
