@@ -19,7 +19,10 @@
 #include "MixerInteractivityUserSettings.h"
 #include "MixerInteractivitySettingsCustomization.h"
 #include "MixerInteractivityPinFactory.h"
-#include "MixerInteractiveGame.h"
+#include "MixerInteractivityJsonTypes.h"
+#include "MixerProjectDefinitionCustomization.h"
+#include "MixerInteractivityProjectAsset.h"
+#include "MixerEditorStyle.h"
 #include "UObjectGlobals.h"
 #include "IHttpRequest.h"
 #include "IHttpResponse.h"
@@ -44,6 +47,7 @@ public:
 	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeSticks() { return DesignTimeSticks; }
 	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeScenes() { return DesignTimeScenes; }
 	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeGroups() { return DesignTimeGroups; }
+	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeSimpleCustomControls() { return DesignTimeSimpleCustomControls; }
 
 	virtual void RefreshDesignTimeObjects();
 
@@ -54,14 +58,19 @@ private:
 	TArray<TSharedPtr<FName>> DesignTimeSticks;
 	TArray<TSharedPtr<FName>> DesignTimeScenes;
 	TArray<TSharedPtr<FName>> DesignTimeGroups;
+	TArray<TSharedPtr<FName>> DesignTimeSimpleCustomControls;
 
 	FOnDesignTimeObjectsChanged DesignTimeObjectsChanged;
+
+	TSharedPtr<FMixerEditorStyle> MixerStyle;
 };
 
 IMPLEMENT_MODULE(FMixerInteractivityEditorModule, MixerInteractivityEditor)
 
 void FMixerInteractivityEditorModule::StartupModule()
 {
+	MixerStyle = MakeShared<FMixerEditorStyle>();
+
 	FEditorCategoryUtils::RegisterCategoryKey("MixerInteractivity",
 		LOCTEXT("MixerInteractivityCategory", "Mixer|Interactivity"),
 		LOCTEXT("MixerInteractivityCategory_Tooltip", "Interactivity features provided by Mixer"));
@@ -70,6 +79,11 @@ void FMixerInteractivityEditorModule::StartupModule()
 	PropertyModule.RegisterCustomClassLayout(
 		"MixerInteractivitySettings",
 		FOnGetDetailCustomizationInstance::CreateStatic(&FMixerInteractivitySettingsCustomization::MakeInstance)
+	);
+
+	PropertyModule.RegisterCustomClassLayout(
+		"MixerProjectAsset",
+		FOnGetDetailCustomizationInstance::CreateStatic(&FMixerProjectDefinitionCustomization::MakeInstance)
 	);
 
 	ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
@@ -172,23 +186,35 @@ bool FMixerInteractivityEditorModule::RequestInteractiveControlsForGameVersion(c
 
 void FMixerInteractivityEditorModule::RefreshDesignTimeObjects()
 {
+	DesignTimeScenes.Empty();
+	DesignTimeButtons.Empty();
+	DesignTimeSticks.Empty();
+	DesignTimeSimpleCustomControls.Empty();
+
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	DesignTimeButtons.Empty(Settings->CachedButtons.Num());
-	for (FName Name : Settings->CachedButtons)
+	UMixerProjectAsset* ProjectAsset = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
+	if (ProjectAsset != nullptr)
 	{
-		DesignTimeButtons.Add(MakeShareable(new FName(Name)));
-	}
-
-	DesignTimeSticks.Empty(Settings->CachedSticks.Num());
-	for (FName Name : Settings->CachedSticks)
-	{
-		DesignTimeSticks.Add(MakeShareable(new FName(Name)));
-	}
-
-	DesignTimeScenes.Empty(Settings->CachedScenes.Num());
-	for (FName Name : Settings->CachedScenes)
-	{
-		DesignTimeScenes.Add(MakeShareable(new FName(Name)));
+		for (const FMixerInteractiveScene& Scene : ProjectAsset->ParsedProjectDefinition.Controls.Scenes)
+		{
+			DesignTimeScenes.Add(MakeShared<FName>(*Scene.Id));
+			for (const FMixerInteractiveControl& Control : Scene.Controls)
+			{
+				FName ControlName = *Control.Id;
+				if (Control.IsButton())
+				{
+					DesignTimeButtons.Add(MakeShared<FName>(ControlName));
+				}
+				else if (Control.IsJoystick())
+				{
+					DesignTimeSticks.Add(MakeShared<FName>(ControlName));
+				}
+				else if (!ProjectAsset->CustomControlMappings.Contains(ControlName))
+				{
+					DesignTimeSimpleCustomControls.Add(MakeShared<FName>(ControlName));
+				}
+			}
+		}
 	}
 
 	DesignTimeGroups.Empty(Settings->DesignTimeGroups.Num() + 1);

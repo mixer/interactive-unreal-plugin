@@ -27,6 +27,8 @@ public class MixerInteractivityEditor : ModuleRules
 				"ContentBrowser",
 				"InputCore",
 				"KismetCompiler",
+				"AssetTools",
+				"Projects",
 			});
 
 		PrivateIncludePathModuleNames.AddRange(

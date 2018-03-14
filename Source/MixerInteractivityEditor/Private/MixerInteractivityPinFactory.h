@@ -44,6 +44,10 @@ class FMixerInteractivityPinFactory : public FGraphPanelPinFactory
 			{
 				ItemsSource = SGraphPinMixerObjectNameList::FGetMixerObjectNames::CreateRaw(&IMixerInteractivityEditorModule::Get(), &IMixerInteractivityEditorModule::GetDesignTimeGroups);
 			}
+			else if (InPin->PinType.PinSubCategoryObject == FMixerCustomControlReference::StaticStruct())
+			{
+				ItemsSource = SGraphPinMixerObjectNameList::FGetMixerObjectNames::CreateRaw(&IMixerInteractivityEditorModule::Get(), &IMixerInteractivityEditorModule::GetDesignTimeSimpleCustomControls);
+			}
 
 			if (ItemsSource.IsBound())
 			{

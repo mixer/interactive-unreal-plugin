@@ -15,7 +15,6 @@
 #include "MixerInteractivityTypes.h"
 #include "Engine/LatentActionManager.h"
 #include "TextProperty.h"
-
 #include "MixerInteractivityBlueprintLibrary.generated.h"
 
 USTRUCT(BlueprintType)
@@ -109,6 +108,23 @@ public:
 
 template<>
 struct TStructOpsTypeTraits<FMixerGroupReference> : public TStructOpsTypeTraitsBase2<FMixerGroupReference>
+{
+	enum
+	{
+		WithExportTextItem = true,
+		WithImportTextItem = true
+	};
+};
+
+USTRUCT(BlueprintType)
+struct MIXERINTERACTIVITY_API FMixerCustomControlReference : public FMixerObjectReference
+{
+public:
+	GENERATED_BODY()
+};
+
+template<>
+struct TStructOpsTypeTraits<FMixerCustomControlReference> : public TStructOpsTypeTraitsBase2<FMixerCustomControlReference>
 {
 	enum
 	{
@@ -323,4 +339,10 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Mixer|Interactivity")
 	static void CaptureSparkTransaction(FMixerTransactionId TransactionId);
+
+	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity", CustomThunk, meta=(BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"))
+	static void GetCustomControlProperty_Helper(UObject* WorldContextObject, FMixerCustomControlReference Control, FString PropertyName, int32 &OutProperty);
+
+	DECLARE_FUNCTION(execGetCustomControlProperty_Helper);
+
 };
