@@ -21,6 +21,7 @@ struct FMixerStickDescription;
 struct FMixerStickState;
 struct FMixerButtonEventDetails;
 class FUniqueNetId;
+class FJsonObject;
 
 enum class EMixerLoginState : uint8;
 enum class EMixerInteractivityParticipantState : uint8;
@@ -222,6 +223,36 @@ public:
 	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState) = 0;
 
 	/**
+	* Retrieve information about a named custom control.  Information may include both static 
+	* (similar to Get*Description methods above) and dynamic (similar to Get*State methods) data.
+	* There is no concept of data being isolated per participant.
+	* This overload expects the named control to be an unmapped custom control, that is, not mapped
+	* directly on the client to a custom type derived from UMixerCustomControl.
+	*
+	* @param	ForWorld			World context for this query.  Only game worlds have fully instantiated custom controls.
+	* @param	ControlName			Name of the control for which information should be returned.
+	* @param	OutControlObject	Json property bag describing the control.
+	*
+	* @Return						True if the control was found as an unmapped control.
+	*/
+	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObject) = 0;
+
+	/**
+	* Retrieve information about a named custom control.  Information may include both static
+	* (similar to Get*Description methods above) and dynamic (similar to Get*State methods) data.
+	* There is no concept of data being isolated per participant.
+	* This overload expects the named control to be mapped directly on the client to a custom type
+	* derived from UMixerCustomControl.
+	*
+	* @param	ForWorld			World context for this query.  Only game worlds have fully instantiated custom controls.
+	* @param	ControlName			Name of the control for which information should be returned.
+	* @param	OutControlObject	See UMixerCustomControl.
+	*
+	* @Return						True if the control was found as a mapped control.
+	*/
+	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, class UMixerCustomControl*& OutControlObject) = 0;
+
+	/**
 	* Retrieve a structure describing the local user currently signed in to the Mixer service.
 	*
 	* @Return					See FMixerLocalUser.  Invalid shared pointer when no user is signed in.
@@ -274,6 +305,10 @@ public:
 	*/
 	virtual void CaptureSparkTransaction(const FString& TransactionId) = 0;
 
+	virtual void UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate) = 0;
+
+	virtual void CallRemoteMethod(const FString& MethodName, const TSharedRef<FJsonObject> MethodParams) = 0;
+
 	/**
 	* Get access to Mixer chat via UE's standard IOnlineChat interface.
 	* Sending messages requires a logged in user.
@@ -309,4 +344,13 @@ public:
 
 	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnBroadcastingStateChanged, bool);
 	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged() = 0;
+
+	DECLARE_EVENT_FourParams(IMixerInteractivityModule, FOnCustomControlInput, FName, FName, TSharedPtr<const FMixerRemoteUser>, const TSharedRef<FJsonObject>);
+	virtual FOnCustomControlInput& OnCustomControlInput() = 0;
+
+	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnCustomControlPropertyUpdate, FName, const TSharedRef<FJsonObject>);
+	virtual FOnCustomControlPropertyUpdate& OnCustomControlPropertyUpdate() = 0;
+
+	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnCustomMethodCall, FName, const TSharedRef<FJsonObject>);
+	virtual FOnCustomMethodCall& OnCustomMethodCall() = 0;
 };

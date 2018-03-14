@@ -12,17 +12,22 @@
 #include "MixerInteractivityUserSettings.h"
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivityLog.h"
+#include "MixerBindingUtils.h"
+#include "MixerInteractivityProjectAsset.h"
+#include "OnlineChatMixerPrivate.h"
 #include "OnlineChatMixerPrivate.h"
 
 #include "HttpModule.h"
 #include "PlatformHttp.h"
 #include "JsonTypes.h"
 #include "JsonPrintPolicy.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
 #include "Dom/JsonValue.h"
 #include "Dom/JsonObject.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 #include "Serialization/JsonSerializer.h"
+#include "JsonObjectConverter.h"
 #include "UObjectGlobals.h"
 #include "CoreOnline.h"
 #include "Engine/World.h"
@@ -304,6 +309,7 @@ bool FMixerInteractivityModule::Tick(float DeltaTime)
 #endif
 
 	TickLocalUserMaintenance();
+	FlushControlUpdates();
 
 	if (!NeedsClientLibraryActive())
 	{
@@ -312,6 +318,7 @@ bool FMixerInteractivityModule::Tick(float DeltaTime)
 	}
 
 	return true;
+
 }
 
 void FMixerInteractivityModule::TickLocalUserMaintenance()
@@ -499,6 +506,18 @@ bool FMixerInteractivityModule::NeedsClientLibraryActive()
 #endif
 }
 
+bool FMixerInteractivityModule::GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObj)
+{
+	OutControlObj = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(ForWorld)->GetUnmappedCustomControl(ControlName);
+	return OutControlObj.IsValid();
+}
+
+bool FMixerInteractivityModule::GetCustomControl(UWorld* ForWorld, FName ControlName, UMixerCustomControl*& OutControlObj)
+{
+	OutControlObj = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(ForWorld)->GetMappedCustomControl(ControlName);
+	return OutControlObj != nullptr;
+}
+
 void FMixerInteractivityModule::InitDesignTimeGroups()
 {
 	if (NeedsClientLibraryActive())
@@ -513,6 +532,95 @@ void FMixerInteractivityModule::InitDesignTimeGroups()
 			}
 		}
 	}
+}
+
+void FMixerInteractivityModule::HandleCustomMessage(const FString& MessageBodyString)
+{
+	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(MessageBodyString);
+	TSharedPtr<FJsonObject> JsonObject;
+	if (FJsonSerializer::Deserialize(JsonReader, JsonObject) && JsonObject.IsValid())
+	{
+		FString Method;
+		if (JsonObject->TryGetStringField(TEXT("method"), Method))
+		{
+			const TSharedPtr<FJsonObject> *ParamsObject;
+			if (JsonObject->TryGetObjectField(TEXT("params"), ParamsObject))
+			{
+				if (Method == TEXT("giveInput"))
+				{
+					HandleCustomControlInputMessage(ParamsObject->Get());
+				}
+				else if (Method == TEXT("onControlUpdate"))
+				{
+					HandleCustomControlUpdateMessage(ParamsObject->Get());
+				}
+				else
+				{
+					OnCustomMethodCall().Broadcast(*Method, ParamsObject->ToSharedRef());
+				}
+			}
+		}
+	}
+}
+
+void FMixerInteractivityModule::HandleCustomControlUpdateMessage(FJsonObject* ParamsJson)
+{
+	const TArray<TSharedPtr<FJsonValue>> *UpdatedControls;
+	if (ParamsJson->TryGetArrayField(TEXT("controls"), UpdatedControls))
+	{
+		for (const TSharedPtr<FJsonValue> Control : *UpdatedControls)
+		{
+			const TSharedPtr<FJsonObject> ControlObject = Control->AsObject();
+			if (ControlObject.IsValid())
+			{
+				FString ControlId;
+				if (ControlObject->TryGetStringField(TEXT("controlID"), ControlId))
+				{
+					OnCustomControlPropertyUpdate().Broadcast(*ControlId, ControlObject.ToSharedRef());
+				}
+			}
+		}
+	}
+}
+
+void FMixerInteractivityModule::HandleCustomControlInputMessage(FJsonObject* ParamsJson)
+{
+	// @TODO - get participant and transaction (if any)
+
+	const TSharedPtr<FJsonObject> *InputObject;
+	if (ParamsJson->TryGetObjectField(TEXT("input"), InputObject))
+	{
+		FString ControlId;
+		if ((*InputObject)->TryGetStringField(TEXT("controlID"), ControlId))
+		{
+			FString EventType;
+			if ((*InputObject)->TryGetStringField(TEXT("event"), EventType))
+			{
+				OnCustomControlInput().Broadcast(*ControlId, *EventType, nullptr, InputObject->ToSharedRef());
+			}
+		}
+	}
+}
+
+void FMixerInteractivityModule::UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate)
+{
+	TArray<TSharedPtr<FJsonValue>>& ControlsForScene = PendingControlUpdates.FindOrAdd(SceneName);
+	PropertiesToUpdate->SetStringField(TEXT("controlID"), ControlName.ToString());
+	ControlsForScene.Add(MakeShared<FJsonValueObject>(PropertiesToUpdate));
+}
+
+void FMixerInteractivityModule::FlushControlUpdates()
+{
+	for (TMap<FName, TArray<TSharedPtr<FJsonValue>>>::TIterator It(PendingControlUpdates); It; ++It)
+	{
+		TSharedRef<FJsonObject> UpdateMethodParams = MakeShared<FJsonObject>();
+		UpdateMethodParams->SetStringField(TEXT("sceneID"), It->Key.ToString());
+		UpdateMethodParams->SetArrayField(TEXT("controls"), It->Value);
+
+		CallRemoteMethod(TEXT("updateControls"), UpdateMethodParams);
+	}
+
+	PendingControlUpdates.Empty();
 }
 
 TSharedPtr<IOnlineChat> FMixerInteractivityModule::GetChatInterface()

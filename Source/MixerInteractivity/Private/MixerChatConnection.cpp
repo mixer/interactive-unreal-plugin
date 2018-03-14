@@ -455,8 +455,8 @@ bool FMixerChatConnection::HandleChatMessageEventInternal(FJsonObject* JsonObj, 
 	GET_JSON_OBJECT_RETURN_FAILURE(Message, MessageJson);
 	GET_JSON_STRING_RETURN_FAILURE(Id, IdString);
 
-	FGuid MessageId;
-	if (!FGuid::Parse(IdString, MessageId))
+	FGuid MessageGuid;
+	if (!FGuid::Parse(IdString, MessageGuid))
 	{
 		UE_LOG(LogMixerChat, Error, TEXT("id field %s for chat event was not in the expected format (guid)"), *IdString);
 		return false;
@@ -490,7 +490,7 @@ bool FMixerChatConnection::HandleChatMessageEventInternal(FJsonObject* JsonObj, 
 		ChatInterface->TriggerOnChatRoomMemberJoinDelegates(*User, RoomId, (*FromUserObject)->GetUniqueNetId());
 	}
 
-	OutChatMessage = MakeShared<FChatMessageMixerImpl>(MessageId, FromUserObject->ToSharedRef());
+	OutChatMessage = MakeShared<FChatMessageMixerImpl>(MessageGuid, FromUserObject->ToSharedRef());
 	return HandleChatMessageEventMessageObject(MessageJson->Get(), OutChatMessage.Get());
 }
 
@@ -586,16 +586,16 @@ bool FMixerChatConnection::HandleDeleteMessageEvent(FJsonObject* JsonObj)
 {
 	GET_JSON_STRING_RETURN_FAILURE(Id, IdString);
 
-	FGuid MessageId;
-	if (!FGuid::Parse(IdString, MessageId))
+	FGuid MessageGuid;
+	if (!FGuid::Parse(IdString, MessageGuid))
 	{
 		UE_LOG(LogMixerChat, Error, TEXT("id field %s for delete message event was not in the expected format (guid)"), *IdString);
 		return false;
 	}
 
-	DeleteFromChatHistoryIf([&MessageId](TSharedPtr<FChatMessageMixerImpl> ChatMessage)
+	DeleteFromChatHistoryIf([&MessageGuid](TSharedPtr<FChatMessageMixerImpl> ChatMessage)
 	{
-		return ChatMessage->GetMessageId() == MessageId;
+		return ChatMessage->GetMessageId() == MessageGuid;
 	});
 
 	return true;
@@ -893,18 +893,18 @@ bool FMixerChatConnection::SendVoteChoose(const FChatPollMixer& Poll, int32 Answ
 	return true;
 }
 
-void FMixerChatConnection::SendAuth(int32 ChannelId, const FMixerLocalUser* User, const FString& AuthKey)
+void FMixerChatConnection::SendAuth(int32 InChannelId, const FMixerLocalUser* InUser, const FString& InAuthKey)
 {
 	FString MethodPacket;
-	if (User != nullptr && !AuthKey.IsEmpty())
+	if (InUser != nullptr && !InAuthKey.IsEmpty())
 	{
-		UE_LOG(LogMixerChat, Log, TEXT("Authenticating to chat room %s as user '%s'"), *RoomId, *User->Name);
-		MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::Auth, MessageId, ChannelId, User->Id, AuthKey);
+		UE_LOG(LogMixerChat, Log, TEXT("Authenticating to chat room %s as user '%s'"), *RoomId, *InUser->Name);
+		MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::Auth, MessageId, InChannelId, InUser->Id, InAuthKey);
 	}
 	else
 	{
 		UE_LOG(LogMixerChat, Log, TEXT("Authenticating to chat room %s anonymously"), *RoomId);
-		MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::Auth, MessageId, ChannelId);
+		MethodPacket = WriteRemoteMethodPacket(MixerChatStringConstants::MethodNames::Auth, MessageId, InChannelId);
 	}
 	SendMethodPacket(MethodPacket, &FMixerChatConnection::HandleAuthReply);
 }
@@ -1185,7 +1185,7 @@ void FMixerChatConnection::GetAllCachedUsers(TArray< TSharedRef<FChatRoomMember>
 
 TSharedPtr<FMixerChatUser> FMixerChatConnection::FindUser(const FUniqueNetId& UserId) const
 {
-	const TSharedPtr<FMixerChatUser>* User = CachedUsers.Find(FUniqueNetIdMixer(UserId));
-	return User != nullptr ? *User : nullptr;
+	const TSharedPtr<FMixerChatUser>* FoundUser = CachedUsers.Find(FUniqueNetIdMixer(UserId));
+	return FoundUser != nullptr ? *FoundUser : nullptr;
 }
 

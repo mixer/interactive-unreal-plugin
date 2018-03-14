@@ -17,6 +17,7 @@
 #include "KismetCompiler.h"
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivitySettings.h"
+#include "MixerInteractivityProjectAsset.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
@@ -24,9 +25,9 @@ void UK2Node_MixerStickEvent::ValidateNodeDuringCompilation(class FCompilerResul
 {
 	Super::ValidateNodeDuringCompilation(MessageLog);
 
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	check(Settings);
-	if (!Settings->CachedSticks.Contains(StickId))
+	TArray<FString> Sticks;
+	UMixerInteractivitySettings::GetAllSticks(Sticks);
+	if (!Sticks.Contains(StickId.ToString()))
 	{
 		MessageLog.Warning(*FText::Format(LOCTEXT("MixerStickNode_UnknownStickWarning", "Mixer Stick Event specifies invalid stick id '{0}' for @@"), FText::FromName(StickId)).ToString(), this);
 	}
@@ -34,24 +35,23 @@ void UK2Node_MixerStickEvent::ValidateNodeDuringCompilation(class FCompilerResul
 
 void UK2Node_MixerStickEvent::GetMenuActions(FBlueprintActionDatabaseRegistrar& ActionRegistrar) const
 {
-	auto CustomizeMixerNodeLambda = [](UEdGraphNode* NewNode, bool bIsTemplateNode, FName StickName)
+	auto CustomizeMixerNodeLambda = [](UEdGraphNode* NewNode, bool bIsTemplateNode, FString StickName)
 	{
 		UK2Node_MixerStickEvent* MixerNode = CastChecked<UK2Node_MixerStickEvent>(NewNode);
-		MixerNode->StickId = StickName;
-		MixerNode->CustomFunctionName = FName(*FString::Printf(TEXT("MixerStickEvt_%s"), *StickName.ToString()));
+		MixerNode->StickId = *StickName;
+		MixerNode->CustomFunctionName = FName(*FString::Printf(TEXT("MixerStickEvt_%s"), *StickName));
 		MixerNode->EventReference.SetExternalDelegateMember(FName(TEXT("MixerStickEventDynamicDelegate__DelegateSignature")));
 	};
 
 	UClass* ActionKey = GetClass();
 	if (ActionRegistrar.IsOpenForRegistration(ActionKey))
 	{
-		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-		for (FName CachedStickName : Settings->CachedSticks)
+		TArray<FString> Sticks;
+		UMixerInteractivitySettings::GetAllSticks(Sticks);
+		for (const FString& StickName : Sticks)
 		{
 			UBlueprintNodeSpawner* NodeSpawner = UBlueprintNodeSpawner::Create(GetClass());
-			check(NodeSpawner != nullptr);
-
-			NodeSpawner->CustomizeNodeDelegate = UBlueprintNodeSpawner::FCustomizeNodeDelegate::CreateStatic(CustomizeMixerNodeLambda, CachedStickName);
+			NodeSpawner->CustomizeNodeDelegate = UBlueprintNodeSpawner::FCustomizeNodeDelegate::CreateStatic(CustomizeMixerNodeLambda, StickName);
 			ActionRegistrar.AddBlueprintAction(ActionKey, NodeSpawner);
 		}
 	}

@@ -15,6 +15,7 @@ public class MixerInteractivity : ModuleRules
 				"Engine",
 				"HTTP",
 				"Json",
+				"JsonUtilities",
 				"SlateCore",
 				"Slate",
 				"UMG",
