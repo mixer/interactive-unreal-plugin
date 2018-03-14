@@ -7,9 +7,15 @@
 // PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
 //
 //*********************************************************
+#pragma once
 
-#include "MixerInteractiveGame.h"
-#include "JsonObject.h"
+#include "MixerInteractivityCustomMethods.generated.h"
 
-const FString FMixerInteractiveControl::ButtonKind = TEXT("button");
-const FString FMixerInteractiveControl::JoystickKind = TEXT("joystick");
+UCLASS(Blueprintable, NotBlueprintType, NotPlaceable, NotEditInlineNew, HideDropdown)
+class UMixerCustomMethods : public UObject
+{
+public:
+	GENERATED_BODY()
+
+	virtual bool IsEditorOnly() const { return true; }
+};

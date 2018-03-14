@@ -12,6 +12,8 @@
 
 #include "ObjectMacros.h"
 #include "Object.h"
+#include "SubclassOf.h"
+#include "MixerCustomControl.h"
 #include "MixerInteractivitySettings.generated.h"
 
 USTRUCT()
@@ -66,7 +68,7 @@ public:
 	* The version of the Mixer Interactive Project that this title should be associated with.
 	* Available options are based on the set of versions for the currently selected game.
 	*/
-	UPROPERTY(EditAnywhere, Config, Category = "Game Binding")
+	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta=(NoSpinBox=true))
 	int32 GameVersionId;
 
 	/**
@@ -77,20 +79,25 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Game Binding")
 	FString ShareCode;
 
-	/** Collection of buttons, saved into the Unreal project and used to populate UI in the Blueprint Editor. */
-	UPROPERTY(EditAnywhere, Config, Category= "Game Binding", meta = (DisplayName = "Buttons"))
-	TArray<FName> CachedButtons;
-
-	/** Collection of joysticks, saved into the Unreal project and used to populate UI in the Blueprint Editor. */
-	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta=(DisplayName="Sticks"))
-	TArray<FName> CachedSticks;
-
-	/** Collection of scenes, saved into the Unreal project and used to populate UI in the Blueprint Editor. */
-	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta = (DisplayName = "Scenes"))
-	TArray<FName> CachedScenes;
-
-	UPROPERTY(EditAnywhere, Config, Category = "Game Binding", meta = (DisplayName = "Groups"))
+	UPROPERTY(EditAnywhere, Config, Category = "Interactive Controls", AdvancedDisplay, meta = (DisplayName = "Groups"))
 	TArray<FMixerPredefinedGroup> DesignTimeGroups;
+
+	/**
+	* Type defining (via Delegates/Event Dispatchers) a set of custom methods that
+	* the Mixer Interactive service may invoke on the client.  Provide a valid class
+	* here in order to enable handling of these methods in Blueprint with strongly
+	* typed parameters.
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = "Interactive Controls", AdvancedDisplay, meta=(MetaClass="MixerCustomMethods"))
+	FSoftClassPath CustomMethods;
+
+	/**
+	* Asset containing the scenes/controls for the Mixer Interactive Project that will
+	* be used to populate available Blueprint Nodes in the Unreal Editor and define
+	* custom control mappings.
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = "Interactive Controls", meta = (AllowedClasses = "MixerProjectAsset"))
+	FSoftObjectPath ProjectDefinition;
 
 public:
 	FString GetResolvedRedirectUri() const
@@ -114,4 +121,10 @@ public:
 		return TEXT("RETAIL");
 #endif
 	}
+
+#if WITH_EDITORONLY_DATA
+	static void GetAllSticks(TArray<FString>& OutSticks);
+	static void GetAllButtons(TArray<FString>& OutButtons);
+	static void GetAllUnmappedCustomControls(TArray<FString>& OutCustomControls);
+#endif
 };

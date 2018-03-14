@@ -56,6 +56,7 @@ public:
 	virtual bool GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants);
 	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId);
 	virtual void CaptureSparkTransaction(const FString& TransactionId);
+	virtual void CallRemoteMethod(const FString& MethodName, const TSharedRef<FJsonObject> MethodParams);
 
 public:
 	virtual bool Tick(float DeltaTime) override;
