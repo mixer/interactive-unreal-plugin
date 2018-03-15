@@ -22,7 +22,7 @@ namespace
 {
 	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, FText& Result)
 	{
-		size_t RequiredSize;
+		size_t RequiredSize = 0;
 		TArray<char> Utf8String;
 		if (mixer::interactive_control_get_property_string(Session, ControlName, PropertyName, nullptr, &RequiredSize) != mixer::MIXER_ERROR_BUFFER_SIZE)
 		{
