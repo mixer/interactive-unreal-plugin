@@ -21,6 +21,7 @@ protected:
 	typedef bool (T::*FServerMessageHandler)(FJsonObject*);
 
 	void RegisterServerMessageHandler(const FString& MessageType, FServerMessageHandler Handler);
+	virtual bool OnUnhandledServerMessage(const FString& MessageType, const TSharedPtr<FJsonObject> Params) = 0;
 
 	void SendMethodMessageNoParams(const FString& MethodName, FServerMessageHandler Handler);
 	void SendMethodMessageObjectParams(const FString& MethodName, FServerMessageHandler Handler, const FJsonSerializable& ObjectStyleParams);
@@ -239,7 +240,7 @@ void TMixerWebSocketOwnerBase<T>::OnSocketMessage(const FString& MessageJsonStri
 
 	if (!bHandled)
 	{
-		UE_LOG(LogMixerInteractivity, Error, TEXT("Failed to handle websocket message from server: %s"), *MessageJsonString);
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("Failed to handle websocket message from server: %s"), *MessageJsonString);
 	}
 }
 
@@ -313,7 +314,7 @@ bool TMixerWebSocketOwnerBase<T>::OnSocketMessage(FJsonObject* JsonObj)
 		}
 		else
 		{
-			UE_LOG(LogMixerChat, Warning, TEXT("Received event type %s which is not handled in the current implementation."), *Subtype);
+			bHandled = OnUnhandledServerMessage(Subtype, Params != nullptr ? *Params : nullptr);
 		}
 	}
 

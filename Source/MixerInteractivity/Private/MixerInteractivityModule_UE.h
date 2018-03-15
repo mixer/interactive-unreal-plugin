@@ -35,7 +35,7 @@ public:
 	virtual void StopInteractivity();
 	virtual void SetCurrentScene(FName Scene, FName GroupName = NAME_None);
 	virtual FName GetCurrentScene(FName GroupName = NAME_None) { return NAME_None; }
-	virtual void TriggerButtonCooldown(FName Button, FTimespan CooldownTime) {}
+	virtual void TriggerButtonCooldown(FName Button, FTimespan CooldownTime);
 	virtual bool GetButtonDescription(FName Button, FMixerButtonDescription& OutDesc) { return false; }
 	virtual bool GetButtonState(FName Button, FMixerButtonState& OutState) { return false; }
 	virtual bool GetButtonState(FName Button, uint32 ParticipantId, FMixerButtonState& OutState) { return false; }
@@ -51,9 +51,13 @@ public:
 
 protected:
 	virtual bool StartInteractiveConnection();
+	virtual void StopInteractiveConnection();
+
+	virtual bool HandleSingleControlUpdate(FName ControlId, const TSharedRef<FJsonObject> ControlData);
 
 protected:
 	virtual void RegisterAllServerMessageHandlers();
+	virtual bool OnUnhandledServerMessage(const FString& MessageType, const TSharedPtr<FJsonObject> Params);
 
 	virtual void HandleSocketConnected();
 	virtual void HandleSocketConnectionError();
@@ -75,7 +79,7 @@ private:
 
 	bool HandleGetScenesReply(FJsonObject* JsonObj);
 
-	bool HandleGiveInput(TSharedPtr<FMixerRemoteUser> Participant, FJsonObject* FullParamsJson, FJsonObject* InputObjJson);
+	bool HandleGiveInput(TSharedPtr<FMixerRemoteUser> Participant, FJsonObject* FullParamsJson, const TSharedRef<FJsonObject> InputObjJson);
 	bool HandleParticipantEvent(FJsonObject* JsonObj, EMixerInteractivityParticipantState EventType);
 	bool HandleSingleParticipantChange(const FJsonObject* JsonObj, EMixerInteractivityParticipantState EventType);
 

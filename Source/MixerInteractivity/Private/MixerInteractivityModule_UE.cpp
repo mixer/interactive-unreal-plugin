@@ -142,6 +142,14 @@ void FMixerInteractivityModule_UE::SetCurrentScene(FName Scene, FName GroupName)
 	CreateOrUpdateGroup(TEXT("updateGroups"), Scene, GroupName);
 }
 
+void FMixerInteractivityModule_UE::TriggerButtonCooldown(FName Button, FTimespan CooldownTime)
+{
+	double NewCooldownTime = static_cast<double>((FDateTime::UtcNow() + CooldownTime).ToUnixTimestamp() * 1000);
+	TSharedRef<FJsonObject> UpdatedProps = MakeShared<FJsonObject>();
+	UpdatedProps->SetNumberField(TEXT("cooldown"), NewCooldownTime);
+	UpdateRemoteControl(FName("default"), Button, UpdatedProps);
+}
+
 TSharedPtr<const FMixerRemoteUser> FMixerInteractivityModule_UE::GetParticipant(uint32 ParticipantId)
 {
 	TSharedPtr<FMixerRemoteUserCached>* ExistingUser = RemoteParticipantCacheByUint.Find(ParticipantId);
@@ -225,6 +233,26 @@ bool FMixerInteractivityModule_UE::StartInteractiveConnection()
 
 	SetInteractiveConnectionAuthState(EMixerLoginState::Logging_In);
 	return true;
+}
+
+void FMixerInteractivityModule_UE::StopInteractiveConnection()
+{
+	if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
+	{
+		StopInteractivity();
+		SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
+		SetInteractivityState(EMixerInteractivityState::Not_Interactive);
+		CleanupConnection();
+		Endpoints.Empty();
+		RemoteParticipantCacheByGuid.Empty();
+		RemoteParticipantCacheByUint.Empty();
+	}
+}
+
+bool FMixerInteractivityModule_UE::HandleSingleControlUpdate(FName ControlId, const TSharedRef<FJsonObject> ControlData)
+{
+
+	return false;
 }
 
 void FMixerInteractivityModule_UE::OnHostsRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
@@ -328,6 +356,13 @@ void FMixerInteractivityModule_UE::RegisterAllServerMessageHandlers()
 	RegisterServerMessageHandler(TEXT("onParticipantLeave"), &FMixerInteractivityModule_UE::HandleParticipantLeave);
 	RegisterServerMessageHandler(TEXT("onParticipantUpdate"), &FMixerInteractivityModule_UE::HandleParticipantUpdate);
 	RegisterServerMessageHandler(TEXT("onReady"), &FMixerInteractivityModule_UE::HandleReadyStateChange);
+	RegisterServerMessageHandler(TEXT("onControlUpdate"), &FMixerInteractivityModule_UE::HandleControlUpdateMessage);
+}
+
+bool FMixerInteractivityModule_UE::OnUnhandledServerMessage(const FString& MessageType, const TSharedPtr<FJsonObject> Params)
+{
+	OnCustomMethodCall().Broadcast(*MessageType, Params);
+	return true;
 }
 
 bool FMixerInteractivityModule_UE::HandleHello(FJsonObject* JsonObj)
@@ -350,7 +385,7 @@ bool FMixerInteractivityModule_UE::HandleGiveInput(FJsonObject* JsonObj)
 	GET_JSON_OBJECT_RETURN_FAILURE(Input, InputObj);
 
 	TSharedPtr<FMixerRemoteUserCached>* RemoteUser = RemoteParticipantCacheByGuid.Find(ParticipantGuid);
-	return HandleGiveInput(RemoteUser ? *RemoteUser : nullptr, JsonObj, InputObj->Get());
+	return HandleGiveInput(RemoteUser ? *RemoteUser : nullptr, JsonObj, InputObj->ToSharedRef());
 }
 
 bool FMixerInteractivityModule_UE::HandleParticipantJoin(FJsonObject* JsonObj)
@@ -382,10 +417,10 @@ bool FMixerInteractivityModule_UE::HandleGetScenesReply(FJsonObject* JsonObj)
 	return true;
 }
 
-bool FMixerInteractivityModule_UE::HandleGiveInput(TSharedPtr<FMixerRemoteUser> Participant, FJsonObject* FullParamsJson, FJsonObject* InputObjJson)
+bool FMixerInteractivityModule_UE::HandleGiveInput(TSharedPtr<FMixerRemoteUser> Participant, FJsonObject* FullParamsJson, const TSharedRef<FJsonObject> InputObjJson)
 {
 	// Alias so macros work
-	FJsonObject* JsonObj = InputObjJson;
+	const FJsonObject* JsonObj = &InputObjJson.Get();
 
 	GET_JSON_STRING_RETURN_FAILURE(ControlId, ControlId);
 	GET_JSON_STRING_RETURN_FAILURE(Event, EventType);
@@ -438,8 +473,7 @@ bool FMixerInteractivityModule_UE::HandleGiveInput(TSharedPtr<FMixerRemoteUser> 
 	}
 	else
 	{
-		// Custom/unknown control event
-		// Pretend it's handled for now
+		OnCustomControlInput().Broadcast(*ControlId, *EventType, Participant, InputObjJson);
 		return true;
 	}
 }

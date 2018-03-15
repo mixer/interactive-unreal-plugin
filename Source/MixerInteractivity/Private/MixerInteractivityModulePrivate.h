@@ -122,7 +122,9 @@ protected:
 	Windows::Xbox::System::User^ GetXboxUser()							{ return XboxUserOperation.Get(); }
 #endif
 
-	void HandleCustomMessage(const FString& MessageBodyString);
+	bool HandleControlUpdateMessage(FJsonObject* ParamsJson);
+	void HandleCustomControlInputMessage(FJsonObject* ParamsJson);
+
 	virtual bool HandleSingleControlUpdate(FName ControlId, const TSharedRef<FJsonObject> ControlData) { return false; }
 
 private:
@@ -145,12 +147,8 @@ private:
 	bool NeedsClientLibraryActive();
 	void InitDesignTimeGroups();
 
-	void HandleControlUpdateMessage(FJsonObject* ParamsJson);
-	void HandleCustomControlInputMessage(FJsonObject* ParamsJson);
-
 	void TickLocalUserMaintenance();
 	void FlushControlUpdates();
-
 
 private:
 

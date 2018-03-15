@@ -158,7 +158,7 @@ void UMixerInteractivityBlueprintEventSource::OnBroadcastingStateChangedNativeEv
 	}
 }
 
-void UMixerInteractivityBlueprintEventSource::OnCustomMethodCallNativeEvent(FName MethodName, const TSharedRef<FJsonObject> MethodParams)
+void UMixerInteractivityBlueprintEventSource::OnCustomMethodCallNativeEvent(FName MethodName, const TSharedPtr<FJsonObject> MethodParams)
 {
 	UFunction* FunctionPrototype = nullptr;
 	const FMulticastScriptDelegate* BlueprintEvent = nullptr;
@@ -175,7 +175,7 @@ void UMixerInteractivityBlueprintEventSource::OnCustomMethodCallNativeEvent(FNam
 		void* ParamStorage = FMemory_Alloca(FunctionPrototype->ParmsSize);
 		if (ParamStorage != nullptr)
 		{
-			MixerBindingUtils::ExtractCustomEventParamsFromMessage(&MethodParams.Get(), FunctionPrototype, ParamStorage, FunctionPrototype->ParmsSize);
+			MixerBindingUtils::ExtractCustomEventParamsFromMessage(MethodParams.Get(), FunctionPrototype, ParamStorage, FunctionPrototype->ParmsSize);
 			BlueprintEvent->ProcessMulticastDelegate<UObject>(ParamStorage);
 			MixerBindingUtils::DestroyCustomEventParams(FunctionPrototype, ParamStorage, FunctionPrototype->ParmsSize);
 		}
