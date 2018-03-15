@@ -552,7 +552,7 @@ void FMixerInteractivityModule::HandleCustomMessage(const FString& MessageBodySt
 				}
 				else if (Method == TEXT("onControlUpdate"))
 				{
-					HandleCustomControlUpdateMessage(ParamsObject->Get());
+					HandleControlUpdateMessage(ParamsObject->Get());
 				}
 				else
 				{
@@ -563,7 +563,7 @@ void FMixerInteractivityModule::HandleCustomMessage(const FString& MessageBodySt
 	}
 }
 
-void FMixerInteractivityModule::HandleCustomControlUpdateMessage(FJsonObject* ParamsJson)
+void FMixerInteractivityModule::HandleControlUpdateMessage(FJsonObject* ParamsJson)
 {
 	const TArray<TSharedPtr<FJsonValue>> *UpdatedControls;
 	if (ParamsJson->TryGetArrayField(TEXT("controls"), UpdatedControls))
@@ -573,10 +573,15 @@ void FMixerInteractivityModule::HandleCustomControlUpdateMessage(FJsonObject* Pa
 			const TSharedPtr<FJsonObject> ControlObject = Control->AsObject();
 			if (ControlObject.IsValid())
 			{
-				FString ControlId;
-				if (ControlObject->TryGetStringField(TEXT("controlID"), ControlId))
+				FString ControlIdRaw;
+				if (ControlObject->TryGetStringField(TEXT("controlID"), ControlIdRaw))
 				{
-					OnCustomControlPropertyUpdate().Broadcast(*ControlId, ControlObject.ToSharedRef());
+					FName ControlId = *ControlIdRaw;
+					const TSharedRef<FJsonObject> ControlJsonRef = ControlObject.ToSharedRef();
+					if (!HandleSingleControlUpdate(ControlId, ControlJsonRef))
+					{
+						OnCustomControlPropertyUpdate().Broadcast(ControlId, ControlJsonRef);
+					}
 				}
 			}
 		}
