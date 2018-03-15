@@ -217,6 +217,7 @@ void FMixerInteractivityModule_InteractiveCpp2::StopInteractiveConnection()
 		SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
 		mixer::interactive_disconnect(InteractiveSession);
 		InteractiveSession = nullptr;
+		bPerParticipantStateCaching = false;
 		RemoteParticipantCacheByGuid.Empty();
 		RemoteParticipantCacheByUint.Empty();
 		ButtonCache.Empty();
@@ -521,7 +522,10 @@ bool FMixerInteractivityModule_InteractiveCpp2::GetButtonState(FName Button, uin
 	}
 	else
 	{
-		UE_LOG(LogMixerInteractivity, Error, TEXT("Polling per-participant button state requires that per-participant state caching is enabled."));
+		if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
+		{
+			UE_LOG(LogMixerInteractivity, Error, TEXT("Polling per-participant button state requires that per-participant state caching is enabled."));
+		}
 		return false;
 	}
 }
@@ -550,7 +554,10 @@ bool FMixerInteractivityModule_InteractiveCpp2::GetStickState(FName Stick, FMixe
 	}
 	else
 	{
-		UE_LOG(LogMixerInteractivity, Error, TEXT("Polling aggregate stick state requires that per-participant state caching is enabled."));
+		if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
+		{
+			UE_LOG(LogMixerInteractivity, Error, TEXT("Polling aggregate stick state requires that per-participant state caching is enabled."));
+		}
 		return false;
 	}
 }
@@ -575,7 +582,10 @@ bool FMixerInteractivityModule_InteractiveCpp2::GetStickState(FName Stick, uint3
 	}
 	else
 	{
-		UE_LOG(LogMixerInteractivity, Error, TEXT("Polling per-participant stick state requires that per-participant state caching is enabled."));
+		if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
+		{
+			UE_LOG(LogMixerInteractivity, Error, TEXT("Polling per-participant stick state requires that per-participant state caching is enabled."));
+		}
 		return false;
 	}
 }
