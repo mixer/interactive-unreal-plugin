@@ -11,8 +11,7 @@
 
 #include "MixerInteractivityModulePrivate.h"
 
-#define MIXER_BACKEND_INTERACTIVE_CPP_2 1
-#define PER_PARTICIPANT_CONTROL_STATE 1
+//#define MIXER_BACKEND_INTERACTIVE_CPP_2 1
 #if MIXER_BACKEND_INTERACTIVE_CPP_2
 
 #include "MixerInteractivityTypes.h"
@@ -64,6 +63,7 @@ public:
 
 protected:
 	virtual bool StartInteractiveConnection();
+	virtual void StopInteractiveConnection();
 
 	virtual bool HandleSingleControlUpdate(FName ControlId, const TSharedRef<FJsonObject> ControlData);
 

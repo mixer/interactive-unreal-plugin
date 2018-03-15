@@ -16,8 +16,6 @@
 #include "MixerInteractivityLog.h"
 #include "StringConv.h"
 
-#include <interactive-cpp-v2/source/interactivity.cpp>
-
 IMPLEMENT_MODULE(FMixerInteractivityModule_InteractiveCpp2, MixerInteractivity);
 
 namespace
@@ -210,6 +208,20 @@ bool FMixerInteractivityModule_InteractiveCpp2::StartInteractiveConnection()
 	SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
 
 	return true;
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::StopInteractiveConnection()
+{
+	if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
+	{
+		SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
+		mixer::interactive_disconnect(InteractiveSession);
+		InteractiveSession = nullptr;
+		RemoteParticipantCacheByGuid.Empty();
+		RemoteParticipantCacheByUint.Empty();
+		ButtonCache.Empty();
+		StickCache.Empty();
+	}
 }
 
 bool FMixerInteractivityModule_InteractiveCpp2::HandleSingleControlUpdate(FName ControlId, const TSharedRef<FJsonObject> ControlData)
