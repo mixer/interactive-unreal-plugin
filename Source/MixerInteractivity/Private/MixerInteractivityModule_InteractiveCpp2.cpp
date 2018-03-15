@@ -20,6 +20,38 @@
 
 IMPLEMENT_MODULE(FMixerInteractivityModule_InteractiveCpp2, MixerInteractivity);
 
+namespace
+{
+	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, FText& Result)
+	{
+		size_t RequiredSize;
+		TArray<char> Utf8String;
+		if (mixer::interactive_control_get_property_string(Session, ControlName, PropertyName, nullptr, &RequiredSize) != mixer::MIXER_ERROR_BUFFER_SIZE)
+		{
+			return false;
+		}
+
+		Utf8String.AddUninitialized(RequiredSize);
+		if (mixer::interactive_control_get_property_string(Session, ControlName, PropertyName, Utf8String.GetData(), &RequiredSize) != mixer::MIXER_OK)
+		{
+			return false;
+		}
+
+		Result = FText::FromString(UTF8_TO_TCHAR(Utf8String.GetData()));
+		return true;
+	}
+
+	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, float& Result)
+	{
+		return mixer::interactive_control_get_property_float(Session, ControlName, PropertyName, &Result) == mixer::MIXER_OK;
+	}
+
+	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, bool& Result)
+	{
+		return mixer::interactive_control_get_property_bool(Session, ControlName, PropertyName, &Result) == mixer::MIXER_OK;
+	}
+}
+
 void FMixerInteractivityModule_InteractiveCpp2::StartInteractivity()
 {
 	if (InteractiveSession != nullptr)
@@ -164,15 +196,58 @@ bool FMixerInteractivityModule_InteractiveCpp2::StartInteractiveConnection()
 		return false;
 	}
 
+	bPerParticipantStateCaching = Settings->bPerParticipantStateCaching;
+
 	mixer::interactive_reg_error_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionError);
 	mixer::interactive_reg_state_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionStateChanged);
 	mixer::interactive_reg_button_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput);
 	mixer::interactive_reg_coordinate_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput);
 	mixer::interactive_reg_participants_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged);
+	mixer::interactive_reg_unhandled_method_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod);
+
+	mixer::interactive_get_scenes(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateScenesForInit);
 
 	SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
 
 	return true;
+}
+
+bool FMixerInteractivityModule_InteractiveCpp2::HandleSingleControlUpdate(FName ControlId, const TSharedRef<FJsonObject> ControlData)
+{
+	FMixerButtonPropertiesCached* ButtonProps = ButtonCache.Find(ControlId);
+	if (ButtonProps != nullptr)
+	{
+		// @TODO: use 64 bit version for cooldown (it's the timestamp at which cooldown expires)
+		//int CooldownTime;
+		//if (!GetControlPropertyHelper(InteractiveSession, ButtonNameUtf8, "cooldown", CooldownTime))
+		//{
+		//	return false;
+		//}
+		//OutState.RemainingCooldown = FTimespan(0);
+
+		if (!GetControlPropertyHelper(InteractiveSession, ControlId.GetPlainANSIString(), "progress", ButtonProps->State.Progress))
+		{
+			return false;
+		}
+
+		bool bDisabled = false;
+		if (!GetControlPropertyHelper(InteractiveSession, ControlId.GetPlainANSIString(), "disabled", bDisabled))
+		{
+			return false;
+		}
+		ButtonProps->State.Enabled = !bDisabled;
+
+		return true;
+	}
+
+	FMixerStickPropertiesCached* StickProps = StickCache.Find(ControlId);
+	if (StickProps != nullptr)
+	{
+
+		return true;
+	}
+
+	return false;
 }
 
 bool FMixerInteractivityModule_InteractiveCpp2::Tick(float DeltaTime)
@@ -222,9 +297,31 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput(void* Conte
 	}
 
 	TSharedPtr<FMixerRemoteUserCached> ButtonUser = InteractiveModule.RemoteParticipantCacheByGuid.FindChecked(ParticipantGuid);
+
+	FMixerButtonPropertiesCached& CachedProps = InteractiveModule.ButtonCache.FindChecked(FName(Input->control.id));
+
 	FMixerButtonEventDetails ButtonEventDetails;
 	ButtonEventDetails.Pressed = Input->action == mixer::down;
-	ButtonEventDetails.SparkCost = 0;
+	ButtonEventDetails.SparkCost = CachedProps.Desc.SparkCost;
+	if (ButtonEventDetails.Pressed)
+	{
+		CachedProps.State.DownCount += 1;
+		if (InteractiveModule.bPerParticipantStateCaching)
+		{
+			CachedProps.HoldingParticipants.Add(ButtonUser->Id);
+			CachedProps.State.PressCount = CachedProps.HoldingParticipants.Num();
+		}
+	}
+	else
+	{
+		CachedProps.State.UpCount += 1;
+		if (InteractiveModule.bPerParticipantStateCaching)
+		{
+			CachedProps.HoldingParticipants.Remove(ButtonUser->Id);
+			CachedProps.State.PressCount = CachedProps.HoldingParticipants.Num();
+		}
+	}
+
 	InteractiveModule.OnButtonEvent().Broadcast(Input->control.id, ButtonUser, ButtonEventDetails);
 }
 
@@ -240,6 +337,41 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput(void* C
 	}
 
 	TSharedPtr<FMixerRemoteUserCached> StickUser = InteractiveModule.RemoteParticipantCacheByGuid.FindChecked(ParticipantGuid);
+	if (InteractiveModule.bPerParticipantStateCaching)
+	{
+		FMixerStickPropertiesCached* CachedProps = InteractiveModule.StickCache.Find(FName(Input->control.id));
+		if (CachedProps != nullptr)
+		{
+			if (Input->x != 0 || Input->y != 0)
+			{
+				CachedProps->State.Axes *= CachedProps->PerParticipantStickValue.Num();
+				FVector2D& PerUserStickValue = CachedProps->PerParticipantStickValue.FindOrAdd(StickUser->Id);
+				CachedProps->State.Axes -= PerUserStickValue;
+				PerUserStickValue = FVector2D(Input->x, Input->y);
+				CachedProps->State.Axes += PerUserStickValue;
+				CachedProps->State.Axes /= CachedProps->PerParticipantStickValue.Num();
+			}
+			else
+			{
+				FVector2D* OldPerUserStickValue = CachedProps->PerParticipantStickValue.Find(StickUser->Id);
+				if (OldPerUserStickValue != nullptr)
+				{
+					CachedProps->State.Axes *= CachedProps->PerParticipantStickValue.Num();
+					CachedProps->State.Axes -= *OldPerUserStickValue;
+					CachedProps->PerParticipantStickValue.Remove(StickUser->Id);
+					if (CachedProps->PerParticipantStickValue.Num() > 0)
+					{
+						CachedProps->State.Axes /= CachedProps->PerParticipantStickValue.Num();
+					}
+					else
+					{
+						CachedProps->State.Axes = FVector2D(0, 0);
+					}
+				}
+			}
+		}
+	}
+
 	InteractiveModule.OnStickEvent().Broadcast(Input->control.id, StickUser, FVector2D(Input->x, Input->y));
 }
 
@@ -302,10 +434,16 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(voi
 	}
 }
 
-bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char *PropertyName, uint32& Result)
+void FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod(void* Context, mixer::interactive_session Session, const char* MethodJson, size_t MethodJsonLength)
+{
+	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
+	InteractiveModule.HandleCustomMessage(FString(UTF8_TO_TCHAR(MethodJson)));
+}
+
+bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, uint32& Result)
 {
 	int SignedResult;
-	if (mixer::interactive_control_get_property_int(Session, ControlName.Get(), PropertyName, &SignedResult) != mixer::MIXER_OK)
+	if (mixer::interactive_control_get_property_int(Session, ControlName, PropertyName, &SignedResult) != mixer::MIXER_OK)
 	{
 		return false;
 	}
@@ -314,93 +452,66 @@ bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARTo
 	return true;
 }
 
-bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char *PropertyName, FText& Result)
-{
-	size_t RequiredSize;
-	TArray<char> Utf8String;
-	if (mixer::interactive_control_get_property_string(Session, ControlName.Get(), PropertyName, nullptr, &RequiredSize) != mixer::MIXER_ERROR_BUFFER_SIZE)
-	{
-		return false;
-	}
-
-	Utf8String.AddUninitialized(RequiredSize);
-	if (mixer::interactive_control_get_property_string(Session, ControlName.Get(), PropertyName, Utf8String.GetData(), &RequiredSize) != mixer::MIXER_OK)
-	{
-		return false;
-	}
-
-	Result = FText::FromString(UTF8_TO_TCHAR(Utf8String.GetData()));
-	return true;
-}
-
-bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char *PropertyName, float& Result)
-{
-	return mixer::interactive_control_get_property_float(Session, ControlName.Get(), PropertyName, &Result) == mixer::MIXER_OK;
-}
-
-bool GetControlPropertyHelper(mixer::interactive_session Session, const FTCHARToUTF8& ControlName, const char *PropertyName, bool& Result)
-{
-	return mixer::interactive_control_get_property_bool(Session, ControlName.Get(), PropertyName, &Result) == mixer::MIXER_OK;
-}
-
-
-
 bool FMixerInteractivityModule_InteractiveCpp2::GetButtonDescription(FName Button, FMixerButtonDescription& OutDesc)
 {
-	FTCHARToUTF8 ButtonNameUtf8(*Button.GetPlainNameString());
-	if (!GetControlPropertyHelper(InteractiveSession, ButtonNameUtf8, "cost", OutDesc.SparkCost))
+	FMixerButtonPropertiesCached* CachedProps = ButtonCache.Find(Button);
+	if (CachedProps != nullptr)
+	{
+		OutDesc = CachedProps->Desc;
+		return true;
+	}
+	else
 	{
 		return false;
 	}
-
-	if (!GetControlPropertyHelper(InteractiveSession, ButtonNameUtf8, "text", OutDesc.ButtonText))
-	{
-		return false;
-	}
-
-	if (!GetControlPropertyHelper(InteractiveSession, ButtonNameUtf8, "tooltip", OutDesc.HelpText))
-	{
-		return false;
-	}
-
-	return true;
 }
 
 bool FMixerInteractivityModule_InteractiveCpp2::GetButtonState(FName Button, FMixerButtonState& OutState)
 {
-	FTCHARToUTF8 ButtonNameUtf8(*Button.GetPlainNameString());
-	// @TODO: how is cooldown specified?
-	//int CooldownTime;
-	//if (!GetControlPropertyHelper(InteractiveSession, ButtonNameUtf8, "cooldown", CooldownTime))
-	//{
-	//	return false;
-	//}
-	OutState.RemainingCooldown = FTimespan(0);
-
-	if (!GetControlPropertyHelper(InteractiveSession, ButtonNameUtf8, "progress", OutState.Progress))
+	FMixerButtonPropertiesCached* CachedProps = ButtonCache.Find(Button);
+	if (CachedProps != nullptr)
+	{
+		OutState = CachedProps->State;
+		if (!bPerParticipantStateCaching)
+		{
+			OutState.PressCount = 0;
+		}
+		return true;
+	}
+	else
 	{
 		return false;
 	}
-
-	bool bDisabled = false;
-	if (!GetControlPropertyHelper(InteractiveSession, ButtonNameUtf8, "disabled", bDisabled))
-	{
-		return false;
-	}
-	OutState.Enabled = !bDisabled;
-
-	// @TODO
-	OutState.PressCount = 0;
-	OutState.DownCount = 0;
-	OutState.UpCount = 0;
 
 	return true;
 }
 
 bool FMixerInteractivityModule_InteractiveCpp2::GetButtonState(FName Button, uint32 ParticipantId, FMixerButtonState& OutState)
 {
-	// @TODO
-	return false;
+	if (bPerParticipantStateCaching)
+	{
+		FMixerButtonPropertiesCached* CachedProps = ButtonCache.Find(Button);
+		if (CachedProps != nullptr)
+		{
+			OutState = CachedProps->State;
+
+			// Even with per-participant tracking on we don't maintain these.  
+			OutState.DownCount = 0;
+			OutState.UpCount = 0;
+			OutState.PressCount = CachedProps->HoldingParticipants.Contains(ParticipantId) ? 1 : 0;
+
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	else
+	{
+		UE_LOG(LogMixerInteractivity, Error, TEXT("Polling per-participant button state requires that per-participant state caching is enabled."));
+		return false;
+	}
 }
 
 bool FMixerInteractivityModule_InteractiveCpp2::GetStickDescription(FName Stick, FMixerStickDescription& OutDesc)
@@ -411,24 +522,50 @@ bool FMixerInteractivityModule_InteractiveCpp2::GetStickDescription(FName Stick,
 
 bool FMixerInteractivityModule_InteractiveCpp2::GetStickState(FName Stick, FMixerStickState& OutState)
 {
-	FTCHARToUTF8 StickNameUtf8(*Stick.GetPlainNameString());
-
-	bool bDisabled = false;
-	if (!GetControlPropertyHelper(InteractiveSession, StickNameUtf8, "disabled", bDisabled))
+	if (bPerParticipantStateCaching)
 	{
+		FMixerStickPropertiesCached* CachedProps = StickCache.Find(Stick);
+		if (CachedProps != nullptr)
+		{
+			OutState = CachedProps->State;
+
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	else
+	{
+		UE_LOG(LogMixerInteractivity, Error, TEXT("Polling aggregate stick state requires that per-participant state caching is enabled."));
 		return false;
 	}
-	OutState.Enabled = !bDisabled;
-
-	// @TODO
-	OutState.Axes = FVector2D(0, 0);
-	return true;
 }
 
 bool FMixerInteractivityModule_InteractiveCpp2::GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState)
 {
-	// @TODO
-	return false;
+	if (bPerParticipantStateCaching)
+	{
+		FMixerStickPropertiesCached* CachedProps = StickCache.Find(Stick);
+		if (CachedProps != nullptr)
+		{
+			OutState.Enabled = CachedProps->State.Enabled;
+
+			FVector2D* PerParticipantState = CachedProps->PerParticipantStickValue.Find(ParticipantId);
+			OutState.Axes = (PerParticipantState != nullptr) ? *PerParticipantState : FVector2D(0, 0);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
+	else
+	{
+		UE_LOG(LogMixerInteractivity, Error, TEXT("Polling per-participant stick state requires that per-participant state caching is enabled."));
+		return false;
+	}
 }
 
 TSharedPtr<const FMixerRemoteUser> FMixerInteractivityModule_InteractiveCpp2::GetParticipant(uint32 ParticipantId)
@@ -456,6 +593,33 @@ void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateForGetParticipantsInG
 		{
 			GetParticipantsContext->OutParticipants->Add(*User);
 		}
+	}
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateScenesForInit(void* Context, mixer::interactive_session Session, mixer::interactive_scene* Scene)
+{
+	mixer::interactive_scene_get_controls(Session, Scene->id, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateControlsForInit);
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateControlsForInit(void* Context, mixer::interactive_session Session, mixer::interactive_control* Control)
+{
+	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
+
+	if (FPlatformString::Strcmp(Control->kind, "button") == 0)
+	{
+		FMixerButtonPropertiesCached& CachedProps = InteractiveModule.ButtonCache.Add(FName(Control->id));
+
+		GetControlPropertyHelper(Session, Control->id, "cost", CachedProps.Desc.SparkCost);
+		GetControlPropertyHelper(Session, Control->id, "text", CachedProps.Desc.ButtonText);
+		GetControlPropertyHelper(Session, Control->id, "tooltip", CachedProps.Desc.HelpText);
+
+		CachedProps.State.DownCount = 0;
+		CachedProps.State.UpCount = 0;
+		CachedProps.State.PressCount = 0;
+	}
+	else if (FPlatformString::Strcmp(Control->kind, "joystick") == 0)
+	{
+		InteractiveModule.StickCache.Add(FName(Control->id));
 	}
 }
 

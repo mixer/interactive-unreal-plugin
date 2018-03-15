@@ -12,10 +12,25 @@
 #include "MixerInteractivityModulePrivate.h"
 
 #define MIXER_BACKEND_INTERACTIVE_CPP_2 1
+#define PER_PARTICIPANT_CONTROL_STATE 1
 #if MIXER_BACKEND_INTERACTIVE_CPP_2
 
 #include "MixerInteractivityTypes.h"
 #include <interactive-cpp-v2/source/interactivity.h>
+
+struct FMixerButtonPropertiesCached
+{
+	FMixerButtonDescription Desc;
+	FMixerButtonState State;
+	TSet<uint32> HoldingParticipants;
+};
+
+struct FMixerStickPropertiesCached
+{
+	FMixerStickDescription Desc;
+	FMixerStickState State;
+	TMap<uint32, FVector2D> PerParticipantStickValue;
+};
 
 struct FMixerRemoteUserCached : public FMixerRemoteUser
 {
@@ -50,6 +65,8 @@ public:
 protected:
 	virtual bool StartInteractiveConnection();
 
+	virtual bool HandleSingleControlUpdate(FName ControlId, const TSharedRef<FJsonObject> ControlData);
+
 private:
 
 	static void OnSessionStateChanged(void* Context, mixer::interactive_session Session, mixer::interactive_state PreviousState, mixer::interactive_state NewState);
@@ -57,6 +74,7 @@ private:
 	static void OnSessionButtonInput(void* Context, mixer::interactive_session Session, const mixer::interactive_button_input* Input);
 	static void OnSessionCoordinateInput(void* Context, mixer::interactive_session Session, const mixer::interactive_coordinate_input* Input);
 	static void OnSessionParticipantsChanged(void* Context, mixer::interactive_session Session, mixer::participant_action Action, const mixer::interactive_participant* Participant);
+	static void OnUnhandledMethod(void* Context, mixer::interactive_session Session, const char* MethodJson, size_t MethodJsonLength);
 
 	struct FGetCurrentSceneEnumContext
 	{
@@ -75,9 +93,17 @@ private:
 
 	static void OnEnumerateForGetParticipantsInGroup(void* Context, mixer::interactive_session Session, mixer::interactive_participant* Participant);
 
+	static void OnEnumerateScenesForInit(void* Context, mixer::interactive_session Session, mixer::interactive_scene* Scene);
+	static void OnEnumerateControlsForInit(void* Context, mixer::interactive_session Session, mixer::interactive_control* Control);
+
 	mixer::interactive_session InteractiveSession;
 	TMap<FGuid, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCacheByGuid;
 	TMap<uint32, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCacheByUint;
+
+	TMap<FName, FMixerButtonPropertiesCached> ButtonCache;
+	TMap<FName, FMixerStickPropertiesCached> StickCache;
+
+	bool bPerParticipantStateCaching;
 };
 
 #endif
