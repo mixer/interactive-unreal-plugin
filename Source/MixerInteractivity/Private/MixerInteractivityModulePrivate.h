@@ -113,6 +113,7 @@ public:
 
 protected:
 	virtual bool StartInteractiveConnection() = 0;
+	virtual void StopInteractiveConnection() = 0;
 	EMixerLoginState GetInteractiveConnectionAuthState() const			{ return InteractiveConnectionAuthState; }
 	void SetInteractiveConnectionAuthState(EMixerLoginState InState);
 	EMixerInteractivityState GetInteractivityState() const				{ return InteractivityState; }
