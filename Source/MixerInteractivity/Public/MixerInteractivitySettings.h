@@ -35,6 +35,8 @@ class MIXERINTERACTIVITY_API UMixerInteractivitySettings : public UObject
 
 public:
 
+	UMixerInteractivitySettings();
+
 	/** 
 	* The OAuth Client Id for this application.
 	* Obtain this value from https://mixer.com/lab
@@ -105,7 +107,7 @@ public:
 	* may reduce memory consumption (and to a lesser extent CPU), especially when there
 	* are many remote users, but will limit the ability to poll for state.
 	*/
-	UPROPERTY(EditAnywhere, Config, Category = "Interactive Controls", meta = (DisplayName = "Track built-in control state per remote participant"))
+	UPROPERTY(EditAnywhere, Config, Category = "Interactive Controls", AdvancedDisplay, meta = (DisplayName = "Track built-in control state per remote participant"))
 	bool bPerParticipantStateCaching;
 
 public:
