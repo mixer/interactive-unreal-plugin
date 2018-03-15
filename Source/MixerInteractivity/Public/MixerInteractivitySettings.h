@@ -99,6 +99,15 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Interactive Controls", meta = (AllowedClasses = "MixerProjectAsset"))
 	FSoftObjectPath ProjectDefinition;
 
+	/**
+	* Choose whether built-in controls such as buttons and joysticks maintain information
+	* about their state for each remote user in an interactive session.  Disabling this
+	* may reduce memory consumption (and to a lesser extent CPU), especially when there
+	* are many remote users, but will limit the ability to poll for state.
+	*/
+	UPROPERTY(EditAnywhere, Config, Category = "Interactive Controls", meta = (DisplayName = "Track built-in control state per remote participant"))
+	bool bPerParticipantStateCaching;
+
 public:
 	FString GetResolvedRedirectUri() const
 	{
