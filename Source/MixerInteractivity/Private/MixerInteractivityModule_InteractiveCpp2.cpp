@@ -507,7 +507,31 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(voi
 void FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod(void* Context, mixer::interactive_session Session, const char* MethodJson, size_t MethodJsonLength)
 {
 	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
-	InteractiveModule.HandleCustomMessage(FString(UTF8_TO_TCHAR(MethodJson)));
+	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(FString(UTF8_TO_TCHAR(MethodJson)));
+	TSharedPtr<FJsonObject> JsonObject;
+	if (FJsonSerializer::Deserialize(JsonReader, JsonObject) && JsonObject.IsValid())
+	{
+		FString Method;
+		if (JsonObject->TryGetStringField(TEXT("method"), Method))
+		{
+			const TSharedPtr<FJsonObject> *ParamsObject;
+			if (JsonObject->TryGetObjectField(TEXT("params"), ParamsObject))
+			{
+				if (Method == TEXT("giveInput"))
+				{
+					InteractiveModule.HandleCustomControlInputMessage(ParamsObject->Get());
+				}
+				else if (Method == TEXT("onControlUpdate"))
+				{
+					InteractiveModule.HandleControlUpdateMessage(ParamsObject->Get());
+				}
+				else
+				{
+					InteractiveModule.OnCustomMethodCall().Broadcast(*Method, ParamsObject->ToSharedRef());
+				}
+			}
+		}
+	}
 }
 
 bool FMixerInteractivityModule_InteractiveCpp2::GetButtonDescription(FName Button, FMixerButtonDescription& OutDesc)

@@ -5,6 +5,14 @@ using System.Collections.Generic;
 
 public class MixerInteractivity : ModuleRules
 {
+	enum Backend
+	{
+		InteractiveCppV1,
+		InteractiveCppV2,
+		Null,
+		UE,
+	}
+
 	public MixerInteractivity(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PrivateDependencyModuleNames.AddRange(
@@ -26,42 +34,55 @@ public class MixerInteractivity : ModuleRules
 		PrivateIncludePathModuleNames.Add("Launch");
 		PrivateIncludePathModuleNames.Add("OnlineSubsystem");
 
+		Backend SelectedBackend = Backend.Null;
 		string ThirdPartyFolder = Path.Combine(ModuleDirectory, "..", "..", "ThirdParty");
 		PrivateIncludePaths.Add(Path.Combine(ThirdPartyFolder, "Include"));
 		PublicLibraryPaths.Add(Path.Combine(ThirdPartyFolder, "Lib", Target.Platform.ToString()));
 
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
 		{
+			SelectedBackend = Backend.InteractiveCppV1;
+
 			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=1");
-			Definitions.Add("MIXER_BACKEND_INTERACTIVE_CPP=1");
-			Definitions.Add("MIXER_BACKEND_NULL=0");
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
 					"WebBrowser",
 				});
-
-			PublicAdditionalLibraries.Add("Interactivity.Win32.Cpp.lib");
-			PublicAdditionalLibraries.Add("cpprest140_2_9.lib");
-			PublicAdditionalLibraries.Add("winhttp.lib");
-			PublicAdditionalLibraries.Add("crypt32.lib");
-			PublicAdditionalLibraries.Add("bcrypt.lib");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
-			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
-			Definitions.Add("MIXER_BACKEND_INTERACTIVE_CPP=1");
-			Definitions.Add("MIXER_BACKEND_NULL=0");
+			SelectedBackend = Backend.InteractiveCppV1;
 
-			//PublicAdditionalLibraries.Add("Interactivity.Xbox.Cpp.lib");
-			//PublicAdditionalLibraries.Add("casablanca140.xbox.lib");
+			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
 		}
 		else
 		{
 			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
-			Definitions.Add("MIXER_BACKEND_NULL=1");
-			Definitions.Add("MIXER_BACKEND_INTERACTIVE_CPP=0");
 		}
+
+		if (SelectedBackend == Backend.InteractiveCppV1)
+		{
+			PrivateIncludePaths.Add(Path.Combine(ThirdPartyFolder, "Include", "interactive-cpp"));
+			if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
+			{
+				PublicAdditionalLibraries.Add("Interactivity.Win32.Cpp.lib");
+				PublicAdditionalLibraries.Add("cpprest140_2_9.lib");
+				PublicAdditionalLibraries.Add("winhttp.lib");
+				PublicAdditionalLibraries.Add("crypt32.lib");
+				PublicAdditionalLibraries.Add("bcrypt.lib");
+			}
+			else if (Target.Platform == UnrealTargetPlatform.XboxOne)
+			{
+				PublicAdditionalLibraries.Add("Interactivity.Xbox.Cpp.lib");
+				PublicAdditionalLibraries.Add("casablanca140.xbox.lib");
+			}
+		}
+
+		Definitions.Add(string.Format("MIXER_BACKEND_INTERACTIVE_CPP={0}", SelectedBackend == Backend.InteractiveCppV1 ? 1 : 0));
+		Definitions.Add(string.Format("MIXER_BACKEND_INTERACTIVE_CPP_2={0}", SelectedBackend == Backend.InteractiveCppV2 ? 1 : 0));
+		Definitions.Add(string.Format("MIXER_BACKEND_NULL={0}", SelectedBackend == Backend.Null ? 1 : 0));
+		Definitions.Add(string.Format("MIXER_BACKEND_UE={0}", SelectedBackend == Backend.UE ? 1 : 0));
 
 		bEnableExceptions = true;
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;

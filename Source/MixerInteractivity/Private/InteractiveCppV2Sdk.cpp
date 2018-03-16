@@ -12,6 +12,6 @@
 // Placed here to isolate it from other UE code (e.g. IWebSocket conflicts)
 #if MIXER_BACKEND_INTERACTIVE_CPP_2
 #include "PreWindowsApi.h"
-#include <interactive-cpp-v2/source/interactivity.cpp>
+#include <interactive-cpp-v2/interactivity.cpp>
 #include "PostWindowsApi.h"
 #endif

@@ -14,7 +14,7 @@
 #if MIXER_BACKEND_INTERACTIVE_CPP_2
 
 #include "MixerInteractivityTypes.h"
-#include <interactive-cpp-v2/source/interactivity.h>
+#include <interactive-cpp-v2/interactivity.h>
 
 struct FMixerButtonPropertiesCached
 {
