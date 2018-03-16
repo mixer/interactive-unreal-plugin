@@ -389,6 +389,6 @@ public:
 	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnCustomControlPropertyUpdate, FName, const TSharedRef<FJsonObject>);
 	virtual FOnCustomControlPropertyUpdate& OnCustomControlPropertyUpdate() = 0;
 
-	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnCustomMethodCall, FName, const TSharedRef<FJsonObject>);
+	DECLARE_EVENT_TwoParams(IMixerInteractivityModule, FOnCustomMethodCall, FName, const TSharedPtr<FJsonObject>);
 	virtual FOnCustomMethodCall& OnCustomMethodCall() = 0;
 };

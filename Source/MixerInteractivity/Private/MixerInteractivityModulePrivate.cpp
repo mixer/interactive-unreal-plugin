@@ -50,6 +50,7 @@ DEFINE_LOG_CATEGORY(LogMixerInteractivity);
 
 void FMixerInteractivityModule::StartupModule()
 {
+	RetryLoginWithUI = false;
 	UserAuthState = EMixerLoginState::Not_Logged_In;
 	InteractiveConnectionAuthState = EMixerLoginState::Not_Logged_In;
 	InteractivityState = EMixerInteractivityState::Not_Interactive;
@@ -553,36 +554,7 @@ void FMixerInteractivityModule::InitDesignTimeGroups()
 	}
 }
 
-void FMixerInteractivityModule::HandleCustomMessage(const FString& MessageBodyString)
-{
-	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(MessageBodyString);
-	TSharedPtr<FJsonObject> JsonObject;
-	if (FJsonSerializer::Deserialize(JsonReader, JsonObject) && JsonObject.IsValid())
-	{
-		FString Method;
-		if (JsonObject->TryGetStringField(TEXT("method"), Method))
-		{
-			const TSharedPtr<FJsonObject> *ParamsObject;
-			if (JsonObject->TryGetObjectField(TEXT("params"), ParamsObject))
-			{
-				if (Method == TEXT("giveInput"))
-				{
-					HandleCustomControlInputMessage(ParamsObject->Get());
-				}
-				else if (Method == TEXT("onControlUpdate"))
-				{
-					HandleCustomControlUpdateMessage(ParamsObject->Get());
-				}
-				else
-				{
-					OnCustomMethodCall().Broadcast(*Method, ParamsObject->ToSharedRef());
-				}
-			}
-		}
-	}
-}
-
-void FMixerInteractivityModule::HandleCustomControlUpdateMessage(FJsonObject* ParamsJson)
+bool FMixerInteractivityModule::HandleControlUpdateMessage(FJsonObject* ParamsJson)
 {
 	const TArray<TSharedPtr<FJsonValue>> *UpdatedControls;
 	if (ParamsJson->TryGetArrayField(TEXT("controls"), UpdatedControls))
@@ -592,14 +564,21 @@ void FMixerInteractivityModule::HandleCustomControlUpdateMessage(FJsonObject* Pa
 			const TSharedPtr<FJsonObject> ControlObject = Control->AsObject();
 			if (ControlObject.IsValid())
 			{
-				FString ControlId;
-				if (ControlObject->TryGetStringField(TEXT("controlID"), ControlId))
+				FString ControlIdRaw;
+				if (ControlObject->TryGetStringField(TEXT("controlID"), ControlIdRaw))
 				{
-					OnCustomControlPropertyUpdate().Broadcast(*ControlId, ControlObject.ToSharedRef());
+					FName ControlId = *ControlIdRaw;
+					const TSharedRef<FJsonObject> ControlJsonRef = ControlObject.ToSharedRef();
+					if (!HandleSingleControlUpdate(ControlId, ControlJsonRef))
+					{
+						OnCustomControlPropertyUpdate().Broadcast(ControlId, ControlJsonRef);
+					}
 				}
 			}
 		}
 	}
+
+	return true;
 }
 
 void FMixerInteractivityModule::HandleCustomControlInputMessage(FJsonObject* ParamsJson)

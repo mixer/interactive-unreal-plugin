@@ -12,6 +12,12 @@
 #include "MixerInteractivityProjectAsset.h"
 #include "MixerInteractivityJsonTypes.h"
 
+UMixerInteractivitySettings::UMixerInteractivitySettings()
+	: bPerParticipantStateCaching(true)
+{
+
+}
+
 #if WITH_EDITORONLY_DATA
 
 void UMixerInteractivitySettings::GetAllControls(const FString& Kind, TArray<FString>& OutControls)
