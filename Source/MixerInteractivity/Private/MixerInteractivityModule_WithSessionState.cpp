@@ -269,6 +269,7 @@ void FMixerInteractivityModule_WithSessionState::StartSession(bool bCachePerPart
 	check(Buttons.Num() == 0);
 	check(Sticks.Num() == 0);
 	check(Labels.Num() == 0);
+	check(Textboxes.Num() == 0);
 	check(RemoteParticipantCacheByGuid.Num() == 0);
 	check(RemoteParticipantCacheByUint.Num() == 0);
 	bPerParticipantState = bCachePerParticipantState;
@@ -279,6 +280,7 @@ void FMixerInteractivityModule_WithSessionState::EndSession()
 	Buttons.Empty();
 	Sticks.Empty();
 	Labels.Empty();
+	Textboxes.Empty();
 	RemoteParticipantCacheByGuid.Empty();
 	RemoteParticipantCacheByUint.Empty();
 }
@@ -316,6 +318,16 @@ void FMixerInteractivityModule_WithSessionState::AddLabel(FName ControlId, const
 FMixerLabelPropertiesCached* FMixerInteractivityModule_WithSessionState::GetLabel(FName ControlId)
 {
 	return Labels.Find(ControlId);
+}
+
+void FMixerInteractivityModule_WithSessionState::AddTextbox(FName ControlId, const FMixerTextboxPropertiesCached& Props)
+{
+	Textboxes.Add(ControlId, Props);
+}
+
+FMixerTextboxPropertiesCached* FMixerInteractivityModule_WithSessionState::GetTextbox(FName ControlId)
+{
+	return Textboxes.Find(ControlId);
 }
 
 void FMixerInteractivityModule_WithSessionState::AddUser(TSharedPtr<FMixerRemoteUser> User)

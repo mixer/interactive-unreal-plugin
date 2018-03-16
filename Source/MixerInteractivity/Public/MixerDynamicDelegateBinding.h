@@ -25,7 +25,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FMixerButtonEventDynamicDelegate, 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMixerParticipantEventDynamicDelegate, int32, ParticipantId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FMixerStickEventDynamicDelegate, FMixerStickReference, Joystick, int32, ParticipantId, float, XAxis, float, YAxis);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMixerBroadcastingEventDynamicDelegate);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FMixerTextSubmittedEventDynamicDelegate, FMixerTextboxReference, Textbox, int32, ParticipantId, FString, Text);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FMixerTextSubmittedEventDynamicDelegate, FMixerTextboxReference, Textbox, int32, ParticipantId, FText, SubmittedText, FMixerTransactionId, TransactionId, int32, SparkCost);
 
 // Note: these are for 'simple' custom controls only.  UObject-style controls get these events via method calls.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FMixerCustomControlInputDynamicDelegate, FMixerCustomControlReference, Control, FName, Event, int32, ParticipantId);
@@ -162,7 +162,7 @@ public:
 	void OnCustomMethodCallNativeEvent(FName MethodName, const TSharedPtr<FJsonObject> MethodParams);
 	void OnCustomControlInputNativeEvent(FName ControlName, FName EventType, TSharedPtr<const FMixerRemoteUser> Participant, const TSharedRef<FJsonObject> EventPayload);
 	void OnCustomControlPropertyUpdateNativeEvent(FName ControlName, const TSharedRef<FJsonObject> UpdatedProperties);
-	void OnTextboxSubmitNativeEvent(FName TextboxName, TSharedPtr<const FMixerRemoteUser> Participant, const FString& Text);
+	void OnTextboxSubmitNativeEvent(FName TextboxName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerTextboxEventDetails& Details);
 
 #if WITH_EDITORONLY_DATA
 	void RefreshCustomControls();

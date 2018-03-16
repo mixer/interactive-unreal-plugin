@@ -21,8 +21,8 @@ struct FMixerStickDescription;
 struct FMixerStickState;
 struct FMixerLabelDescription;
 struct FMixerTextboxDescription;
-struct FMixerTextboxState;
 struct FMixerButtonEventDetails;
+struct FMixerTextboxEventDetails;
 class FUniqueNetId;
 class FJsonObject;
 
@@ -377,8 +377,8 @@ public:
 	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnStickEvent, FName, TSharedPtr<const FMixerRemoteUser>, FVector2D);
 	virtual FOnStickEvent& OnStickEvent() = 0;
 
-	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnTextboxSubmitEvent, FName, TSharedPtr<const FMixerRemoteUser>, const FString&);
-	virtual FOnTextboxSubmitEvent OnTextboxSubmitEvent() = 0;
+	DECLARE_EVENT_ThreeParams(IMixerInteractivityModule, FOnTextboxSubmitEvent, FName, TSharedPtr<const FMixerRemoteUser>, const FMixerTextboxEventDetails&);
+	virtual FOnTextboxSubmitEvent& OnTextboxSubmitEvent() = 0;
 
 	DECLARE_EVENT_OneParam(IMixerInteractivityModule, FOnBroadcastingStateChanged, bool);
 	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged() = 0;

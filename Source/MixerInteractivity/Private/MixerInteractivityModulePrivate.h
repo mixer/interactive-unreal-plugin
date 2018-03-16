@@ -107,7 +107,7 @@ public:
 	virtual FOnCustomControlInput& OnCustomControlInput()						{ return CustomControlInputEvent; }
 	virtual FOnCustomControlPropertyUpdate& OnCustomControlPropertyUpdate()		{ return CustomControlPropertyUpdate; }
 	virtual FOnCustomMethodCall& OnCustomMethodCall()							{ return CustomMethodCall; }
-	virtual FOnTextboxSubmitEvent OnTextboxSubmitEvent()						{ return TextboxSubmitEvent; }
+	virtual FOnTextboxSubmitEvent& OnTextboxSubmitEvent()						{ return TextboxSubmitEvent; }
 
 public:
 	virtual bool Tick(float DeltaTime);

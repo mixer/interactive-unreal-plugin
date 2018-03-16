@@ -343,7 +343,7 @@ public:
 	* @param	SparkCost			Number of Sparks a remote user will be charged for submitting text via this box.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity")
-	static void GetTextboxDescription(FMixerTextboxReference Textbox, FString& PlaceholderText, bool& Multiline, bool& HasSubmit, FString& SubmitText, int32& SparkCost);
+	static void GetTextboxDescription(FMixerTextboxReference Textbox, FText& PlaceholderText, bool& Multiline, bool& HasSubmit, FText& SubmitText, int32& SparkCost);
 
 	/**
 	* Request a change in the interactive scene displayed to remote users.

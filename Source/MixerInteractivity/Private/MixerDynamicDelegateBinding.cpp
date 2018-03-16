@@ -296,14 +296,16 @@ void UMixerInteractivityBlueprintEventSource::OnCustomControlPropertyUpdateNativ
 	}
 }
 
-void UMixerInteractivityBlueprintEventSource::OnTextboxSubmitNativeEvent(FName TextboxName, TSharedPtr<const FMixerRemoteUser> Participant, const FString& Text)
+void UMixerInteractivityBlueprintEventSource::OnTextboxSubmitNativeEvent(FName TextboxName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerTextboxEventDetails& Details)
 {
 	FMixerTextboxEventDynamicDelegateWrapper* DelegateWrapper = TextboxDelegates.Find(TextboxName);
 	if (DelegateWrapper)
 	{
 		FMixerTextboxReference TextboxRef;
 		TextboxRef.Name = TextboxName;
-		DelegateWrapper->SubmittedDelegate.Broadcast(TextboxRef, static_cast<int32>(Participant->Id), Text);
+		FMixerTransactionId TransactionId;
+		TransactionId.Id = Details.TransactionId;
+		DelegateWrapper->SubmittedDelegate.Broadcast(TextboxRef, static_cast<int32>(Participant->Id), Details.SubmittedText, TransactionId, Details.SparkCost);
 	}
 }
 

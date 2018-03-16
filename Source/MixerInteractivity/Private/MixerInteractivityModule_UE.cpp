@@ -445,8 +445,28 @@ bool FMixerInteractivityModule_UE::HandleGiveInput(TSharedPtr<FMixerRemoteUser> 
 	}
 	else if (EventType == TEXT("submit"))
 	{
-		GET_JSON_STRING_RETURN_FAILURE(Value, Value);
-		OnTextboxSubmitEvent().Broadcast(ControlId, Participant, Value);
+		FMixerTextboxPropertiesCached* Textbox = GetTextbox(ControlId);
+		if (Textbox != nullptr)
+		{
+			GET_JSON_STRING_RETURN_FAILURE(Value, Value);
+
+			FMixerTextboxEventDetails EventDetails;
+			EventDetails.SubmittedText = FText::FromString(Value);
+			if (Textbox->Desc.SparkCost > 0)
+			{
+				if (FullParamsJson->TryGetStringField(MixerStringConstants::FieldNames::TransactionId, EventDetails.TransactionId))
+				{
+					EventDetails.SparkCost = Textbox->Desc.SparkCost;
+				}
+			}
+			else
+			{
+				EventDetails.SparkCost = 0;
+			}
+
+			OnTextboxSubmitEvent().Broadcast(ControlId, Participant, EventDetails);
+			bHandled = true;
+		}
 	}
 
 	if (!bHandled)
@@ -571,7 +591,6 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneI
 		Button.State.DownCount = 0;
 		Button.State.UpCount = 0;
 		Button.State.PressCount = 0;
-		Button.State.Enabled = !bDisabled;
 		Button.State.Enabled = true;
 		Button.State.RemainingCooldown = FTimespan::Zero();
 		Button.State.Progress = 0.0f;
@@ -597,6 +616,14 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneI
 		Label.Desc.Text = FText::FromString(Text);
 		Label.SceneId = SceneId;
 		AddLabel(*ControlId, Label);
+	}
+	else if (ControlKind == FMixerInteractiveControl::TextboxKind)
+	{
+		GET_JSON_INT_RETURN_FAILURE(Cost, Cost);
+
+		FMixerTextboxPropertiesCached Textbox;
+		Textbox.Desc.SparkCost = Cost;
+		AddTextbox(*ControlId, Textbox);
 	}
 
 	return false;

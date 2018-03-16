@@ -32,6 +32,11 @@ struct FMixerLabelPropertiesCached
 	FName SceneId;
 };
 
+struct FMixerTextboxPropertiesCached
+{
+	FMixerTextboxDescription Desc;
+};
+
 class FMixerInteractivityModule_WithSessionState : public FMixerInteractivityModule
 {
 public:
@@ -67,6 +72,9 @@ protected:
 	void AddLabel(FName ControlId, const FMixerLabelPropertiesCached& Props);
 	FMixerLabelPropertiesCached* GetLabel(FName ControlId);
 
+	void AddTextbox(FName ControlId, const FMixerTextboxPropertiesCached& Props);
+	FMixerTextboxPropertiesCached* GetTextbox(FName ControlId);
+
 	void AddUser(TSharedPtr<FMixerRemoteUser> User);
 	void RemoveUser(TSharedPtr<FMixerRemoteUser> User);
 	void RemoveUser(FGuid ParticipantSessionId);
@@ -80,6 +88,7 @@ private:
 	TMap<FName, FMixerButtonPropertiesCached> Buttons;
 	TMap<FName, FMixerStickPropertiesCached> Sticks;
 	TMap<FName, FMixerLabelPropertiesCached> Labels;
+	TMap<FName, FMixerTextboxPropertiesCached> Textboxes;
 
 	bool bPerParticipantState;
 };

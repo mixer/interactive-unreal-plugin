@@ -210,6 +210,23 @@ struct FMixerButtonEventDetails
 	bool Pressed;
 };
 
+/** Additional information about a textbox event */
+struct FMixerTextboxEventDetails
+{
+	/** Text that was submitted via the textbox */
+	FText SubmittedText;
+
+	/**
+	* Id for the Spark transaction associated with this textbox event (empty if none).
+	* After handling the event, the charge should be confirmed via
+	* IMixerInteractivityModule::CaptureSparkTransaction.
+	*/
+	FString TransactionId;
+
+	/** Number of sparks that will be charged for this interaction, if confirmed */
+	uint32 SparkCost;
+};
+
 /**
 * Represents the Studio-configured properties of a label that
 * are expected to change infrequently during an interactive session
@@ -242,10 +259,10 @@ struct FMixerLabelDescription
 struct FMixerTextboxDescription
 {
 	/* Hint text displayed inside an empty textbox to prompt for user text entry */
-	FString Placeholder;
+	FText Placeholder;
 
 	/* Text displayed on the associated submit button (if in use) */
-	FString SubmitText;
+	FText SubmitText;
 
 	/* Number of Sparks a remote user will be charged for submitting text via this box */
 	uint32 SparkCost;

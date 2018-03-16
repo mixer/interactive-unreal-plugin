@@ -271,7 +271,7 @@ void UMixerInteractivityBlueprintLibrary::GetLabelDescription(FMixerLabelReferen
 	}
 }
 
-void UMixerInteractivityBlueprintLibrary::GetTextboxDescription(FMixerTextboxReference Textbox, FString& PlaceholderText, bool& Multiline, bool& HasSubmit, FString& SubmitText, int32& SparkCost)
+void UMixerInteractivityBlueprintLibrary::GetTextboxDescription(FMixerTextboxReference Textbox, FText& PlaceholderText, bool& Multiline, bool& HasSubmit, FText& SubmitText, int32& SparkCost)
 {
 	FMixerTextboxDescription TextboxDesc;
 	if (IMixerInteractivityModule::Get().GetTextboxDescription(Textbox.Name, TextboxDesc))
