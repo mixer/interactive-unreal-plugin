@@ -11,8 +11,6 @@
 
 #include "MixerInteractivityModulePrivate.h"
 
-
-#define MIXER_BACKEND_UE 1
 #if MIXER_BACKEND_UE
 
 #include "MixerWebSocketOwnerBase.h"
