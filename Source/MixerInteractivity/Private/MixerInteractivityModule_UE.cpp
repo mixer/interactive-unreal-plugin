@@ -300,7 +300,7 @@ void FMixerInteractivityModule_UE::OpenWebSocket()
 	FString SharecodeParam;
 	if (!Settings->ShareCode.IsEmpty())
 	{
-		SharecodeParam = FString::Printf(TEXT("&x-interactive-sharecode=%s"), &Settings->ShareCode);
+		SharecodeParam = FString::Printf(TEXT("&x-interactive-sharecode=%s"), *Settings->ShareCode);
 	}
 
 	FString EndpointWithAuth = FString::Printf(
