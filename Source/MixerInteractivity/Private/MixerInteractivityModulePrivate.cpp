@@ -50,6 +50,7 @@ DEFINE_LOG_CATEGORY(LogMixerInteractivity);
 
 void FMixerInteractivityModule::StartupModule()
 {
+	RetryLoginWithUI = false;
 	UserAuthState = EMixerLoginState::Not_Logged_In;
 	InteractiveConnectionAuthState = EMixerLoginState::Not_Logged_In;
 	InteractivityState = EMixerInteractivityState::Not_Interactive;

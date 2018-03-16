@@ -15,7 +15,7 @@ protected:
 	TMixerWebSocketOwnerBase(const FString& InServerInitiatedMessageType, const FString& InServerInitiatedMessageSubtypeName, const FString& InServerInitiatedMessageParamsName);
 	virtual ~TMixerWebSocketOwnerBase();
 
-	void InitConnection(const FString& Url);
+	void InitConnection(const FString& Url, const TMap<FString,FString>& UpgradeHeaders);
 	void CleanupConnection();
 
 	typedef bool (T::*FServerMessageHandler)(FJsonObject*);
@@ -92,7 +92,7 @@ TMixerWebSocketOwnerBase<T>::~TMixerWebSocketOwnerBase()
 }
 
 template <class T>
-void TMixerWebSocketOwnerBase<T>::InitConnection(const FString& Url)
+void TMixerWebSocketOwnerBase<T>::InitConnection(const FString& Url, const TMap<FString, FString>& UpgradeHeaders)
 {
 	ServerInitiatedMessageHandlers.Empty();
 	RegisterAllServerMessageHandlers();
@@ -101,7 +101,7 @@ void TMixerWebSocketOwnerBase<T>::InitConnection(const FString& Url)
 	TArray<FString> Protocols;
 	Protocols.Add(TEXT("wss"));
 	Protocols.Add(TEXT("ws"));
-	WebSocket = FModuleManager::LoadModuleChecked<FWebSocketsModule>("WebSockets").CreateWebSocket(Url, Protocols);
+	WebSocket = FModuleManager::LoadModuleChecked<FWebSocketsModule>("WebSockets").CreateWebSocket(Url, Protocols, UpgradeHeaders);
 
 	if (WebSocket.IsValid())
 	{

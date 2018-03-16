@@ -297,22 +297,21 @@ void FMixerInteractivityModule_UE::OpenWebSocket()
 
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 	const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
-	FString SharecodeParam;
+	TMap<FString, FString> UpgradeHeaders;
+	UpgradeHeaders.Add(TEXT("Authorization"), UserSettings->GetAuthZHeaderValue());
+	UpgradeHeaders.Add(TEXT("X-Interactive-Version"), FString::FromInt(Settings->GameVersionId));
+	UpgradeHeaders.Add(TEXT("X-Protocol-Version"), TEXT("2.0"));
+
 	if (!Settings->ShareCode.IsEmpty())
 	{
-		SharecodeParam = FString::Printf(TEXT("&x-interactive-sharecode=%s"), *Settings->ShareCode);
+		UpgradeHeaders.Add(TEXT("X-Interactive-Sharecode"), Settings->ShareCode);
 	}
 
-	FString EndpointWithAuth = FString::Printf(
-		TEXT("%s?authorization=%s&x-interactive-version=%u&x-protocol-version=2.0%s"),
-		*Endpoints[0],
-		*FPlatformHttp::UrlEncode(UserSettings->GetAuthZHeaderValue()),
-		Settings->GameVersionId,
-		*SharecodeParam);
-	UE_LOG(LogMixerInteractivity, Verbose, TEXT("Opening web socket to %s for interactivity"), *Endpoints[0]);
+	FString EndpointToUse = Endpoints[0];
+	UE_LOG(LogMixerInteractivity, Verbose, TEXT("Opening web socket to %s for interactivity"), *EndpointToUse);
 
 	Endpoints.RemoveAtSwap(0);
-	InitConnection(EndpointWithAuth);
+	InitConnection(EndpointToUse, UpgradeHeaders);
 }
 
 bool FMixerInteractivityModule_UE::CreateOrUpdateGroup(const FString& MethodName, FName Scene, FName GroupName)
