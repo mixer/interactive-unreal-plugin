@@ -415,6 +415,11 @@ bool FMixerInteractivityModule_InteractiveCpp::GetStickState(FName Stick, uint32
 	return false;
 }
 
+void FMixerInteractivityModule_InteractiveCpp::SetLabelText(FName Label, const FText& DisplayText)
+{
+	UE_LOG(LogMixerInteractivity, Error, TEXT("This implementation does not support setting label text."));
+}
+
 std::shared_ptr<Microsoft::mixer::interactive_button_control> FMixerInteractivityModule_InteractiveCpp::FindButton(FName Name)
 {
 	using namespace Microsoft::mixer;

@@ -93,6 +93,7 @@ namespace MixerStringConstants
 		const FString Tooltip = TEXT("tooltip");
 		const FString Progress = TEXT("progress");
 		const FString Result = TEXT("result");
+		const FString Value = TEXT("value");
 	}
 
 	namespace Permissions

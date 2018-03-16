@@ -121,6 +121,9 @@ public:
 	/** Time at which the user last submitted interactive input */
 	FDateTime InputAt;
 
+	/** Guid for this user's interactive session (appears as participantID in some interactive events) */
+	FGuid SessionGuid;
+
 	/** Name of the group that the user belongs to */
 	FName Group;
 
@@ -214,7 +217,7 @@ struct FMixerButtonEventDetails
 struct FMixerLabelDescription
 {
 	/* Text shown on the label */
-	FString Text;
+	FText Text;
 
 	/* Size in pts of text shown on the label */
 	uint32 TextSize;

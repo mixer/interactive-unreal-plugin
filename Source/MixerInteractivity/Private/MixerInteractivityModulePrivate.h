@@ -89,14 +89,11 @@ public:
 
 	virtual EMixerInteractivityState GetInteractivityState();
 
-	virtual void SetLabelText(FName Label, const FString& DisplayText);
 	virtual bool GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc);
 	virtual bool GetTextboxDescription(FName Textbox, FMixerTextboxDescription& OutDesc);
 	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObject);
 	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, class UMixerCustomControl*& OutControlObject);
 	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()				{ return CurrentUser; }
-
-	virtual void UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate);
 
 	virtual TSharedPtr<class IOnlineChat> GetChatInterface();
 	virtual TSharedPtr<class IOnlineChatMixer> GetExtendedChatInterface();
@@ -114,6 +111,9 @@ public:
 
 public:
 	virtual bool Tick(float DeltaTime);
+
+public:
+	void UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate);
 
 protected:
 	virtual bool StartInteractiveConnection() = 0;

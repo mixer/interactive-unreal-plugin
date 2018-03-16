@@ -98,6 +98,7 @@ namespace MixerStringConstants
 		extern const FString Tooltip;
 		extern const FString Progress;
 		extern const FString Result;
+		extern const FString Value;
 	}
 
 	namespace Permissions

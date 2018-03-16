@@ -143,36 +143,9 @@ void FMixerInteractivityModule_UE::SetCurrentScene(FName Scene, FName GroupName)
 	CreateOrUpdateGroup(TEXT("updateGroups"), Scene, GroupName);
 }
 
-void FMixerInteractivityModule_UE::TriggerButtonCooldown(FName Button, FTimespan CooldownTime)
-{
-	double NewCooldownTime = static_cast<double>((FDateTime::UtcNow() + CooldownTime).ToUnixTimestamp() * 1000);
-	TSharedRef<FJsonObject> UpdatedProps = MakeShared<FJsonObject>();
-	UpdatedProps->SetNumberField(TEXT("cooldown"), NewCooldownTime);
-	UpdateRemoteControl(FName("default"), Button, UpdatedProps);
-}
-
-TSharedPtr<const FMixerRemoteUser> FMixerInteractivityModule_UE::GetParticipant(uint32 ParticipantId)
-{
-	TSharedPtr<FMixerRemoteUserCached>* ExistingUser = RemoteParticipantCacheByUint.Find(ParticipantId);
-	return ExistingUser != nullptr ? *ExistingUser : nullptr;
-}
-
 bool FMixerInteractivityModule_UE::CreateGroup(FName GroupName, FName InitialScene)
 {
 	return CreateOrUpdateGroup(TEXT("createGroups"), InitialScene, GroupName);
-}
-
-bool FMixerInteractivityModule_UE::GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants)
-{
-	for (TMap<uint32, TSharedPtr<FMixerRemoteUserCached>>::TConstIterator It(RemoteParticipantCacheByUint); It; ++It)
-	{
-		if (It->Value->Group == GroupName)
-		{
-			OutParticipants.Add(It->Value);
-		}
-	}
-
-	return true;
 }
 
 bool FMixerInteractivityModule_UE::MoveParticipantToGroup(FName GroupName, uint32 ParticipantId)
@@ -182,14 +155,14 @@ bool FMixerInteractivityModule_UE::MoveParticipantToGroup(FName GroupName, uint3
 		return false;
 	}
 
-	TSharedPtr<FMixerRemoteUserCached>* ExistingUser = RemoteParticipantCacheByUint.Find(ParticipantId);
-	if (ExistingUser == nullptr)
+	TSharedPtr<FMixerRemoteUser> ExistingUser = GetCachedUser(ParticipantId);
+	if (!ExistingUser.IsValid())
 	{
 		return false;
 	}
 
 	FMixerUpdateParticipantGroupParamsEntry ParamEntry;
-	ParamEntry.ParticipantSessionGuid = (*ExistingUser)->SessionGuid.ToString(EGuidFormats::DigitsWithHyphens).ToLower();
+	ParamEntry.ParticipantSessionGuid = ExistingUser->SessionGuid.ToString(EGuidFormats::DigitsWithHyphens).ToLower();
 	ParamEntry.GroupId = GroupName.ToString();
 
 	FMixerUpdateParticipantGroupParams Params;
@@ -245,15 +218,8 @@ void FMixerInteractivityModule_UE::StopInteractiveConnection()
 		SetInteractivityState(EMixerInteractivityState::Not_Interactive);
 		CleanupConnection();
 		Endpoints.Empty();
-		RemoteParticipantCacheByGuid.Empty();
-		RemoteParticipantCacheByUint.Empty();
+		EndSession();
 	}
-}
-
-bool FMixerInteractivityModule_UE::HandleSingleControlUpdate(FName ControlId, const TSharedRef<FJsonObject> ControlData)
-{
-
-	return false;
 }
 
 void FMixerInteractivityModule_UE::OnHostsRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
@@ -296,6 +262,9 @@ void FMixerInteractivityModule_UE::OpenWebSocket()
 	}
 
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+
+	StartSession(Settings->bPerParticipantStateCaching);
+
 	const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
 	TMap<FString, FString> UpgradeHeaders;
 	UpgradeHeaders.Add(TEXT("Authorization"), UserSettings->GetAuthZHeaderValue());
@@ -384,8 +353,8 @@ bool FMixerInteractivityModule_UE::HandleGiveInput(FJsonObject* JsonObj)
 
 	GET_JSON_OBJECT_RETURN_FAILURE(Input, InputObj);
 
-	TSharedPtr<FMixerRemoteUserCached>* RemoteUser = RemoteParticipantCacheByGuid.Find(ParticipantGuid);
-	return HandleGiveInput(RemoteUser ? *RemoteUser : nullptr, JsonObj, InputObj->ToSharedRef());
+	TSharedPtr<FMixerRemoteUser> RemoteUser = GetCachedUser(ParticipantGuid);
+	return HandleGiveInput(RemoteUser, JsonObj, InputObj->ToSharedRef());
 }
 
 bool FMixerInteractivityModule_UE::HandleParticipantJoin(FJsonObject* JsonObj)
@@ -423,60 +392,69 @@ bool FMixerInteractivityModule_UE::HandleGiveInput(TSharedPtr<FMixerRemoteUser> 
 	// Alias so macros work
 	const FJsonObject* JsonObj = &InputObjJson.Get();
 
-	GET_JSON_STRING_RETURN_FAILURE(ControlId, ControlId);
+	GET_JSON_STRING_RETURN_FAILURE(ControlId, ControlIdRaw);
 	GET_JSON_STRING_RETURN_FAILURE(Event, EventType);
 
-	// @TODO -
-	// Need additional checks in case multiple types support
-	// the same event.  Requires that we maintain scene structure 
-	// so we can lookup control kind.
-	FString ControlKind;
-	if (EventType == TEXT("mousedown")) // && ControlKind == TEXT("button"))
+	bool bHandled = false;
+	FName ControlId = *ControlIdRaw;
+	if (EventType == TEXT("mousedown"))
 	{
-		FMixerButtonEventDetails EventDetails;
-		EventDetails.Pressed = true;
-		if (FullParamsJson->TryGetStringField(MixerStringConstants::FieldNames::TransactionId, EventDetails.TransactionId))
+		FMixerButtonPropertiesCached* ButtonProps = GetButton(ControlId);
+		if (ButtonProps != nullptr)
 		{
-			// @TODO
-			// Lookup actual Spark cost.  Requires scene structure. 
+			FMixerButtonEventDetails EventDetails;
+			EventDetails.Pressed = true;
+			if (ButtonProps->Desc.SparkCost > 0)
+			{
+				FullParamsJson->TryGetStringField(MixerStringConstants::FieldNames::TransactionId, EventDetails.TransactionId);
+				EventDetails.SparkCost = ButtonProps->Desc.SparkCost;
+			}
+			else
+			{
+				EventDetails.SparkCost = 0;
+			}
+			OnButtonEvent().Broadcast(ControlId, Participant, EventDetails);
+			bHandled = true;
 		}
-		else
-		{
-			EventDetails.SparkCost = 0;
-		}
-		OnButtonEvent().Broadcast(*ControlId, Participant, EventDetails);
-		return true;
 	}
-	else if (EventType == TEXT("mouseup")) // && ControlKind == TEXT("button"))
+	else if (EventType == TEXT("mouseup"))
 	{
-		FMixerButtonEventDetails EventDetails;
-		EventDetails.Pressed = false;
-		if (FullParamsJson->TryGetStringField(MixerStringConstants::FieldNames::TransactionId, EventDetails.TransactionId))
+		FMixerButtonPropertiesCached* ButtonProps = GetButton(ControlId);
+		if (ButtonProps != nullptr)
 		{
-			// @TODO
-			// Lookup actual Spark cost.  Requires scene structure. 
-		}
-		else
-		{
+			FMixerButtonEventDetails EventDetails;
+			EventDetails.Pressed = false;
+			// Button mouseup doesn't support charging
 			EventDetails.SparkCost = 0;
-		}
-		EventDetails.SparkCost = 0; //?
-		OnButtonEvent().Broadcast(*ControlId, Participant, EventDetails);
-		return true;
-	}
-	else if (EventType == TEXT("move")) // && ControlKind == TEXT("joystick"))
-	{
-		GET_JSON_DOUBLE_RETURN_FAILURE(X, X);
-		GET_JSON_DOUBLE_RETURN_FAILURE(Y, Y);
 
-		OnStickEvent().Broadcast(*ControlId, Participant, FVector2D(static_cast<float>(X), static_cast<float>(Y)));
-		return true;
+			OnButtonEvent().Broadcast(ControlId, Participant, EventDetails);
+			bHandled = true;
+		}
 	}
-	else
+	else if (EventType == TEXT("move"))
 	{
-		OnCustomControlInput().Broadcast(*ControlId, *EventType, Participant, InputObjJson);
-		return true;
+		FMixerStickPropertiesCached* Stick = GetStick(ControlId);
+		if (Stick != nullptr)
+		{
+			GET_JSON_DOUBLE_RETURN_FAILURE(X, X);
+			GET_JSON_DOUBLE_RETURN_FAILURE(Y, Y);
+
+			OnStickEvent().Broadcast(ControlId, Participant, FVector2D(static_cast<float>(X), static_cast<float>(Y)));
+			bHandled = true;
+		}
 	}
+	else if (EventType == TEXT("submit"))
+	{
+		GET_JSON_STRING_RETURN_FAILURE(Value, Value);
+		OnTextboxSubmitEvent().Broadcast(ControlId, Participant, Value);
+	}
+
+	if (!bHandled)
+	{
+		OnCustomControlInput().Broadcast(ControlId, *EventType, Participant, InputObjJson);
+	}
+
+	return true;
 }
 
 bool FMixerInteractivityModule_UE::HandleParticipantEvent(FJsonObject* JsonObj, EMixerInteractivityParticipantState EventType)
@@ -508,25 +486,24 @@ bool FMixerInteractivityModule_UE::HandleSingleParticipantChange(const FJsonObje
 		return false;
 	}
 
-	TSharedPtr<FMixerRemoteUserCached> RemoteUser;
-	TSharedPtr<FMixerRemoteUserCached>* ExistingUser = RemoteParticipantCacheByUint.Find(UserId);
+	TSharedPtr<FMixerRemoteUser> RemoteUser = GetCachedUser(UserId);
 	bool bOldInputEnabled = false;
-	if (ExistingUser != nullptr)
+	bool bExistingUser = false;
+	if (RemoteUser.IsValid())
 	{
-		RemoteUser = *ExistingUser;
+		bExistingUser = true;
 		bOldInputEnabled = RemoteUser->InputEnabled;
 	}
 	else
 	{
-		RemoteUser = MakeShared<FMixerRemoteUserCached>();
+		RemoteUser = MakeShared<FMixerRemoteUser>();
 		RemoteUser->Id = UserId;
 		RemoteUser->SessionGuid = SessionGuid;
 		RemoteUser->ConnectedAt = FDateTime::FromUnixTimestamp(static_cast<int64>(ConnectedAtDouble / 1000.0));
 
 		if (EventType != EMixerInteractivityParticipantState::Left)
 		{
-			RemoteParticipantCacheByGuid.Add(SessionGuid, RemoteUser);
-			RemoteParticipantCacheByUint.Add(RemoteUser->Id, RemoteUser);
+			AddUser(RemoteUser);
 		}
 	}
 
@@ -540,10 +517,9 @@ bool FMixerInteractivityModule_UE::HandleSingleParticipantChange(const FJsonObje
 		OnParticipantStateChanged().Broadcast(RemoteUser, EventType);
 	}
 
-	if (ExistingUser != nullptr && EventType == EMixerInteractivityParticipantState::Left)
+	if (bExistingUser && EventType == EMixerInteractivityParticipantState::Left)
 	{
-		RemoteParticipantCacheByGuid.Remove(SessionGuid);
-		RemoteParticipantCacheByUint.Remove(UserId);
+		RemoveUser(RemoteUser);
 	}
 
 	return true;
@@ -563,16 +539,18 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromGetScenesResult(FJsonObjec
 bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleScene(FJsonObject* JsonObj)
 {
 	GET_JSON_ARRAY_RETURN_FAILURE(Controls, Controls);
+	GET_JSON_STRING_RETURN_FAILURE(SceneId, SceneIdRaw);
 
+	FName SceneId = *SceneIdRaw;
 	for (const TSharedPtr<FJsonValue>& Control : *Controls)
 	{
-		ParsePropertiesFromSingleControl(Control->AsObject().Get());
+		ParsePropertiesFromSingleControl(SceneId, Control->AsObject().Get());
 	}
 
 	return true;
 }
 
-bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FJsonObject* JsonObj)
+bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneId, FJsonObject* JsonObj)
 {
 	GET_JSON_STRING_RETURN_FAILURE(Kind, ControlKind);
 	GET_JSON_STRING_RETURN_FAILURE(ControlId, ControlId);
@@ -582,8 +560,8 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FJsonObject*
 		GET_JSON_STRING_RETURN_FAILURE(Text, Text);
 		GET_JSON_STRING_RETURN_FAILURE(Tooltip, Tooltip);
 		GET_JSON_INT_RETURN_FAILURE(Cost, Cost);
-		GET_JSON_BOOL_RETURN_FAILURE(Disabled, bDisabled);
-		GET_JSON_DOUBLE_RETURN_FAILURE(Cooldown, Cooldown);
+
+		// Disabled and cooldown shouldn't be set initially
 
 		FMixerButtonPropertiesCached Button;
 		Button.Desc.ButtonText = FText::FromString(Text);
@@ -594,23 +572,31 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FJsonObject*
 		Button.State.UpCount = 0;
 		Button.State.PressCount = 0;
 		Button.State.Enabled = !bDisabled;
-		uint64 TimeNowInMixerUnits = FDateTime::UtcNow().ToUnixTimestamp() * 1000;
-		if (Cooldown > TimeNowInMixerUnits)
-		{
-			Button.State.RemainingCooldown = FTimespan::FromMilliseconds(static_cast<double>(static_cast<uint64>(Cooldown) - TimeNowInMixerUnits));
-		}
-		else
-		{
-			Button.State.RemainingCooldown = FTimespan(0);
-		}
+		Button.State.Enabled = true;
+		Button.State.RemainingCooldown = FTimespan::Zero();
 		Button.State.Progress = 0.0f;
+		Button.SceneId = SceneId;
+
+		AddButton(*ControlId, Button);
 
 		return true;
 	}
 	else if (ControlKind == FMixerInteractiveControl::JoystickKind)
 	{
+		FMixerStickPropertiesCached Stick;
+		Stick.State.Enabled = true;
+		AddStick(*ControlId, Stick);
 
 		return true;
+	}
+	else if (ControlKind == FMixerInteractiveControl::LabelKind)
+	{
+		GET_JSON_STRING_RETURN_FAILURE(Text, Text);
+
+		FMixerLabelPropertiesCached Label;
+		Label.Desc.Text = FText::FromString(Text);
+		Label.SceneId = SceneId;
+		AddLabel(*ControlId, Label);
 	}
 
 	return false;

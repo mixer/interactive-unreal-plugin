@@ -244,12 +244,12 @@ void UMixerInteractivityBlueprintLibrary::GetStickState(FMixerStickReference Sti
 	}
 }
 
-void UMixerInteractivityBlueprintLibrary::SetLabelText(FMixerLabelReference Label, const FString& Text)
+void UMixerInteractivityBlueprintLibrary::SetLabelText(FMixerLabelReference Label, const FText& Text)
 {
 	IMixerInteractivityModule::Get().SetLabelText(Label.Name, Text);
 }
 
-void UMixerInteractivityBlueprintLibrary::GetLabelDescription(FMixerLabelReference Label, FString& Text, int32& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic)
+void UMixerInteractivityBlueprintLibrary::GetLabelDescription(FMixerLabelReference Label, FText& Text, int32& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic)
 {
 	FMixerLabelDescription LabelDesc;
 	if (IMixerInteractivityModule::Get().GetLabelDescription(Label.Name, LabelDesc))

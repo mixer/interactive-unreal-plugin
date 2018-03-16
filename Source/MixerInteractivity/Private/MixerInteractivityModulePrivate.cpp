@@ -507,15 +507,6 @@ bool FMixerInteractivityModule::NeedsClientLibraryActive()
 #endif
 }
 
-void FMixerInteractivityModule::SetLabelText(FName Label, const FString& DisplayText)
-{
-	// @TODO - need to discover scene name
-	FName SceneName; // = ????
-	TSharedRef<FJsonObject> UpdateJson = MakeShared<FJsonObject>();
-	UpdateJson->SetStringField(TEXT("text"), DisplayText);
-	UpdateRemoteControl(SceneName, Label, UpdateJson);
-}
-
 bool FMixerInteractivityModule::GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc)
 {
 	return false;

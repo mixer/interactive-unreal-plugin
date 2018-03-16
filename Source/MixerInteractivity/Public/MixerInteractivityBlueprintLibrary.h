@@ -314,7 +314,7 @@ public:
 	* @param	DisplayText		New text to display on the label.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Mixer|Interactivity")
-	static void SetLabelText(FMixerLabelReference Label, const FString& Text);
+	static void SetLabelText(FMixerLabelReference Label, const FText& Text);
 
 	/**
 	* Retrieve information about properties of a label that are configured at design time and
@@ -329,7 +329,7 @@ public:
 	* @param	Italic			Whether the label text is italicized.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity")
-	static void GetLabelDescription(FMixerLabelReference Label, FString& Text, int32& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic);
+	static void GetLabelDescription(FMixerLabelReference Label, FText& Text, int32& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic);
 
 	/**
 	* Retrieve information about properties of a textbox that are configured at design time and

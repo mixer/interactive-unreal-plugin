@@ -231,7 +231,7 @@ public:
 	* @param	Label			Name of the label for which text should be set.
 	* @param	DisplayText		New text to display on the label.
 	*/
-	virtual void SetLabelText(FName Label, const FString& DisplayText) = 0;
+	virtual void SetLabelText(FName Label, const FText& DisplayText) = 0;
 
 	/**
 	* Retrieve information about properties of a label that are configured at design time and
