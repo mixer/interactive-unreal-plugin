@@ -58,6 +58,7 @@ private:
 	static void OnEnumerateControlsForInit(void* Context, mixer::interactive_session Session, mixer::interactive_control* Control);
 
 	mixer::interactive_session InteractiveSession;
+	TFuture<mixer::interactive_session> ConnectOperation;
 };
 
 #endif

@@ -15,6 +15,7 @@
 #include "MixerInteractivityUserSettings.h"
 #include "MixerInteractivityLog.h"
 #include "StringConv.h"
+#include "Async.h"
 
 IMPLEMENT_MODULE(FMixerInteractivityModule_InteractiveCpp2, MixerInteractivity);
 
@@ -180,32 +181,28 @@ bool FMixerInteractivityModule_InteractiveCpp2::StartInteractiveConnection()
 
 	SetInteractiveConnectionAuthState(EMixerLoginState::Logging_In);
 
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
-
-	int32 ConnectResult = mixer::interactive_connect(
-							TCHAR_TO_UTF8(*UserSettings->GetAuthZHeaderValue()),
-							TCHAR_TO_UTF8(*FString::FromInt(Settings->GameVersionId)),
-							TCHAR_TO_UTF8(*Settings->ShareCode),
-							true,
-							&InteractiveSession);
-	if (ConnectResult != mixer::MIXER_OK)
+	ConnectOperation = Async<mixer::interactive_session>(EAsyncExecution::ThreadPool,
+		[]() -> mixer::interactive_session
 	{
-		return false;
-	}
+		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+		const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
 
-	StartSession(Settings->bPerParticipantStateCaching);
-
-	mixer::interactive_reg_error_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionError);
-	mixer::interactive_reg_state_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionStateChanged);
-	mixer::interactive_reg_button_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput);
-	mixer::interactive_reg_coordinate_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput);
-	mixer::interactive_reg_participants_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged);
-	mixer::interactive_reg_unhandled_method_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod);
-
-	mixer::interactive_get_scenes(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateScenesForInit);
-
-	SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
+		mixer::interactive_session Session;
+		int32 ConnectResult = mixer::interactive_connect(
+			TCHAR_TO_UTF8(*UserSettings->GetAuthZHeaderValue()),
+			TCHAR_TO_UTF8(*FString::FromInt(Settings->GameVersionId)),
+			TCHAR_TO_UTF8(*Settings->ShareCode),
+			true,
+			&Session);
+		if (ConnectResult == mixer::MIXER_OK)
+		{
+			return Session;
+		}
+		else
+		{
+			return nullptr;
+		}
+	});
 
 	return true;
 }
@@ -225,7 +222,37 @@ bool FMixerInteractivityModule_InteractiveCpp2::Tick(float DeltaTime)
 {
 	FMixerInteractivityModule_WithSessionState::Tick(DeltaTime);
 
-	mixer::interactive_run(InteractiveSession, 10);
+	if (InteractiveSession != nullptr)
+	{
+		mixer::interactive_run(InteractiveSession, 10);
+	}
+	else if (ConnectOperation.IsReady())
+	{
+		InteractiveSession = ConnectOperation.Get();
+		ConnectOperation = TFuture<mixer::interactive_session>();
+
+		if (InteractiveSession != nullptr)
+		{
+			const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
+
+			StartSession(Settings->bPerParticipantStateCaching);
+
+			mixer::interactive_reg_error_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionError);
+			mixer::interactive_reg_state_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionStateChanged);
+			mixer::interactive_reg_button_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput);
+			mixer::interactive_reg_coordinate_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput);
+			mixer::interactive_reg_participants_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged);
+			mixer::interactive_reg_unhandled_method_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod);
+
+			mixer::interactive_get_scenes(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateScenesForInit);
+
+			SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
+		}
+		else
+		{
+			SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
+		}
+	}
 
 	return true;
 }
