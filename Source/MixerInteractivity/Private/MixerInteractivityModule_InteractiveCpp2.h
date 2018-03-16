@@ -11,7 +11,6 @@
 
 #include "MixerInteractivityModulePrivate.h"
 
-//#define MIXER_BACKEND_INTERACTIVE_CPP_2 1
 #if MIXER_BACKEND_INTERACTIVE_CPP_2
 
 #include "MixerInteractivityTypes.h"
