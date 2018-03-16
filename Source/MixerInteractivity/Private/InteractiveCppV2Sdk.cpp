@@ -15,3 +15,6 @@
 #include <interactive-cpp-v2/interactivity.cpp>
 #include "PostWindowsApi.h"
 #endif
+
+// Suppress linker warning "warning LNK4221: no public symbols found; archive member will be inaccessible"
+int32 MixerV2SdkLinkerHelper;

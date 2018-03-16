@@ -718,3 +718,6 @@ void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateControlsForInit(void*
 }
 
 #endif
+
+// Suppress linker warning "warning LNK4221: no public symbols found; archive member will be inaccessible"
+int32 MixerInteractiveCpp2LinkerHelper;

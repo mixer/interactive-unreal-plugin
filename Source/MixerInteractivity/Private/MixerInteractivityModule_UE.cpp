@@ -618,3 +618,6 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FJsonObject*
 
 
 #endif
+
+// Suppress linker warning "warning LNK4221: no public symbols found; archive member will be inaccessible"
+int32 MixerUELinkerHelper;
