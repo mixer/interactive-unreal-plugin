@@ -47,7 +47,7 @@ void UK2Node_MixerTextSubmittedEvent::GetMenuActions(FBlueprintActionDatabaseReg
 	if (ActionRegistrar.IsOpenForRegistration(ActionKey))
 	{
 		TArray<FString> Textboxes;
-		UMixerInteractivitySettings::GetAllControls(FMixerInteractiveControl::ButtonKind, Textboxes);
+		UMixerInteractivitySettings::GetAllControls(FMixerInteractiveControl::TextboxKind, Textboxes);
 		for (const FString& TextboxName : Textboxes)
 		{
 			UBlueprintNodeSpawner* NodeSpawner = UBlueprintNodeSpawner::Create(GetClass());
