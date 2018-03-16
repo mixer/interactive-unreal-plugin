@@ -89,6 +89,15 @@ namespace MixerStringConstants
 		extern const FString X;
 		extern const FString Y;
 		extern const FString SceneId;
+		extern const FString Scenes;
+		extern const FString Controls;
+		extern const FString Kind;
+		extern const FString Cost;
+		extern const FString Cooldown;
+		extern const FString Disabled;
+		extern const FString Tooltip;
+		extern const FString Progress;
+		extern const FString Result;
 	}
 
 	namespace Permissions

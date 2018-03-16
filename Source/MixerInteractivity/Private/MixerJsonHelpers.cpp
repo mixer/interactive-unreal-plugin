@@ -84,6 +84,15 @@ namespace MixerStringConstants
 		const FString X = TEXT("x");
 		const FString Y = TEXT("y");
 		const FString SceneId = TEXT("sceneID");
+		const FString Scenes = TEXT("scenes");
+		const FString Controls = TEXT("controls");
+		const FString Kind = TEXT("kind");
+		const FString Cost = TEXT("cost");
+		const FString Cooldown = TEXT("cooldown");
+		const FString Disabled = TEXT("disabled");
+		const FString Tooltip = TEXT("tooltip");
+		const FString Progress = TEXT("progress");
+		const FString Result = TEXT("result");
 	}
 
 	namespace Permissions

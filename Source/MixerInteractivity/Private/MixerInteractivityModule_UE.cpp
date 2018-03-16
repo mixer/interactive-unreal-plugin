@@ -16,6 +16,7 @@
 #include "MixerInteractivityUserSettings.h"
 #include "MixerInteractivityBlueprintLibrary.h"
 #include "MixerJsonHelpers.h"
+#include "MixerInteractivityJsonTypes.h"
 #include "HttpModule.h"
 #include "PlatformHttp.h"
 #include "WebsocketsModule.h"
@@ -412,8 +413,9 @@ bool FMixerInteractivityModule_UE::HandleReadyStateChange(FJsonObject* JsonObj)
 
 bool FMixerInteractivityModule_UE::HandleGetScenesReply(FJsonObject* JsonObj)
 {
-	// @TODO - parse scenes
 	SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
+	GET_JSON_OBJECT_RETURN_FAILURE(Result, Result);
+	ParsePropertiesFromGetScenesResult(Result->Get());
 	return true;
 }
 
@@ -547,5 +549,73 @@ bool FMixerInteractivityModule_UE::HandleSingleParticipantChange(const FJsonObje
 
 	return true;
 }
+
+bool FMixerInteractivityModule_UE::ParsePropertiesFromGetScenesResult(FJsonObject *JsonObj)
+{
+	GET_JSON_ARRAY_RETURN_FAILURE(Scenes, Scenes);
+	for (const TSharedPtr<FJsonValue>& Scene : *Scenes)
+	{
+		ParsePropertiesFromSingleScene(Scene->AsObject().Get());
+	}
+
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleScene(FJsonObject* JsonObj)
+{
+	GET_JSON_ARRAY_RETURN_FAILURE(Controls, Controls);
+
+	for (const TSharedPtr<FJsonValue>& Control : *Controls)
+	{
+		ParsePropertiesFromSingleControl(Control->AsObject().Get());
+	}
+
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FJsonObject* JsonObj)
+{
+	GET_JSON_STRING_RETURN_FAILURE(Kind, ControlKind);
+	GET_JSON_STRING_RETURN_FAILURE(ControlId, ControlId);
+
+	if (ControlKind == FMixerInteractiveControl::ButtonKind)
+	{
+		GET_JSON_STRING_RETURN_FAILURE(Text, Text);
+		GET_JSON_STRING_RETURN_FAILURE(Tooltip, Tooltip);
+		GET_JSON_INT_RETURN_FAILURE(Cost, Cost);
+		GET_JSON_BOOL_RETURN_FAILURE(Disabled, bDisabled);
+		GET_JSON_DOUBLE_RETURN_FAILURE(Cooldown, Cooldown);
+
+		FMixerButtonPropertiesCached Button;
+		Button.Desc.ButtonText = FText::FromString(Text);
+		Button.Desc.HelpText = FText::FromString(Tooltip);
+		Button.Desc.SparkCost = Cost;
+
+		Button.State.DownCount = 0;
+		Button.State.UpCount = 0;
+		Button.State.PressCount = 0;
+		Button.State.Enabled = !bDisabled;
+		uint64 TimeNowInMixerUnits = FDateTime::UtcNow().ToUnixTimestamp() * 1000;
+		if (Cooldown > TimeNowInMixerUnits)
+		{
+			Button.State.RemainingCooldown = FTimespan::FromMilliseconds(static_cast<double>(static_cast<uint64>(Cooldown) - TimeNowInMixerUnits));
+		}
+		else
+		{
+			Button.State.RemainingCooldown = FTimespan(0);
+		}
+		Button.State.Progress = 0.0f;
+
+		return true;
+	}
+	else if (ControlKind == FMixerInteractiveControl::JoystickKind)
+	{
+
+		return true;
+	}
+
+	return false;
+}
+
 
 #endif

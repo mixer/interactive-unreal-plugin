@@ -17,6 +17,20 @@
 
 #include "MixerWebSocketOwnerBase.h"
 
+struct FMixerButtonPropertiesCached
+{
+	FMixerButtonDescription Desc;
+	FMixerButtonState State;
+	TSet<uint32> HoldingParticipants;
+};
+
+struct FMixerStickPropertiesCached
+{
+	FMixerStickDescription Desc;
+	FMixerStickState State;
+	TMap<uint32, FVector2D> PerParticipantStickValue;
+};
+
 struct FMixerRemoteUserCached : public FMixerRemoteUser
 {
 public:
@@ -83,10 +97,19 @@ private:
 	bool HandleParticipantEvent(FJsonObject* JsonObj, EMixerInteractivityParticipantState EventType);
 	bool HandleSingleParticipantChange(const FJsonObject* JsonObj, EMixerInteractivityParticipantState EventType);
 
+	bool ParsePropertiesFromGetScenesResult(FJsonObject *JsonObj);
+	bool ParsePropertiesFromSingleScene(FJsonObject* JsonObj);
+	bool ParsePropertiesFromSingleControl(FJsonObject* JsonObj);
+
 private:
 	TArray<FString> Endpoints;
 	TMap<FGuid, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCacheByGuid;
 	TMap<uint32, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCacheByUint;
+
+	TMap<FName, FMixerButtonPropertiesCached> ButtonCache;
+	TMap<FName, FMixerStickPropertiesCached> StickCache;
+
+	bool bPerParticipantStateCaching;
 };
 
 #endif
