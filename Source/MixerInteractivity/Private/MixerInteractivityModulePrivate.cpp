@@ -507,16 +507,6 @@ bool FMixerInteractivityModule::NeedsClientLibraryActive()
 #endif
 }
 
-bool FMixerInteractivityModule::GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc)
-{
-	return false;
-}
-
-bool FMixerInteractivityModule::GetTextboxDescription(FName Textbox, FMixerTextboxDescription& OutDesc)
-{
-	return false;
-}
-
 bool FMixerInteractivityModule::GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObj)
 {
 	OutControlObj = UMixerInteractivityBlueprintEventSource::GetBlueprintEventSource(ForWorld)->GetUnmappedCustomControl(ControlName);

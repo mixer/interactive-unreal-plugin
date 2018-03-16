@@ -52,6 +52,8 @@ public:
 	virtual bool GetStickState(FName Stick, FMixerStickState& OutState);
 	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState);
 	virtual void SetLabelText(FName Label, const FText& DisplayText);
+	virtual bool GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc);
+	virtual bool GetTextboxDescription(FName Textbox, FMixerTextboxDescription& OutDesc);
 	virtual TSharedPtr<const FMixerRemoteUser> GetParticipant(uint32 ParticipantId);
 	virtual bool CreateGroup(FName GroupName, FName InitialScene = NAME_None);
 	virtual bool GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants);

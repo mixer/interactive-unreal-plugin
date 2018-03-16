@@ -89,8 +89,6 @@ public:
 
 	virtual EMixerInteractivityState GetInteractivityState();
 
-	virtual bool GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc);
-	virtual bool GetTextboxDescription(FName Textbox, FMixerTextboxDescription& OutDesc);
 	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObject);
 	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, class UMixerCustomControl*& OutControlObject);
 	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()				{ return CurrentUser; }

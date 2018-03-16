@@ -160,6 +160,34 @@ void FMixerInteractivityModule_WithSessionState::SetLabelText(FName Label, const
 	}
 }
 
+bool FMixerInteractivityModule_WithSessionState::GetLabelDescription(FName Label, FMixerLabelDescription& OutDesc)
+{
+	FMixerLabelPropertiesCached* CachedProps = Labels.Find(Label);
+	if (CachedProps != nullptr)
+	{
+		OutDesc = CachedProps->Desc;
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+bool FMixerInteractivityModule_WithSessionState::GetTextboxDescription(FName Textbox, FMixerTextboxDescription& OutDesc)
+{
+	FMixerTextboxPropertiesCached* CachedProps = Textboxes.Find(Textbox);
+	if (CachedProps != nullptr)
+	{
+		OutDesc = CachedProps->Desc;
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
 TSharedPtr<const FMixerRemoteUser> FMixerInteractivityModule_WithSessionState::GetParticipant(uint32 ParticipantId)
 {
 	TSharedPtr<FMixerRemoteUser>* FoundUser = RemoteParticipantCacheByUint.Find(ParticipantId);
