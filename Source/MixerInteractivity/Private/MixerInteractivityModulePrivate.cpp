@@ -272,7 +272,7 @@ bool FMixerInteractivityModule::Logout()
 	case EMixerLoginState::Logging_In:
 		StopInteractivity();
 		SetUserAuthState(EMixerLoginState::Logging_Out);
-		SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
+		StopInteractiveConnection();
 		SetUserAuthState(EMixerLoginState::Not_Logged_In);
 		return true;
 
@@ -313,8 +313,8 @@ bool FMixerInteractivityModule::Tick(float DeltaTime)
 
 	if (!NeedsClientLibraryActive())
 	{
-		// Should really be Un-init if possible
 		StopInteractivity();
+		StopInteractiveConnection();
 	}
 
 	return true;

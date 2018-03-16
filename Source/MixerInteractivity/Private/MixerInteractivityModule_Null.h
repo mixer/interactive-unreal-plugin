@@ -36,6 +36,7 @@ public:
 
 protected:
 	virtual bool StartInteractiveConnection() { return false; }
+	virtual void StopInteractiveConnection() {}
 };
 
 #endif // MIXER_BACKEND_NULL

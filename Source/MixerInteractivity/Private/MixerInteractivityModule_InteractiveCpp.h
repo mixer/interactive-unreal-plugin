@@ -63,6 +63,7 @@ public:
 
 protected:
 	virtual bool StartInteractiveConnection();
+	virtual void StopInteractiveConnection();
 
 private:
 	std::shared_ptr<Microsoft::mixer::interactive_button_control> FindButton(FName Name);

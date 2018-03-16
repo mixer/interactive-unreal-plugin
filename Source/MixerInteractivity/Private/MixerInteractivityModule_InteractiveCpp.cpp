@@ -82,10 +82,20 @@ bool FMixerInteractivityModule_InteractiveCpp::StartInteractiveConnection()
 	}
 	else
 	{
+		SetInteractiveConnectionAuthState(EMixerLoginState::Logging_In);
 		SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
 	}
 
 	return true;
+}
+
+void FMixerInteractivityModule_InteractiveCpp::StopInteractiveConnection()
+{
+	if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
+	{
+		SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
+		RemoteParticipantCache.Empty();
+	}
 }
 
 bool FMixerInteractivityModule_InteractiveCpp::Tick(float DeltaTime)
@@ -95,96 +105,108 @@ bool FMixerInteractivityModule_InteractiveCpp::Tick(float DeltaTime)
 	FMixerInteractivityModule::Tick(DeltaTime);
 
 	std::vector<interactive_event> EventsThisFrame = interactivity_manager::get_singleton_instance()->do_work();
-	for (auto& MixerEvent : EventsThisFrame)
+
+	// interactive-cpp doesn't support a true shutdown.  We'll approximate one to external code
+	// by ignoring events when we're not supposed to have an interactive connection.
+	if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
 	{
-		switch (MixerEvent.event_type())
+		for (auto& MixerEvent : EventsThisFrame)
 		{
-		case interactive_event_type::error:
-			// Errors that impact our login state are accompanied by an interactivity_state_changed event, so
-			// dealing with them here is just double counting.  Stick to outputting the message.
-			UE_LOG(LogMixerInteractivity, Warning, TEXT("%s"), MixerEvent.err_message().c_str());
+			switch (MixerEvent.event_type())
+			{
+			case interactive_event_type::error:
+				// If the error landed us in not_initialized then we respond by giving up
+				// This is better than handling the state_changed event directly since
+				// transitions to not_initialized can occur during normal operation (e.g.
+				// Xbox user change) where we wouldn't want to abandon the regular state flow.
+				UE_LOG(LogMixerInteractivity, Warning, TEXT("%s"), MixerEvent.err_message().c_str());
+				if (interactivity_manager::get_singleton_instance()->interactivity_state() == interactivity_state::not_initialized)
+				{
+					SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
+				}
+				break;
+
+			case interactive_event_type::interactivity_state_changed:
+			{
+				auto StateChangeArgs = std::static_pointer_cast<interactivity_state_change_event_args>(MixerEvent.event_args());
+				switch (StateChangeArgs->new_state())
+				{
+				case interactivity_state::not_initialized:
+					// Leave auth state alone - the auth path on Xbox can pop to this state.
+					SetInteractivityState(EMixerInteractivityState::Not_Interactive);
+					break;
+
+				case interactivity_state::initializing:
+					SetInteractiveConnectionAuthState(EMixerLoginState::Logging_In);
+					SetInteractivityState(EMixerInteractivityState::Not_Interactive);
+					// Ensure the default group has a non-null representation
+					CreateGroup(NAME_DefaultMixerParticipantGroup);
+					break;
+
+				case interactivity_state::interactivity_pending:
+					SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
+					break;
+
+				case interactivity_state::interactivity_disabled:
+					SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
+					SetInteractivityState(EMixerInteractivityState::Not_Interactive);
+					break;
+
+				case interactivity_state::interactivity_enabled:
+					SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
+					SetInteractivityState(EMixerInteractivityState::Interactive);
+					break;
+				}
+			}
 			break;
 
-		case interactive_event_type::interactivity_state_changed:
-		{
-			auto StateChangeArgs = std::static_pointer_cast<interactivity_state_change_event_args>(MixerEvent.event_args());
-			switch (StateChangeArgs->new_state())
+			case interactive_event_type::participant_state_changed:
 			{
-			case interactivity_state::not_initialized:
-				SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
-				SetInteractivityState(EMixerInteractivityState::Not_Interactive);
-				break;
+				auto ParticipantEventArgs = std::static_pointer_cast<interactive_participant_state_change_event_args>(MixerEvent.event_args());
+				TSharedPtr<const FMixerRemoteUser> RemoteParticipant = CreateOrUpdateCachedParticipant(ParticipantEventArgs->participant());
+				switch (ParticipantEventArgs->state())
+				{
+				case interactive_participant_state::joined:
+					OnParticipantStateChanged().Broadcast(RemoteParticipant, EMixerInteractivityParticipantState::Joined);
+					break;
 
-			case interactivity_state::initializing:
-				SetInteractiveConnectionAuthState(EMixerLoginState::Logging_In);
-				SetInteractivityState(EMixerInteractivityState::Not_Interactive);
-				// Ensure the default group has a non-null representation
-				CreateGroup(NAME_DefaultMixerParticipantGroup);
-				break;
+				case interactive_participant_state::left:
+					OnParticipantStateChanged().Broadcast(RemoteParticipant, EMixerInteractivityParticipantState::Left);
+					break;
 
-			case interactivity_state::interactivity_pending:
-				SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
-				break;
+				case interactive_participant_state::input_disabled:
+					OnParticipantStateChanged().Broadcast(RemoteParticipant, EMixerInteractivityParticipantState::Input_Disabled);
+					break;
 
-			case interactivity_state::interactivity_disabled:
-				SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
-				SetInteractivityState(EMixerInteractivityState::Not_Interactive);
-				break;
+				default:
+					break;
+				}
+			}
+			break;
 
-			case interactivity_state::interactivity_enabled:
-				SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
-				SetInteractivityState(EMixerInteractivityState::Interactive);
+			case interactive_event_type::button:
+			{
+				auto OriginalButtonArgs = std::static_pointer_cast<interactive_button_event_args>(MixerEvent.event_args());
+				TSharedPtr<const FMixerRemoteUser> RemoteParticipant = CreateOrUpdateCachedParticipant(OriginalButtonArgs->participant());
+				FMixerButtonEventDetails Details;
+				Details.Pressed = OriginalButtonArgs->is_pressed();
+				Details.TransactionId = OriginalButtonArgs->transaction_id().c_str();
+				Details.SparkCost = OriginalButtonArgs->cost();
+				OnButtonEvent().Broadcast(FName(OriginalButtonArgs->control_id().c_str()), RemoteParticipant, Details);
+			}
+			break;
+
+			case interactive_event_type::joystick:
+			{
+				auto OriginalStickArgs = std::static_pointer_cast<interactive_joystick_event_args>(MixerEvent.event_args());
+				TSharedPtr<const FMixerRemoteUser> RemoteParticipant = CreateOrUpdateCachedParticipant(OriginalStickArgs->participant());
+				OnStickEvent().Broadcast(FName(OriginalStickArgs->control_id().c_str()), RemoteParticipant, FVector2D(OriginalStickArgs->x(), OriginalStickArgs->y()));
 				break;
 			}
-		}
-		break;
-
-		case interactive_event_type::participant_state_changed:
-		{
-			auto ParticipantEventArgs = std::static_pointer_cast<interactive_participant_state_change_event_args>(MixerEvent.event_args());
-			TSharedPtr<const FMixerRemoteUser> RemoteParticipant = CreateOrUpdateCachedParticipant(ParticipantEventArgs->participant());
-			switch (ParticipantEventArgs->state())
-			{
-			case interactive_participant_state::joined:
-				OnParticipantStateChanged().Broadcast(RemoteParticipant, EMixerInteractivityParticipantState::Joined);
-				break;
-
-			case interactive_participant_state::left:
-				OnParticipantStateChanged().Broadcast(RemoteParticipant, EMixerInteractivityParticipantState::Left);
-				break;
-
-			case interactive_participant_state::input_disabled:
-				OnParticipantStateChanged().Broadcast(RemoteParticipant, EMixerInteractivityParticipantState::Input_Disabled);
-				break;
 
 			default:
 				break;
 			}
-		}
-		break;
-
-		case interactive_event_type::button:
-		{
-			auto OriginalButtonArgs = std::static_pointer_cast<interactive_button_event_args>(MixerEvent.event_args());
-			TSharedPtr<const FMixerRemoteUser> RemoteParticipant = CreateOrUpdateCachedParticipant(OriginalButtonArgs->participant());
-			FMixerButtonEventDetails Details;
-			Details.Pressed = OriginalButtonArgs->is_pressed();
-			Details.TransactionId = OriginalButtonArgs->transaction_id().c_str();
-			Details.SparkCost = OriginalButtonArgs->cost();
-			OnButtonEvent().Broadcast(FName(OriginalButtonArgs->control_id().c_str()), RemoteParticipant, Details);
-		}
-		break;
-
-		case interactive_event_type::joystick:
-		{
-			auto OriginalStickArgs = std::static_pointer_cast<interactive_joystick_event_args>(MixerEvent.event_args());
-			TSharedPtr<const FMixerRemoteUser> RemoteParticipant = CreateOrUpdateCachedParticipant(OriginalStickArgs->participant());
-			OnStickEvent().Broadcast(FName(OriginalStickArgs->control_id().c_str()), RemoteParticipant, FVector2D(OriginalStickArgs->x(), OriginalStickArgs->y()));
-			break;
-		}
-
-		default:
-			break;
 		}
 	}
 
@@ -598,7 +620,8 @@ void FMixerInteractivityModule_InteractiveCpp::CallRemoteMethod(const FString& M
 	TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer = TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&SerializedParams, 0);
 	FJsonSerializer::Serialize(MethodParams, Writer);
 
-	Microsoft::mixer::interactivity_manager::get_singleton_instance()->send_rpc_message(*MethodName, *SerializedParams);
+	// Not available in the version of interactive-cpp currently in use
+	//Microsoft::mixer::interactivity_manager::get_singleton_instance()->send_rpc_message(*MethodName, *SerializedParams);
 }
 
 FMixerRemoteUserCached::FMixerRemoteUserCached(std::shared_ptr<Microsoft::mixer::interactive_participant> InParticipant)
