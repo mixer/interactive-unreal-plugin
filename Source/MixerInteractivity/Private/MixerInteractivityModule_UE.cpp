@@ -108,7 +108,7 @@ void FMixerInteractivityModule_UE::StartInteractivity()
 		{
 			FMixerReadyMessageParams Params;
 			Params.bReady = true;
-			SendMethodMessageObjectParams(TEXT("ready"), nullptr, Params);
+			SendMethodMessageObjectParams(MixerStringConstants::MethodNames::Ready, nullptr, Params);
 			SetInteractivityState(EMixerInteractivityState::Interactivity_Starting);
 		}
 		break;
@@ -128,7 +128,7 @@ void FMixerInteractivityModule_UE::StopInteractivity()
 		{
 			FMixerReadyMessageParams Params;
 			Params.bReady = false;
-			SendMethodMessageObjectParams(TEXT("ready"), nullptr, Params);
+			SendMethodMessageObjectParams(MixerStringConstants::MethodNames::Ready, nullptr, Params);
 			SetInteractivityState(EMixerInteractivityState::Interactivity_Stopping);
 		}
 		break;
@@ -140,12 +140,12 @@ void FMixerInteractivityModule_UE::StopInteractivity()
 
 void FMixerInteractivityModule_UE::SetCurrentScene(FName Scene, FName GroupName)
 {
-	CreateOrUpdateGroup(TEXT("updateGroups"), Scene, GroupName);
+	CreateOrUpdateGroup(MixerStringConstants::MethodNames::UpdateGroups, Scene, GroupName);
 }
 
 bool FMixerInteractivityModule_UE::CreateGroup(FName GroupName, FName InitialScene)
 {
-	return CreateOrUpdateGroup(TEXT("createGroups"), InitialScene, GroupName);
+	return CreateOrUpdateGroup(MixerStringConstants::MethodNames::CreateGroups, InitialScene, GroupName);
 }
 
 bool FMixerInteractivityModule_UE::MoveParticipantToGroup(FName GroupName, uint32 ParticipantId)
@@ -167,7 +167,7 @@ bool FMixerInteractivityModule_UE::MoveParticipantToGroup(FName GroupName, uint3
 
 	FMixerUpdateParticipantGroupParams Params;
 	Params.Participants.Add(ParamEntry);
-	SendMethodMessageObjectParams(TEXT("updateParticipants"), nullptr, Params);
+	SendMethodMessageObjectParams(MixerStringConstants::MethodNames::UpdateParticipants, nullptr, Params);
 
 	return true;
 }
@@ -178,7 +178,7 @@ void FMixerInteractivityModule_UE::CaptureSparkTransaction(const FString& Transa
 	{
 		FMixerCaptureTransactionParams Params;
 		Params.TransactionId = TransactionId;
-		SendMethodMessageObjectParams(TEXT("capture"), nullptr, Params);
+		SendMethodMessageObjectParams(MixerStringConstants::MethodNames::Capture, nullptr, Params);
 	}
 }
 
@@ -336,7 +336,7 @@ bool FMixerInteractivityModule_UE::OnUnhandledServerMessage(const FString& Messa
 
 bool FMixerInteractivityModule_UE::HandleHello(FJsonObject* JsonObj)
 {
-	SendMethodMessageNoParams(TEXT("getScenes"), &FMixerInteractivityModule_UE::HandleGetScenesReply);
+	SendMethodMessageNoParams(MixerStringConstants::MethodNames::GetScenes, &FMixerInteractivityModule_UE::HandleGetScenesReply);
 	return true;
 }
 
@@ -397,7 +397,7 @@ bool FMixerInteractivityModule_UE::HandleGiveInput(TSharedPtr<FMixerRemoteUser> 
 
 	bool bHandled = false;
 	FName ControlId = *ControlIdRaw;
-	if (EventType == TEXT("mousedown"))
+	if (EventType == MixerStringConstants::EventTypes::MouseDown)
 	{
 		FMixerButtonPropertiesCached* ButtonProps = GetButton(ControlId);
 		if (ButtonProps != nullptr)
@@ -417,7 +417,7 @@ bool FMixerInteractivityModule_UE::HandleGiveInput(TSharedPtr<FMixerRemoteUser> 
 			bHandled = true;
 		}
 	}
-	else if (EventType == TEXT("mouseup"))
+	else if (EventType == MixerStringConstants::EventTypes::MouseUp)
 	{
 		FMixerButtonPropertiesCached* ButtonProps = GetButton(ControlId);
 		if (ButtonProps != nullptr)
@@ -431,7 +431,7 @@ bool FMixerInteractivityModule_UE::HandleGiveInput(TSharedPtr<FMixerRemoteUser> 
 			bHandled = true;
 		}
 	}
-	else if (EventType == TEXT("move"))
+	else if (EventType == MixerStringConstants::EventTypes::Move)
 	{
 		FMixerStickPropertiesCached* Stick = GetStick(ControlId);
 		if (Stick != nullptr)
@@ -443,7 +443,7 @@ bool FMixerInteractivityModule_UE::HandleGiveInput(TSharedPtr<FMixerRemoteUser> 
 			bHandled = true;
 		}
 	}
-	else if (EventType == TEXT("submit"))
+	else if (EventType == MixerStringConstants::EventTypes::Submit)
 	{
 		FMixerTextboxPropertiesCached* Textbox = GetTextbox(ControlId);
 		if (Textbox != nullptr)

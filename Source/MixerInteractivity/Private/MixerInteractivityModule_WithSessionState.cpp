@@ -9,6 +9,7 @@
 //*********************************************************
 
 #include "MixerInteractivityModule_WithSessionState.h"
+#include "MixerJsonHelpers.h"
 #include "MixerInteractivityLog.h"
 
 void FMixerInteractivityModule_WithSessionState::TriggerButtonCooldown(FName Button, FTimespan CooldownTime)
@@ -155,7 +156,7 @@ void FMixerInteractivityModule_WithSessionState::SetLabelText(FName Label, const
 	if (CachedLabel != nullptr)
 	{
 		TSharedRef<FJsonObject> UpdateJson = MakeShared<FJsonObject>();
-		UpdateJson->SetStringField(TEXT("text"), DisplayText.ToString());
+		UpdateJson->SetStringField(MixerStringConstants::FieldNames::Text, DisplayText.ToString());
 		UpdateRemoteControl(CachedLabel->SceneId, Label, UpdateJson);
 	}
 }
@@ -231,7 +232,7 @@ bool FMixerInteractivityModule_WithSessionState::HandleSingleControlUpdate(FName
 	if (ButtonProps != nullptr)
 	{
 		double Cooldown = 0.0f;
-		if (ControlData->TryGetNumberField(TEXT("cooldown"), Cooldown))
+		if (ControlData->TryGetNumberField(MixerStringConstants::FieldNames::Cooldown, Cooldown))
 		{
 			uint64 TimeNowInMixerUnits = FDateTime::UtcNow().ToUnixTimestamp() * 1000;
 			if (Cooldown > TimeNowInMixerUnits)
@@ -245,31 +246,31 @@ bool FMixerInteractivityModule_WithSessionState::HandleSingleControlUpdate(FName
 		}
 
 		FString Text;
-		if (ControlData->TryGetStringField(TEXT("text"), Text))
+		if (ControlData->TryGetStringField(MixerStringConstants::FieldNames::Text, Text))
 		{
 			ButtonProps->Desc.ButtonText = FText::FromString(Text);
 		}
 
 		FString Tooltip;
-		if (ControlData->TryGetStringField(TEXT("tooltip"), Tooltip))
+		if (ControlData->TryGetStringField(MixerStringConstants::FieldNames::Tooltip , Tooltip))
 		{
 			ButtonProps->Desc.HelpText = FText::FromString(Tooltip);
 		}
 
 		uint32 Cost;
-		if (ControlData->TryGetNumberField(TEXT("cost"), Cost))
+		if (ControlData->TryGetNumberField(MixerStringConstants::FieldNames::Cost, Cost))
 		{
 			ButtonProps->Desc.SparkCost = Cost;
 		}
 
 		bool bDisabled;
-		if (ControlData->TryGetBoolField(TEXT("disabled"), bDisabled))
+		if (ControlData->TryGetBoolField(MixerStringConstants::FieldNames::Disabled, bDisabled))
 		{
 			ButtonProps->State.Enabled = !bDisabled;
 		}
 
 		double Progress;
-		if (ControlData->TryGetNumberField(TEXT("progress"), Progress))
+		if (ControlData->TryGetNumberField(MixerStringConstants::FieldNames::Progress, Progress))
 		{
 			ButtonProps->State.Progress = Progress;
 		}
@@ -281,7 +282,7 @@ bool FMixerInteractivityModule_WithSessionState::HandleSingleControlUpdate(FName
 	if (StickProps != nullptr)
 	{
 		bool bDisabled;
-		if (ControlData->TryGetBoolField(TEXT("disabled"), bDisabled))
+		if (ControlData->TryGetBoolField(MixerStringConstants::FieldNames::Disabled, bDisabled))
 		{
 			StickProps->State.Enabled = !bDisabled;
 		}

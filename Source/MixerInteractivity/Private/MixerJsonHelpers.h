@@ -31,10 +31,18 @@ namespace MixerStringConstants
 		extern const FString History;
 		extern const FString VoteStart;
 		extern const FString VoteChoose;
+
+		extern const FString Ready;
+		extern const FString UpdateGroups;
+		extern const FString CreateGroups;
+		extern const FString UpdateParticipants;
+		extern const FString Capture;
+		extern const FString GetScenes;
 	}
 
 	namespace EventTypes
 	{
+		// Chat events
 		extern const FString Welcome;
 		extern const FString ChatMessage;
 		extern const FString UserJoin;
@@ -44,6 +52,12 @@ namespace MixerStringConstants
 		extern const FString PurgeMessage;
 		extern const FString PollStart;
 		extern const FString PollEnd;
+
+		// Input events
+		extern const FString MouseDown;
+		extern const FString MouseUp;
+		extern const FString Move;
+		extern const FString Submit;
 	}
 
 	namespace FieldNames
