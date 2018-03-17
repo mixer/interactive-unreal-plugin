@@ -8,6 +8,10 @@
 #include "JsonPrintPolicy.h"
 #include "CondensedJsonPrintPolicy.h"
 
+#if PLATFORM_XBOXONE
+#include "XboxOne/MixerXboxOneWebSocket.h"
+#endif
+
 template <class T>
 class TMixerWebSocketOwnerBase
 {
@@ -101,7 +105,11 @@ void TMixerWebSocketOwnerBase<T>::InitConnection(const FString& Url, const TMap<
 	TArray<FString> Protocols;
 	Protocols.Add(TEXT("wss"));
 	Protocols.Add(TEXT("ws"));
+#if PLATFORM_XBOXONE
+	WebSocket = MakeShared<FMixerXboxOneWebSocket>(Url, Protocols, UpgradeHeaders);
+#else
 	WebSocket = FModuleManager::LoadModuleChecked<FWebSocketsModule>("WebSockets").CreateWebSocket(Url, Protocols, UpgradeHeaders);
+#endif
 
 	if (WebSocket.IsValid())
 	{
