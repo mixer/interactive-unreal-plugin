@@ -518,6 +518,17 @@ void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateControlsForInit(void*
 
 		InteractiveModule.AddLabel(FName(Control->id), CachedProps);
 	}
+	else if (FPlatformString::Strcmp(Control->kind, "textbox") == 0)
+	{
+		FMixerTextboxPropertiesCached Textbox;
+		GetControlPropertyHelper(Session, Control->id, "placeholder", Textbox.Desc.Placeholder);
+		GetControlPropertyHelper(Session, Control->id, "cost", Textbox.Desc.SparkCost);
+		GetControlPropertyHelper(Session, Control->id, "hasSubmit", Textbox.Desc.HasSubmit);
+		GetControlPropertyHelper(Session, Control->id, "multiline", Textbox.Desc.Multiline);
+		GetControlPropertyHelper(Session, Control->id, "submitText", Textbox.Desc.SubmitText);
+
+		InteractiveModule.AddTextbox(FName(Control->id), Textbox);
+	}
 }
 
 #endif
