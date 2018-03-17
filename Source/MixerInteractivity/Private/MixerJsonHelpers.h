@@ -122,6 +122,8 @@ namespace MixerStringConstants
 		extern const FString HasSubmit;
 		extern const FString Multiline;
 		extern const FString SubmitText;
+		extern const FString Groups;
+		extern const FString ReassignGroupId;
 	}
 
 	namespace Permissions

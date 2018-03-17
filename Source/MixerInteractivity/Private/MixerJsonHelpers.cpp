@@ -115,6 +115,8 @@ namespace MixerStringConstants
 		const FString HasSubmit = TEXT("hasSubmit");
 		const FString Multiline = TEXT("multiline");
 		const FString SubmitText = TEXT("submitText");
+		const FString Groups = TEXT("groups");
+		const FString ReassignGroupId = TEXT("reassignGroupId");
 	}
 
 	namespace Permissions

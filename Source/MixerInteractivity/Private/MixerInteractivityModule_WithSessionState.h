@@ -82,6 +82,7 @@ protected:
 	void RemoveUser(FGuid ParticipantSessionId);
 	TSharedPtr<FMixerRemoteUser> GetCachedUser(uint32 ParticipantId);
 	TSharedPtr<FMixerRemoteUser> GetCachedUser(FGuid ParticipantSessionId);
+	void ReassignUsers(FName FromGroup, FName ToGroup);
 
 private:
 	TMap<FGuid, TSharedPtr<FMixerRemoteUser>> RemoteParticipantCacheByGuid;

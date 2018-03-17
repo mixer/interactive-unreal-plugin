@@ -143,6 +143,13 @@ void FMixerInteractivityModule_UE::SetCurrentScene(FName Scene, FName GroupName)
 	CreateOrUpdateGroup(MixerStringConstants::MethodNames::UpdateGroups, Scene, GroupName);
 }
 
+FName FMixerInteractivityModule_UE::GetCurrentScene(FName GroupName)
+{
+	FName FindGroup = GroupName != NAME_None ? GroupName : FName("default");
+	FName* Scene = ScenesByGroup.Find(FindGroup);
+	return Scene != nullptr ? *Scene : NAME_None;
+}
+
 bool FMixerInteractivityModule_UE::CreateGroup(FName GroupName, FName InitialScene)
 {
 	return CreateOrUpdateGroup(MixerStringConstants::MethodNames::CreateGroups, InitialScene, GroupName);
@@ -326,6 +333,9 @@ void FMixerInteractivityModule_UE::RegisterAllServerMessageHandlers()
 	RegisterServerMessageHandler(TEXT("onParticipantUpdate"), &FMixerInteractivityModule_UE::HandleParticipantUpdate);
 	RegisterServerMessageHandler(TEXT("onReady"), &FMixerInteractivityModule_UE::HandleReadyStateChange);
 	RegisterServerMessageHandler(TEXT("onControlUpdate"), &FMixerInteractivityModule_UE::HandleControlUpdateMessage);
+	RegisterServerMessageHandler(TEXT("onGroupCreate"), &FMixerInteractivityModule_UE::HandleGroupCreate);
+	RegisterServerMessageHandler(TEXT("onGroupUpdate"), &FMixerInteractivityModule_UE::HandleGroupUpdate);
+	RegisterServerMessageHandler(TEXT("onGroupDelete"), &FMixerInteractivityModule_UE::HandleGroupDelete);
 }
 
 bool FMixerInteractivityModule_UE::OnUnhandledServerMessage(const FString& MessageType, const TSharedPtr<FJsonObject> Params)
@@ -376,6 +386,58 @@ bool FMixerInteractivityModule_UE::HandleReadyStateChange(FJsonObject* JsonObj)
 {
 	GET_JSON_BOOL_RETURN_FAILURE(IsReady, bIsReady);
 	SetInteractivityState(bIsReady ? EMixerInteractivityState::Interactive : EMixerInteractivityState::Not_Interactive);
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::HandleGroupCreate(FJsonObject* JsonObj)
+{
+	GET_JSON_ARRAY_RETURN_FAILURE(Groups, Groups);
+
+	for (const TSharedPtr<FJsonValue>& Group : *Groups)
+	{
+		FString GroupId;
+		FString SceneId;
+		TSharedPtr<FJsonObject> GroupObj = Group->AsObject();
+		if (GroupObj.IsValid()
+			&& GroupObj->TryGetStringField(MixerStringConstants::FieldNames::GroupId, GroupId)
+			&& GroupObj->TryGetStringField(MixerStringConstants::FieldNames::SceneId, SceneId))
+		{
+			ScenesByGroup.Add(*GroupId, *SceneId);
+		}
+	}
+
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::HandleGroupUpdate(FJsonObject* JsonObj)
+{
+	GET_JSON_ARRAY_RETURN_FAILURE(Groups, Groups);
+	for (const TSharedPtr<FJsonValue>& Group : *Groups)
+	{
+		FString GroupId;
+		FString SceneId;
+		TSharedPtr<FJsonObject> GroupObj = Group->AsObject();
+		if (GroupObj.IsValid()
+			&& GroupObj->TryGetStringField(MixerStringConstants::FieldNames::GroupId, GroupId)
+			&& GroupObj->TryGetStringField(MixerStringConstants::FieldNames::SceneId, SceneId))
+		{
+			ScenesByGroup.FindChecked(*GroupId) = *SceneId;
+		}
+	}
+
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::HandleGroupDelete(FJsonObject* JsonObj)
+{
+	GET_JSON_STRING_RETURN_FAILURE(GroupId, GroupIdRaw);
+	GET_JSON_STRING_RETURN_FAILURE(ReassignGroupId, ReassignGroupIdRaw);
+
+	FName GroupId = *GroupIdRaw;
+	FName ReassignGroupId = *ReassignGroupIdRaw;
+
+	ScenesByGroup.Remove(GroupId);
+	ReassignUsers(GroupId, ReassignGroupId);
 	return true;
 }
 
@@ -560,12 +622,24 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleScene(FJsonObject* J
 {
 	GET_JSON_ARRAY_RETURN_FAILURE(Controls, Controls);
 	GET_JSON_STRING_RETURN_FAILURE(SceneId, SceneIdRaw);
+	GET_JSON_ARRAY_RETURN_FAILURE(Groups, Groups);
 
 	FName SceneId = *SceneIdRaw;
 	for (const TSharedPtr<FJsonValue>& Control : *Controls)
 	{
 		ParsePropertiesFromSingleControl(SceneId, Control->AsObject().Get());
 	}
+
+	for (const TSharedPtr<FJsonValue>& Group : *Groups)
+	{
+		FString GroupId;
+		TSharedPtr<FJsonObject> GroupObj = Group->AsObject();
+		if (GroupObj.IsValid() && GroupObj->TryGetStringField(MixerStringConstants::FieldNames::GroupId, GroupId))
+		{
+			ScenesByGroup.Add(*GroupId, SceneId);
+		}
+	}
+
 
 	return true;
 }

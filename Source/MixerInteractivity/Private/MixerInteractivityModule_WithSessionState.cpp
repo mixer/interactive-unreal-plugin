@@ -388,3 +388,14 @@ TSharedPtr<FMixerRemoteUser> FMixerInteractivityModule_WithSessionState::GetCach
 	TSharedPtr<FMixerRemoteUser>* User = RemoteParticipantCacheByGuid.Find(ParticipantSessionId);
 	return User != nullptr ? *User : nullptr;
 }
+
+void FMixerInteractivityModule_WithSessionState::ReassignUsers(FName FromGroup, FName ToGroup)
+{
+	for (TMap<uint32, TSharedPtr<FMixerRemoteUser>>::TConstIterator It(RemoteParticipantCacheByUint); It; ++It)
+	{
+		if (It->Value->Group == FromGroup)
+		{
+			It->Value->Group = ToGroup;
+		}
+	}
+}
