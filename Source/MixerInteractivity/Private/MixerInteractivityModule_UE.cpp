@@ -170,7 +170,8 @@ bool FMixerInteractivityModule_UE::MoveParticipantToGroup(FName GroupName, uint3
 
 	FMixerUpdateParticipantGroupParamsEntry ParamEntry;
 	ParamEntry.ParticipantSessionGuid = ExistingUser->SessionGuid.ToString(EGuidFormats::DigitsWithHyphens).ToLower();
-	ParamEntry.GroupId = GroupName.ToString();
+	// Special case - 'default' is used all over the place as a name, but with 'D'
+	ParamEntry.GroupId = GroupName != NAME_DefaultMixerParticipantGroup ? GroupName.ToString() : TEXT("default");
 
 	FMixerUpdateParticipantGroupParams Params;
 	Params.Participants.Add(ParamEntry);
@@ -298,8 +299,8 @@ bool FMixerInteractivityModule_UE::CreateOrUpdateGroup(const FString& MethodName
 	}
 
 	FMixerUpdateGroupMessageParamsEntry ParamEntry;
-	ParamEntry.GroupId = GroupName.ToString();
-	ParamEntry.SceneId = Scene != NAME_None ? Scene.ToString() : TEXT("default");
+	ParamEntry.GroupId = GroupName != NAME_None && GroupName != NAME_DefaultMixerParticipantGroup ? GroupName.ToString() : TEXT("default");
+	ParamEntry.SceneId = Scene != NAME_None && Scene != NAME_DefaultMixerParticipantGroup ? Scene.ToString() : TEXT("default");
 	FMixerUpdateGroupMessageParams Params;
 	Params.Groups.Add(ParamEntry);
 

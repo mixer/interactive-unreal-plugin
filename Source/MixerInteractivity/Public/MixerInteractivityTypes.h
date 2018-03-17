@@ -14,6 +14,8 @@
 #include "DateTime.h"
 #include "Text.h"
 #include "Vector2D.h"
+#include "Guid.h"
+#include "Color.h"
 
 /** Base type for all Mixer users */
 struct FMixerUser
