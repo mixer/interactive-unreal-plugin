@@ -642,7 +642,17 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneI
 	{
 		FMixerTextboxPropertiesCached Textbox;
 		JsonObj->TryGetNumberField(MixerStringConstants::FieldNames::Cost, Textbox.Desc.SparkCost);
-
+		JsonObj->TryGetBoolField(MixerStringConstants::FieldNames::Multiline, Textbox.Desc.Multiline);
+		JsonObj->TryGetBoolField(MixerStringConstants::FieldNames::HasSubmit, Textbox.Desc.HasSubmit);
+		FString FieldValueScratch;
+		if (JsonObj->TryGetStringField(MixerStringConstants::FieldNames::Placeholder, FieldValueScratch))
+		{
+			Textbox.Desc.Placeholder = FText::FromString(FieldValueScratch);
+		}
+		if (JsonObj->TryGetStringField(MixerStringConstants::FieldNames::SubmitText, FieldValueScratch))
+		{
+			Textbox.Desc.SubmitText = FText::FromString(FieldValueScratch);
+		}
 		AddTextbox(*ControlId, Textbox);
 	}
 

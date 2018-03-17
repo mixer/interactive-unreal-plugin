@@ -118,6 +118,10 @@ namespace MixerStringConstants
 		extern const FString Underline;
 		extern const FString Bold;
 		extern const FString Italic;
+		extern const FString Placeholder;
+		extern const FString HasSubmit;
+		extern const FString Multiline;
+		extern const FString SubmitText;
 	}
 
 	namespace Permissions

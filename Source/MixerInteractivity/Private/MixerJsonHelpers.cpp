@@ -111,6 +111,10 @@ namespace MixerStringConstants
 		const FString Underline = TEXT("underline");
 		const FString Bold = TEXT("bold");
 		const FString Italic = TEXT("italic");
+		const FString Placeholder = TEXT("placeholder");
+		const FString HasSubmit = TEXT("hasSubmit");
+		const FString Multiline = TEXT("multiline");
+		const FString SubmitText = TEXT("submitText");
 	}
 
 	namespace Permissions
