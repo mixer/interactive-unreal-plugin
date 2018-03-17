@@ -106,6 +106,11 @@ namespace MixerStringConstants
 		const FString Progress = TEXT("progress");
 		const FString Result = TEXT("result");
 		const FString Value = TEXT("value");
+		const FString TextSize = TEXT("textSize");
+		const FString TextColor = TEXT("textColor");
+		const FString Underline = TEXT("underline");
+		const FString Bold = TEXT("bold");
+		const FString Italic = TEXT("italic");
 	}
 
 	namespace Permissions

@@ -509,6 +509,11 @@ void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateControlsForInit(void*
 	{
 		FMixerLabelPropertiesCached CachedProps;
 		GetControlPropertyHelper(Session, Control->id, "text", CachedProps.Desc.Text);
+		GetControlPropertyHelper(Session, Control->id, "textSize", CachedProps.Desc.TextSize);
+		GetControlPropertyHelper(Session, Control->id, "underline", CachedProps.Desc.Underline);
+		GetControlPropertyHelper(Session, Control->id, "bold", CachedProps.Desc.Bold);
+		GetControlPropertyHelper(Session, Control->id, "italic", CachedProps.Desc.Italic);
+
 		CachedProps.SceneId = Scene->id;
 
 		InteractiveModule.AddLabel(FName(Control->id), CachedProps);

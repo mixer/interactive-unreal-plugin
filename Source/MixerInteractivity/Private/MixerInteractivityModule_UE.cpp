@@ -577,16 +577,15 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneI
 
 	if (ControlKind == FMixerInteractiveControl::ButtonKind)
 	{
-		GET_JSON_STRING_RETURN_FAILURE(Text, Text);
-		GET_JSON_STRING_RETURN_FAILURE(Tooltip, Tooltip);
-		GET_JSON_INT_RETURN_FAILURE(Cost, Cost);
+		FMixerButtonPropertiesCached Button;
+		FString FieldValueScratch;
+		JsonObj->TryGetStringField(MixerStringConstants::FieldNames::Text, FieldValueScratch);
+		Button.Desc.ButtonText = FText::FromString(FieldValueScratch);
+		JsonObj->TryGetStringField(MixerStringConstants::FieldNames::Tooltip, FieldValueScratch);
+		Button.Desc.HelpText = FText::FromString(FieldValueScratch);
+		JsonObj->TryGetNumberField(MixerStringConstants::FieldNames::Cost, Button.Desc.SparkCost);
 
 		// Disabled and cooldown shouldn't be set initially
-
-		FMixerButtonPropertiesCached Button;
-		Button.Desc.ButtonText = FText::FromString(Text);
-		Button.Desc.HelpText = FText::FromString(Tooltip);
-		Button.Desc.SparkCost = Cost;
 
 		Button.State.DownCount = 0;
 		Button.State.UpCount = 0;
@@ -610,19 +609,40 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneI
 	}
 	else if (ControlKind == FMixerInteractiveControl::LabelKind)
 	{
-		GET_JSON_STRING_RETURN_FAILURE(Text, Text);
-
 		FMixerLabelPropertiesCached Label;
-		Label.Desc.Text = FText::FromString(Text);
+		Label.Desc.TextSize = 0;
+		Label.Desc.Underline = false;
+		Label.Desc.Bold = false;
+		Label.Desc.Italic = false;
+
+		FString FieldValueScratch;
+		if (JsonObj->TryGetStringField(MixerStringConstants::FieldNames::Text, FieldValueScratch))
+		{
+			Label.Desc.Text = FText::FromString(FieldValueScratch);
+		}
+
+		if (JsonObj->TryGetStringField(MixerStringConstants::FieldNames::TextColor, FieldValueScratch))
+		{
+			Label.Desc.TextColor = FColor::FromHex(FieldValueScratch);
+		}
+		else
+		{
+			Label.Desc.TextColor = FColor::White;
+		}
+
+		JsonObj->TryGetNumberField(MixerStringConstants::FieldNames::TextSize, Label.Desc.TextSize);
+		JsonObj->TryGetBoolField(MixerStringConstants::FieldNames::Underline, Label.Desc.Underline);
+		JsonObj->TryGetBoolField(MixerStringConstants::FieldNames::Bold, Label.Desc.Bold);
+		JsonObj->TryGetBoolField(MixerStringConstants::FieldNames::Italic, Label.Desc.Italic);
+
 		Label.SceneId = SceneId;
 		AddLabel(*ControlId, Label);
 	}
 	else if (ControlKind == FMixerInteractiveControl::TextboxKind)
 	{
-		GET_JSON_INT_RETURN_FAILURE(Cost, Cost);
-
 		FMixerTextboxPropertiesCached Textbox;
-		Textbox.Desc.SparkCost = Cost;
+		JsonObj->TryGetNumberField(MixerStringConstants::FieldNames::Cost, Textbox.Desc.SparkCost);
+
 		AddTextbox(*ControlId, Textbox);
 	}
 

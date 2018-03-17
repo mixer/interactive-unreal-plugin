@@ -113,6 +113,11 @@ namespace MixerStringConstants
 		extern const FString Progress;
 		extern const FString Result;
 		extern const FString Value;
+		extern const FString TextSize;
+		extern const FString TextColor;
+		extern const FString Underline;
+		extern const FString Bold;
+		extern const FString Italic;
 	}
 
 	namespace Permissions
