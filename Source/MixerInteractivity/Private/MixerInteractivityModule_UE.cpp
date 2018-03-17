@@ -622,29 +622,32 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleScene(FJsonObject* J
 {
 	GET_JSON_ARRAY_RETURN_FAILURE(Controls, Controls);
 	GET_JSON_STRING_RETURN_FAILURE(SceneId, SceneIdRaw);
-	GET_JSON_ARRAY_RETURN_FAILURE(Groups, Groups);
 
 	FName SceneId = *SceneIdRaw;
 	for (const TSharedPtr<FJsonValue>& Control : *Controls)
 	{
-		ParsePropertiesFromSingleControl(SceneId, Control->AsObject().Get());
+		ParsePropertiesFromSingleControl(SceneId, Control->AsObject().ToSharedRef());
 	}
 
-	for (const TSharedPtr<FJsonValue>& Group : *Groups)
+	// Groups will be omitted if empty
+	const TArray<TSharedPtr<FJsonValue>> *Groups;
+	if (JsonObj->TryGetArrayField(MixerStringConstants::FieldNames::Groups, Groups))
 	{
-		FString GroupId;
-		TSharedPtr<FJsonObject> GroupObj = Group->AsObject();
-		if (GroupObj.IsValid() && GroupObj->TryGetStringField(MixerStringConstants::FieldNames::GroupId, GroupId))
+		for (const TSharedPtr<FJsonValue>& Group : *Groups)
 		{
-			ScenesByGroup.Add(*GroupId, SceneId);
+			FString GroupId;
+			TSharedPtr<FJsonObject> GroupObj = Group->AsObject();
+			if (GroupObj.IsValid() && GroupObj->TryGetStringField(MixerStringConstants::FieldNames::GroupId, GroupId))
+			{
+				ScenesByGroup.Add(*GroupId, SceneId);
+			}
 		}
 	}
-
 
 	return true;
 }
 
-bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneId, FJsonObject* JsonObj)
+bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneId, TSharedRef<FJsonObject> JsonObj)
 {
 	GET_JSON_STRING_RETURN_FAILURE(Kind, ControlKind);
 	GET_JSON_STRING_RETURN_FAILURE(ControlId, ControlId);
@@ -670,16 +673,12 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneI
 		Button.SceneId = SceneId;
 
 		AddButton(*ControlId, Button);
-
-		return true;
 	}
 	else if (ControlKind == FMixerInteractiveControl::JoystickKind)
 	{
 		FMixerStickPropertiesCached Stick;
 		Stick.State.Enabled = true;
 		AddStick(*ControlId, Stick);
-
-		return true;
 	}
 	else if (ControlKind == FMixerInteractiveControl::LabelKind)
 	{
@@ -729,8 +728,12 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneI
 		}
 		AddTextbox(*ControlId, Textbox);
 	}
+	else
+	{
+		OnCustomControlPropertyUpdate().Broadcast(*ControlId, JsonObj);
+	}
 
-	return false;
+	return true;
 }
 
 

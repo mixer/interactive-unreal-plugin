@@ -69,7 +69,7 @@ private:
 
 	bool ParsePropertiesFromGetScenesResult(FJsonObject *JsonObj);
 	bool ParsePropertiesFromSingleScene(FJsonObject* JsonObj);
-	bool ParsePropertiesFromSingleControl(FName SceneId, FJsonObject* JsonObj);
+	bool ParsePropertiesFromSingleControl(FName SceneId, TSharedRef<FJsonObject> JsonObj);
 
 private:
 	TArray<FString> Endpoints;
