@@ -18,7 +18,6 @@
 #include "MixerInteractivityEditorModule.h"
 #include "SGraphPinMixerObjectNameList.h"
 
-
 class FMixerInteractivityPinFactory : public FGraphPanelPinFactory
 {
 	virtual TSharedPtr<class SGraphPin> CreatePin(class UEdGraphPin* InPin) const override
@@ -28,25 +27,14 @@ class FMixerInteractivityPinFactory : public FGraphPanelPinFactory
 		if (InPin->PinType.PinCategory == K2Schema->PC_Struct)
 		{
 			SGraphPinMixerObjectNameList::FGetMixerObjectNames ItemsSource;
-			if (InPin->PinType.PinSubCategoryObject == FMixerButtonReference::StaticStruct())
+			UStruct* PinTypeStruct = Cast<UStruct>(InPin->PinType.PinSubCategoryObject.Get());
+			if (PinTypeStruct != nullptr)
 			{
-				ItemsSource = SGraphPinMixerObjectNameList::FGetMixerObjectNames::CreateRaw(&IMixerInteractivityEditorModule::Get(), &IMixerInteractivityEditorModule::GetDesignTimeButtons);
-			}
-			else if (InPin->PinType.PinSubCategoryObject == FMixerSceneReference::StaticStruct())
-			{
-				ItemsSource = SGraphPinMixerObjectNameList::FGetMixerObjectNames::CreateRaw(&IMixerInteractivityEditorModule::Get(), &IMixerInteractivityEditorModule::GetDesignTimeScenes);
-			}
-			else if (InPin->PinType.PinSubCategoryObject == FMixerStickReference::StaticStruct())
-			{
-				ItemsSource = SGraphPinMixerObjectNameList::FGetMixerObjectNames::CreateRaw(&IMixerInteractivityEditorModule::Get(), &IMixerInteractivityEditorModule::GetDesignTimeSticks);
-			}
-			else if (InPin->PinType.PinSubCategoryObject == FMixerGroupReference::StaticStruct())
-			{
-				ItemsSource = SGraphPinMixerObjectNameList::FGetMixerObjectNames::CreateRaw(&IMixerInteractivityEditorModule::Get(), &IMixerInteractivityEditorModule::GetDesignTimeGroups);
-			}
-			else if (InPin->PinType.PinSubCategoryObject == FMixerCustomControlReference::StaticStruct())
-			{
-				ItemsSource = SGraphPinMixerObjectNameList::FGetMixerObjectNames::CreateRaw(&IMixerInteractivityEditorModule::Get(), &IMixerInteractivityEditorModule::GetDesignTimeSimpleCustomControls);
+				FString MixerObjectKind = PinTypeStruct->GetMetaData(MixerObjectKindMetadataTag);
+				if (!MixerObjectKind.IsEmpty())
+				{
+					ItemsSource = SGraphPinMixerObjectNameList::FGetMixerObjectNames::CreateRaw(&IMixerInteractivityEditorModule::Get(), &IMixerInteractivityEditorModule::GetDesignTimeObjects, MixerObjectKind);
+				}
 			}
 
 			if (ItemsSource.IsBound())

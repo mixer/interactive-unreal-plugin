@@ -645,7 +645,7 @@ void FMixerInteractivitySettingsCustomization::GenerateWidgetForDesignTimeGroups
 		.ValueContent()
 		[
 			SAssignNew(InitialSceneCombo, SComboBox<TSharedPtr<FName>>)
-			.OptionsSource(&IMixerInteractivityEditorModule::Get().GetDesignTimeScenes())
+			.OptionsSource(&IMixerInteractivityEditorModule::Get().GetDesignTimeObjects(TEXT("scene")))
 			.OnGenerateWidget(this, &FMixerInteractivitySettingsCustomization::GenerateWidgetForGroupInitialScene)
 			.OnSelectionChanged(this, &FMixerInteractivitySettingsCustomization::OnGroupInitialSceneSelectionChanged, InitialSceneProperty)
 			.Content()

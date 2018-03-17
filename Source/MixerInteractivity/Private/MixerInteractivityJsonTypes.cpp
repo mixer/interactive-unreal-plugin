@@ -13,11 +13,15 @@
 
 const FString FMixerInteractiveControl::ButtonKind = TEXT("button");
 const FString FMixerInteractiveControl::JoystickKind = TEXT("joystick");
+const FString FMixerInteractiveControl::LabelKind = TEXT("label");
+const FString FMixerInteractiveControl::TextboxKind = TEXT("textbox");
 
 bool FMixerInteractiveControl::IsCustom() const
 {
 	return !IsButton()
-		&& !IsJoystick();
+		&& !IsJoystick()
+		&& !IsLabel()
+		&& !IsTextbox();
 }
 
 void FMixerInteractiveGame::Serialize(FJsonSerializerBase& Serializer, bool bFlatObject)

@@ -20,23 +20,13 @@ UMixerInteractivitySettings::UMixerInteractivitySettings()
 
 #if WITH_EDITORONLY_DATA
 
-void UMixerInteractivitySettings::GetAllSticks(TArray<FString>& OutSticks)
+void UMixerInteractivitySettings::GetAllControls(const FString& Kind, TArray<FString>& OutControls)
 {
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 	UMixerProjectAsset* ProjectAsset = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
 	if (ProjectAsset != nullptr)
 	{
-		ProjectAsset->GetAllControls([](const FMixerInteractiveControl& C) { return C.IsJoystick(); }, OutSticks);
-	}
-}
-
-void UMixerInteractivitySettings::GetAllButtons(TArray<FString>& OutButtons)
-{
-	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	UMixerProjectAsset* ProjectAsset = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
-	if (ProjectAsset != nullptr)
-	{
-		ProjectAsset->GetAllControls([](const FMixerInteractiveControl& C) { return C.IsButton(); }, OutButtons);
+		ProjectAsset->GetAllControls([Kind](const FMixerInteractiveControl& C) { return C.Kind == Kind; }, OutControls);
 	}
 }
 

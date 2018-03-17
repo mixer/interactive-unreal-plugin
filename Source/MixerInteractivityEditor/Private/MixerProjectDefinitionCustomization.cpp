@@ -124,7 +124,7 @@ void FMixerProjectDefinitionCustomization::CustomizeDetails(IDetailLayoutBuilder
 					: FText::FromString(PrettyControlKind))
 			];
 
-			if (!Control.IsButton() && !Control.IsJoystick())
+			if (Control.IsCustom())
 			{
 				ControlGroup.AddWidgetRow()
 				.NameContent()

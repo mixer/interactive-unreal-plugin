@@ -18,6 +18,8 @@
 #include "Resources/Version.h"
 #include "JsonObjectConverter.h"
 
+const FName MixerObjectKindMetadataTag = "MixerObjectKind";
+
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
 struct FMixerInteractivityChangeAction : public FPendingLatentAction
@@ -239,6 +241,52 @@ void UMixerInteractivityBlueprintLibrary::GetStickState(FMixerStickReference Sti
 		XAxis = 0.0f;
 		YAxis = 0.0f;
 		Enabled = false;
+	}
+}
+
+void UMixerInteractivityBlueprintLibrary::SetLabelText(FMixerLabelReference Label, const FText& Text)
+{
+	IMixerInteractivityModule::Get().SetLabelText(Label.Name, Text);
+}
+
+void UMixerInteractivityBlueprintLibrary::GetLabelDescription(FMixerLabelReference Label, FText& Text, int32& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic)
+{
+	FMixerLabelDescription LabelDesc;
+	if (IMixerInteractivityModule::Get().GetLabelDescription(Label.Name, LabelDesc))
+	{
+		Text = LabelDesc.Text;
+		TextSize = LabelDesc.TextSize;
+		TextColor = LabelDesc.TextColor;
+		Bold = LabelDesc.Bold;
+		Underline = LabelDesc.Underline;
+		Italic = LabelDesc.Italic;
+	}
+	else
+	{
+		TextSize = 0;
+		TextColor = FColor::Black;
+		Bold = false;
+		Underline = false;
+		Italic = false;
+	}
+}
+
+void UMixerInteractivityBlueprintLibrary::GetTextboxDescription(FMixerTextboxReference Textbox, FText& PlaceholderText, bool& Multiline, bool& HasSubmit, FText& SubmitText, int32& SparkCost)
+{
+	FMixerTextboxDescription TextboxDesc;
+	if (IMixerInteractivityModule::Get().GetTextboxDescription(Textbox.Name, TextboxDesc))
+	{
+		PlaceholderText = TextboxDesc.Placeholder;
+		Multiline = TextboxDesc.Multiline;
+		HasSubmit = TextboxDesc.HasSubmit;
+		SubmitText = TextboxDesc.SubmitText;
+		SparkCost = TextboxDesc.SparkCost;
+	}
+	else
+	{
+		Multiline = false;
+		HasSubmit = false;
+		SparkCost = 0;
 	}
 }
 

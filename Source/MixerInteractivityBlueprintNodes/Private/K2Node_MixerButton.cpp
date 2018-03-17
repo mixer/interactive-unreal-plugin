@@ -19,6 +19,7 @@
 #include "K2Node_TemporaryVariable.h"
 #include "K2Node_AssignmentStatement.h"
 #include "MixerInteractivitySettings.h"
+#include "MixerInteractivityJsonTypes.h"
 #include "K2Node_MixerButtonEvent.h"
 #include "MixerInteractivityBlueprintLibrary.h"
 
@@ -29,7 +30,7 @@ void UK2Node_MixerButton::ValidateNodeDuringCompilation(class FCompilerResultsLo
 	Super::ValidateNodeDuringCompilation(MessageLog);
 
 	TArray<FString> Buttons;
-	UMixerInteractivitySettings::GetAllButtons(Buttons);
+	UMixerInteractivitySettings::GetAllControls(FMixerInteractiveControl::ButtonKind, Buttons);
 	if (!Buttons.Contains(ButtonId.ToString()))
 	{
 		MessageLog.Warning(*FText::Format(LOCTEXT("MixerButtonNode_UnknownButtonWarning", "Mixer Button Event specifies invalid button id '{0}' for @@"), FText::FromName(ButtonId)).ToString(), this);
@@ -144,7 +145,7 @@ void UK2Node_MixerButton::GetMenuActions(FBlueprintActionDatabaseRegistrar& Acti
 	if (ActionRegistrar.IsOpenForRegistration(ActionKey))
 	{
 		TArray<FString> Buttons;
-		UMixerInteractivitySettings::GetAllButtons(Buttons);
+		UMixerInteractivitySettings::GetAllControls(FMixerInteractiveControl::ButtonKind, Buttons);
 		for (const FString& ButtonName : Buttons)
 		{
 			UBlueprintNodeSpawner* NodeSpawner = UBlueprintNodeSpawner::Create(GetClass());

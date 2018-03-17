@@ -93,8 +93,6 @@ public:
 	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, class UMixerCustomControl*& OutControlObject);
 	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()				{ return CurrentUser; }
 
-	virtual void UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate);
-
 	virtual TSharedPtr<class IOnlineChat> GetChatInterface();
 	virtual TSharedPtr<class IOnlineChatMixer> GetExtendedChatInterface();
 
@@ -107,9 +105,13 @@ public:
 	virtual FOnCustomControlInput& OnCustomControlInput()						{ return CustomControlInputEvent; }
 	virtual FOnCustomControlPropertyUpdate& OnCustomControlPropertyUpdate()		{ return CustomControlPropertyUpdate; }
 	virtual FOnCustomMethodCall& OnCustomMethodCall()							{ return CustomMethodCall; }
+	virtual FOnTextboxSubmitEvent& OnTextboxSubmitEvent()						{ return TextboxSubmitEvent; }
 
 public:
 	virtual bool Tick(float DeltaTime);
+
+public:
+	void UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate);
 
 protected:
 	virtual bool StartInteractiveConnection() = 0;
@@ -178,6 +180,7 @@ private:
 	FOnCustomControlInput CustomControlInputEvent;
 	FOnCustomControlPropertyUpdate CustomControlPropertyUpdate;
 	FOnCustomMethodCall CustomMethodCall;
+	FOnTextboxSubmitEvent TextboxSubmitEvent;
 
 	TSharedPtr<class FOnlineChatMixer> ChatInterface;
 

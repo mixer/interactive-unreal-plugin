@@ -26,6 +26,13 @@ namespace MixerStringConstants
 		const FString History = TEXT("history");
 		const FString VoteStart = TEXT("vote:start");
 		const FString VoteChoose = TEXT("vote:choose");
+
+		const FString Ready = TEXT("ready");
+		const FString UpdateGroups = TEXT("updateGroups");
+		const FString CreateGroups = TEXT("createGroups");
+		const FString UpdateParticipants = TEXT("updateParticipants");
+		const FString Capture = TEXT("capture");
+		const FString GetScenes = TEXT("getScenes");
 	}
 
 	namespace EventTypes
@@ -39,6 +46,11 @@ namespace MixerStringConstants
 		const FString PurgeMessage = TEXT("PurgeMessage");
 		const FString PollStart = TEXT("PollStart");
 		const FString PollEnd = TEXT("PollEnd");
+
+		const FString MouseDown = TEXT("mousedown");
+		const FString MouseUp = TEXT("mouseup");
+		const FString Move = TEXT("move");
+		const FString Submit = TEXT("submit");
 	}
 
 	namespace FieldNames
@@ -93,6 +105,16 @@ namespace MixerStringConstants
 		const FString Tooltip = TEXT("tooltip");
 		const FString Progress = TEXT("progress");
 		const FString Result = TEXT("result");
+		const FString Value = TEXT("value");
+		const FString TextSize = TEXT("textSize");
+		const FString TextColor = TEXT("textColor");
+		const FString Underline = TEXT("underline");
+		const FString Bold = TEXT("bold");
+		const FString Italic = TEXT("italic");
+		const FString Placeholder = TEXT("placeholder");
+		const FString HasSubmit = TEXT("hasSubmit");
+		const FString Multiline = TEXT("multiline");
+		const FString SubmitText = TEXT("submitText");
 	}
 
 	namespace Permissions

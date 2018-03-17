@@ -25,6 +25,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FMixerButtonEventDynamicDelegate, 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FMixerParticipantEventDynamicDelegate, int32, ParticipantId);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_FourParams(FMixerStickEventDynamicDelegate, FMixerStickReference, Joystick, int32, ParticipantId, float, XAxis, float, YAxis);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FMixerBroadcastingEventDynamicDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_FiveParams(FMixerTextSubmittedEventDynamicDelegate, FMixerTextboxReference, Textbox, int32, ParticipantId, FText, SubmittedText, FMixerTransactionId, TransactionId, int32, SparkCost);
 
 // Note: these are for 'simple' custom controls only.  UObject-style controls get these events via method calls.
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FMixerCustomControlInputDynamicDelegate, FMixerCustomControlReference, Control, FName, Event, int32, ParticipantId);
@@ -42,6 +43,11 @@ struct MIXERINTERACTIVITY_API FMixerButtonEventDynamicDelegateWrapper
 
 	UPROPERTY()
 	FMixerButtonEventDynamicDelegate ReleasedDelegate;
+
+	bool IsBound()
+	{
+		return PressedDelegate.IsBound() || ReleasedDelegate.IsBound();
+	}
 };
 
 USTRUCT()
@@ -51,6 +57,25 @@ struct MIXERINTERACTIVITY_API FMixerStickEventDynamicDelegateWrapper
 
 	UPROPERTY()
 	FMixerStickEventDynamicDelegate Delegate;
+
+	bool IsBound()
+	{
+		return Delegate.IsBound();
+	}
+};
+
+USTRUCT()
+struct MIXERINTERACTIVITY_API FMixerTextboxEventDynamicDelegateWrapper
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FMixerTextSubmittedEventDynamicDelegate SubmittedDelegate;
+
+	bool IsBound()
+	{
+		return SubmittedDelegate.IsBound();
+	}
 };
 
 USTRUCT()
@@ -68,6 +93,11 @@ struct MIXERINTERACTIVITY_API FMixerCustomControlDelegateWrapper
 	FMixerCustomControlInputDynamicDelegate InputDelegate;
 
 	TSharedPtr<FJsonObject> UnmappedControl;
+
+	bool IsBound()
+	{
+		return MappedControl != nullptr || UpdateDelegate.IsBound() || InputDelegate.IsBound();
+	}
 };
 
 USTRUCT()
@@ -83,6 +113,11 @@ struct MIXERINTERACTIVITY_API FMixerCustomMethodStubDelegateWrapper
 
 	UPROPERTY()
 	FMixerCustomMethodStubDelegate Delegate;
+
+	bool IsBound()
+	{
+		return Delegate.IsBound();
+	}
 };
 
 
@@ -116,6 +151,9 @@ public:
 	FMixerCustomControlInputDynamicDelegate& GetCustomControlInputEvent(FName ControlName);
 	FMixerCustomControlUpdateDynamicDelegate& GetCustomControlUpdateEvent(FName ControlName);
 	void AddCustomMethodBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName);
+	void RemoveCustomMethodBinding(FName EventName, UObject* TargetObject, FName TargetFunctionName);
+	void AddTextSubmittedBinding(FName TextboxName, UObject* TargetObject, FName TargetFunctionName);
+	void RemoveTextSubmittedBinding(FName TextboxName, UObject* TargetObject, FName TargetFunctionName);
 
 	void OnButtonNativeEvent(FName ButtonName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerButtonEventDetails& Details);
 	void OnParticipantStateChangedNativeEvent(TSharedPtr<const FMixerRemoteUser> Participant, EMixerInteractivityParticipantState NewState);
@@ -124,6 +162,7 @@ public:
 	void OnCustomMethodCallNativeEvent(FName MethodName, const TSharedPtr<FJsonObject> MethodParams);
 	void OnCustomControlInputNativeEvent(FName ControlName, FName EventType, TSharedPtr<const FMixerRemoteUser> Participant, const TSharedRef<FJsonObject> EventPayload);
 	void OnCustomControlPropertyUpdateNativeEvent(FName ControlName, const TSharedRef<FJsonObject> UpdatedProperties);
+	void OnTextboxSubmitNativeEvent(FName TextboxName, TSharedPtr<const FMixerRemoteUser> Participant, const FMixerTextboxEventDetails& Details);
 
 #if WITH_EDITORONLY_DATA
 	void RefreshCustomControls();
@@ -150,6 +189,9 @@ private:
 	UPROPERTY()
 	TMap<FName, FMixerCustomControlDelegateWrapper> CustomControlDelegates;
 
+	UPROPERTY()
+	TMap<FName, FMixerTextboxEventDynamicDelegateWrapper> TextboxDelegates;
+
 public:
 	static UMixerInteractivityBlueprintEventSource* GetBlueprintEventSource(UWorld* ForWorld);
 
@@ -174,20 +216,16 @@ struct FMixerButtonEventBinding
 	bool Pressed;
 };
 
-USTRUCT()
-struct FMixerStickEventBinding
+UENUM()
+enum class EMixerGenericEventBindingType : uint8
 {
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FName TargetFunctionName;
-
-	UPROPERTY()
-	FName StickId;
+	Stick,
+	CustomMethod,
+	TextSubmitted,
 };
 
 USTRUCT()
-struct FMixerCustomMethodBinding
+struct FMixerGenericEventBinding
 {
 	GENERATED_BODY()
 
@@ -195,7 +233,10 @@ struct FMixerCustomMethodBinding
 	FName TargetFunctionName;
 
 	UPROPERTY()
-	FName EventName;
+	FName NameParam;
+
+	UPROPERTY()
+	EMixerGenericEventBindingType BindingType;
 };
 
 USTRUCT()
@@ -232,10 +273,9 @@ public:
 	FName BroadcastingStoppedBinding;
 
 	void AddButtonBinding(const FMixerButtonEventBinding& BindingInfo);
-	void AddStickBinding(const FMixerStickEventBinding& BindingInfo);
-	void AddCustomMethodBinding(const FMixerCustomMethodBinding& BindingInfo);
 	void AddCustomControlInputBinding(const FMixerCustomControlEventBinding& BindingInfo);
 	void AddCustomControlUpdateBinding(const FMixerCustomControlEventBinding& BindingInfo);
+	void AddGenericBinding(const FMixerGenericEventBinding& BindingInfo);
 
 public:
 	virtual void BindDynamicDelegates(UObject* InInstance) const;
@@ -247,14 +287,11 @@ private:
 	TArray<FMixerButtonEventBinding> ButtonEventBindings;
 
 	UPROPERTY()
-	TArray<FMixerStickEventBinding> StickEventBindings;
-
-	UPROPERTY()
-	TArray<FMixerCustomMethodBinding> CustomMethodBindings;
-
-	UPROPERTY()
 	TArray<FMixerCustomControlEventBinding> CustomControlInputBindings;
 
 	UPROPERTY()
 	TArray<FMixerCustomControlEventBinding> CustomControlUpdateBindings;
+
+	UPROPERTY()
+	TArray<FMixerGenericEventBinding> GenericBindings;
 };

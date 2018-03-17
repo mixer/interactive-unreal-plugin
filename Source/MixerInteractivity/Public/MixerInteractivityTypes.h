@@ -121,6 +121,9 @@ public:
 	/** Time at which the user last submitted interactive input */
 	FDateTime InputAt;
 
+	/** Guid for this user's interactive session (appears as participantID in some interactive events) */
+	FGuid SessionGuid;
+
 	/** Name of the group that the user belongs to */
 	FName Group;
 
@@ -205,6 +208,70 @@ struct FMixerButtonEventDetails
 
 	/** Whether the button event represents a press (true) or release (false) */
 	bool Pressed;
+};
+
+/** Additional information about a textbox event */
+struct FMixerTextboxEventDetails
+{
+	/** Text that was submitted via the textbox */
+	FText SubmittedText;
+
+	/**
+	* Id for the Spark transaction associated with this textbox event (empty if none).
+	* After handling the event, the charge should be confirmed via
+	* IMixerInteractivityModule::CaptureSparkTransaction.
+	*/
+	FString TransactionId;
+
+	/** Number of sparks that will be charged for this interaction, if confirmed */
+	uint32 SparkCost;
+};
+
+/**
+* Represents the Studio-configured properties of a label that
+* are expected to change infrequently during an interactive session
+*/
+struct FMixerLabelDescription
+{
+	/* Text shown on the label */
+	FText Text;
+
+	/* Size in pts of text shown on the label */
+	uint32 TextSize;
+
+	/* Color of text shown on the label */
+	FColor TextColor;
+
+	/* Whether the label text is bold */
+	bool Bold;
+
+	/* Whether the label text is underlined */
+	bool Underline;
+
+	/* Whether the label text is italicized */
+	bool Italic;
+};
+
+/**
+* Represents the Studio-configured properties of a textbox that
+* are expected to change infrequently during an interactive session
+*/
+struct FMixerTextboxDescription
+{
+	/* Hint text displayed inside an empty textbox to prompt for user text entry */
+	FText Placeholder;
+
+	/* Text displayed on the associated submit button (if in use) */
+	FText SubmitText;
+
+	/* Number of Sparks a remote user will be charged for submitting text via this box */
+	uint32 SparkCost;
+
+	/* Whether the textbox supports entering multiple lines of text */
+	bool Multiline;
+
+	/* Whether the textbox has an associated button that may be pressed to submit text */
+	bool HasSubmit;
 };
 
 enum class EMixerLoginState : uint8

@@ -22,6 +22,7 @@
 #include "MixerInteractivityJsonTypes.h"
 #include "MixerProjectDefinitionCustomization.h"
 #include "MixerInteractivityProjectAsset.h"
+#include "MixerInteractivityBlueprintLibrary.h"
 #include "MixerEditorStyle.h"
 #include "UObjectGlobals.h"
 #include "IHttpRequest.h"
@@ -43,22 +44,15 @@ public:
 
 	virtual bool RequestInteractiveControlsForGameVersion(const FMixerInteractiveGameVersion& Version, FOnMixerInteractiveControlsRequestFinished OnFinished);
 	
-	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeButtons() { return DesignTimeButtons; }
-	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeSticks() { return DesignTimeSticks; }
-	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeScenes() { return DesignTimeScenes; }
-	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeGroups() { return DesignTimeGroups; }
-	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeSimpleCustomControls() { return DesignTimeSimpleCustomControls; }
+	virtual const TArray<TSharedPtr<FName>>& GetDesignTimeObjects(FString ObjectKind) { return DesignTimeObjects.FindChecked(ObjectKind); }
 
 	virtual void RefreshDesignTimeObjects();
 
 	virtual FOnDesignTimeObjectsChanged& OnDesignTimeObjectsChanged() { return DesignTimeObjectsChanged; }
 
 private:
-	TArray<TSharedPtr<FName>> DesignTimeButtons;
-	TArray<TSharedPtr<FName>> DesignTimeSticks;
-	TArray<TSharedPtr<FName>> DesignTimeScenes;
-	TArray<TSharedPtr<FName>> DesignTimeGroups;
-	TArray<TSharedPtr<FName>> DesignTimeSimpleCustomControls;
+
+	TMap<FString, TArray<TSharedPtr<FName>>> DesignTimeObjects;
 
 	FOnDesignTimeObjectsChanged DesignTimeObjectsChanged;
 
@@ -184,12 +178,27 @@ bool FMixerInteractivityEditorModule::RequestInteractiveControlsForGameVersion(c
 	return true;
 }
 
+template <class T>
+const FString& GetMixerKind()
+{
+	return T::StaticStruct()->GetMetaData(MixerObjectKindMetadataTag);
+}
+
 void FMixerInteractivityEditorModule::RefreshDesignTimeObjects()
 {
-	DesignTimeScenes.Empty();
-	DesignTimeButtons.Empty();
-	DesignTimeSticks.Empty();
-	DesignTimeSimpleCustomControls.Empty();
+	DesignTimeObjects.FindOrAdd(GetMixerKind<FMixerSceneReference>()).Empty();
+
+	// Known control types
+	DesignTimeObjects.FindOrAdd(GetMixerKind<FMixerButtonReference>()).Empty();
+	DesignTimeObjects.FindOrAdd(GetMixerKind<FMixerStickReference>()).Empty();
+	DesignTimeObjects.FindOrAdd(GetMixerKind<FMixerLabelReference>()).Empty();
+
+	DesignTimeObjects.FindOrAdd(GetMixerKind<FMixerCustomControlReference>()).Empty();
+
+	// Custom controls
+	TArray<TSharedPtr<FName>>& DesignTimeScenes = DesignTimeObjects.FindChecked(GetMixerKind<FMixerSceneReference>());
+	TArray<TSharedPtr<FName>>& DesignTimeUnmappedCustomControls = DesignTimeObjects.FindChecked(GetMixerKind<FMixerCustomControlReference>());
+	DesignTimeUnmappedCustomControls.Empty();
 
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 	UMixerProjectAsset* ProjectAsset = Cast<UMixerProjectAsset>(Settings->ProjectDefinition.TryLoad());
@@ -201,27 +210,25 @@ void FMixerInteractivityEditorModule::RefreshDesignTimeObjects()
 			for (const FMixerInteractiveControl& Control : Scene.Controls)
 			{
 				FName ControlName = *Control.Id;
-				if (Control.IsButton())
+				TArray<TSharedPtr<FName>>* DesignTimeKnownControlType = DesignTimeObjects.Find(Control.Kind);
+				if (DesignTimeKnownControlType != nullptr)
 				{
-					DesignTimeButtons.Add(MakeShared<FName>(ControlName));
-				}
-				else if (Control.IsJoystick())
-				{
-					DesignTimeSticks.Add(MakeShared<FName>(ControlName));
+					DesignTimeKnownControlType->Add(MakeShared<FName>(ControlName));
 				}
 				else if (!ProjectAsset->CustomControlMappings.Contains(ControlName))
 				{
-					DesignTimeSimpleCustomControls.Add(MakeShared<FName>(ControlName));
+					DesignTimeUnmappedCustomControls.Add(MakeShared<FName>(ControlName));
 				}
 			}
 		}
 	}
 
+	TArray<TSharedPtr<FName>>& DesignTimeGroups = DesignTimeObjects.FindOrAdd(GetMixerKind<FMixerGroupReference>());
 	DesignTimeGroups.Empty(Settings->DesignTimeGroups.Num() + 1);
-	DesignTimeGroups.Add(MakeShareable(new FName("default")));
+	DesignTimeGroups.Add(MakeShared<FName>("default"));
 	for (const FMixerPredefinedGroup& Group : Settings->DesignTimeGroups)
 	{
-		DesignTimeGroups.Add(MakeShareable(new FName(Group.Name)));
+		DesignTimeGroups.Add(MakeShared<FName>(Group.Name));
 	}
 
 	DesignTimeObjectsChanged.Broadcast();

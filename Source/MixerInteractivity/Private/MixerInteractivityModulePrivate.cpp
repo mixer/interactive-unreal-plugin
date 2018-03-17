@@ -583,8 +583,23 @@ void FMixerInteractivityModule::HandleCustomControlInputMessage(FJsonObject* Par
 
 void FMixerInteractivityModule::UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate)
 {
+	// @TODO - centralize field name constants
+	static const FString ControlIdField = TEXT("controlID");
+
+	FString ControlNameString = ControlName.ToString();
+
 	TArray<TSharedPtr<FJsonValue>>& ControlsForScene = PendingControlUpdates.FindOrAdd(SceneName);
-	PropertiesToUpdate->SetStringField(TEXT("controlID"), ControlName.ToString());
+	for (TSharedPtr<FJsonValue>& ExistingControlUpdate : ControlsForScene)
+	{
+		TSharedPtr<FJsonObject> UpdateObject = ExistingControlUpdate->AsObject();
+		if (UpdateObject->GetStringField(ControlIdField) == ControlNameString)
+		{
+			UpdateObject->Values.Append(PropertiesToUpdate->Values);
+			return;
+		}
+	}
+
+	PropertiesToUpdate->SetStringField(ControlIdField, ControlName.ToString());
 	ControlsForScene.Add(MakeShared<FJsonValueObject>(PropertiesToUpdate));
 }
 
