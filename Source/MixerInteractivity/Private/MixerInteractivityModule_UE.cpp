@@ -143,6 +143,13 @@ void FMixerInteractivityModule_UE::SetCurrentScene(FName Scene, FName GroupName)
 	CreateOrUpdateGroup(MixerStringConstants::MethodNames::UpdateGroups, Scene, GroupName);
 }
 
+FName FMixerInteractivityModule_UE::GetCurrentScene(FName GroupName)
+{
+	FName FindGroup = GroupName != NAME_None ? GroupName : FName("default");
+	FName* Scene = ScenesByGroup.Find(FindGroup);
+	return Scene != nullptr ? *Scene : NAME_None;
+}
+
 bool FMixerInteractivityModule_UE::CreateGroup(FName GroupName, FName InitialScene)
 {
 	return CreateOrUpdateGroup(MixerStringConstants::MethodNames::CreateGroups, InitialScene, GroupName);
@@ -163,7 +170,8 @@ bool FMixerInteractivityModule_UE::MoveParticipantToGroup(FName GroupName, uint3
 
 	FMixerUpdateParticipantGroupParamsEntry ParamEntry;
 	ParamEntry.ParticipantSessionGuid = ExistingUser->SessionGuid.ToString(EGuidFormats::DigitsWithHyphens).ToLower();
-	ParamEntry.GroupId = GroupName.ToString();
+	// Special case - 'default' is used all over the place as a name, but with 'D'
+	ParamEntry.GroupId = GroupName != NAME_DefaultMixerParticipantGroup ? GroupName.ToString() : TEXT("default");
 
 	FMixerUpdateParticipantGroupParams Params;
 	Params.Participants.Add(ParamEntry);
@@ -291,8 +299,8 @@ bool FMixerInteractivityModule_UE::CreateOrUpdateGroup(const FString& MethodName
 	}
 
 	FMixerUpdateGroupMessageParamsEntry ParamEntry;
-	ParamEntry.GroupId = GroupName.ToString();
-	ParamEntry.SceneId = Scene != NAME_None ? Scene.ToString() : TEXT("default");
+	ParamEntry.GroupId = GroupName != NAME_None && GroupName != NAME_DefaultMixerParticipantGroup ? GroupName.ToString() : TEXT("default");
+	ParamEntry.SceneId = Scene != NAME_None && Scene != NAME_DefaultMixerParticipantGroup ? Scene.ToString() : TEXT("default");
 	FMixerUpdateGroupMessageParams Params;
 	Params.Groups.Add(ParamEntry);
 
@@ -326,6 +334,9 @@ void FMixerInteractivityModule_UE::RegisterAllServerMessageHandlers()
 	RegisterServerMessageHandler(TEXT("onParticipantUpdate"), &FMixerInteractivityModule_UE::HandleParticipantUpdate);
 	RegisterServerMessageHandler(TEXT("onReady"), &FMixerInteractivityModule_UE::HandleReadyStateChange);
 	RegisterServerMessageHandler(TEXT("onControlUpdate"), &FMixerInteractivityModule_UE::HandleControlUpdateMessage);
+	RegisterServerMessageHandler(TEXT("onGroupCreate"), &FMixerInteractivityModule_UE::HandleGroupCreate);
+	RegisterServerMessageHandler(TEXT("onGroupUpdate"), &FMixerInteractivityModule_UE::HandleGroupUpdate);
+	RegisterServerMessageHandler(TEXT("onGroupDelete"), &FMixerInteractivityModule_UE::HandleGroupDelete);
 }
 
 bool FMixerInteractivityModule_UE::OnUnhandledServerMessage(const FString& MessageType, const TSharedPtr<FJsonObject> Params)
@@ -376,6 +387,58 @@ bool FMixerInteractivityModule_UE::HandleReadyStateChange(FJsonObject* JsonObj)
 {
 	GET_JSON_BOOL_RETURN_FAILURE(IsReady, bIsReady);
 	SetInteractivityState(bIsReady ? EMixerInteractivityState::Interactive : EMixerInteractivityState::Not_Interactive);
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::HandleGroupCreate(FJsonObject* JsonObj)
+{
+	GET_JSON_ARRAY_RETURN_FAILURE(Groups, Groups);
+
+	for (const TSharedPtr<FJsonValue>& Group : *Groups)
+	{
+		FString GroupId;
+		FString SceneId;
+		TSharedPtr<FJsonObject> GroupObj = Group->AsObject();
+		if (GroupObj.IsValid()
+			&& GroupObj->TryGetStringField(MixerStringConstants::FieldNames::GroupId, GroupId)
+			&& GroupObj->TryGetStringField(MixerStringConstants::FieldNames::SceneId, SceneId))
+		{
+			ScenesByGroup.Add(*GroupId, *SceneId);
+		}
+	}
+
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::HandleGroupUpdate(FJsonObject* JsonObj)
+{
+	GET_JSON_ARRAY_RETURN_FAILURE(Groups, Groups);
+	for (const TSharedPtr<FJsonValue>& Group : *Groups)
+	{
+		FString GroupId;
+		FString SceneId;
+		TSharedPtr<FJsonObject> GroupObj = Group->AsObject();
+		if (GroupObj.IsValid()
+			&& GroupObj->TryGetStringField(MixerStringConstants::FieldNames::GroupId, GroupId)
+			&& GroupObj->TryGetStringField(MixerStringConstants::FieldNames::SceneId, SceneId))
+		{
+			ScenesByGroup.FindChecked(*GroupId) = *SceneId;
+		}
+	}
+
+	return true;
+}
+
+bool FMixerInteractivityModule_UE::HandleGroupDelete(FJsonObject* JsonObj)
+{
+	GET_JSON_STRING_RETURN_FAILURE(GroupId, GroupIdRaw);
+	GET_JSON_STRING_RETURN_FAILURE(ReassignGroupId, ReassignGroupIdRaw);
+
+	FName GroupId = *GroupIdRaw;
+	FName ReassignGroupId = *ReassignGroupIdRaw;
+
+	ScenesByGroup.Remove(GroupId);
+	ReassignUsers(GroupId, ReassignGroupId);
 	return true;
 }
 
@@ -564,13 +627,28 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleScene(FJsonObject* J
 	FName SceneId = *SceneIdRaw;
 	for (const TSharedPtr<FJsonValue>& Control : *Controls)
 	{
-		ParsePropertiesFromSingleControl(SceneId, Control->AsObject().Get());
+		ParsePropertiesFromSingleControl(SceneId, Control->AsObject().ToSharedRef());
+	}
+
+	// Groups will be omitted if empty
+	const TArray<TSharedPtr<FJsonValue>> *Groups;
+	if (JsonObj->TryGetArrayField(MixerStringConstants::FieldNames::Groups, Groups))
+	{
+		for (const TSharedPtr<FJsonValue>& Group : *Groups)
+		{
+			FString GroupId;
+			TSharedPtr<FJsonObject> GroupObj = Group->AsObject();
+			if (GroupObj.IsValid() && GroupObj->TryGetStringField(MixerStringConstants::FieldNames::GroupId, GroupId))
+			{
+				ScenesByGroup.Add(*GroupId, SceneId);
+			}
+		}
 	}
 
 	return true;
 }
 
-bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneId, FJsonObject* JsonObj)
+bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneId, TSharedRef<FJsonObject> JsonObj)
 {
 	GET_JSON_STRING_RETURN_FAILURE(Kind, ControlKind);
 	GET_JSON_STRING_RETURN_FAILURE(ControlId, ControlId);
@@ -596,16 +674,12 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneI
 		Button.SceneId = SceneId;
 
 		AddButton(*ControlId, Button);
-
-		return true;
 	}
 	else if (ControlKind == FMixerInteractiveControl::JoystickKind)
 	{
 		FMixerStickPropertiesCached Stick;
 		Stick.State.Enabled = true;
 		AddStick(*ControlId, Stick);
-
-		return true;
 	}
 	else if (ControlKind == FMixerInteractiveControl::LabelKind)
 	{
@@ -655,8 +729,12 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneI
 		}
 		AddTextbox(*ControlId, Textbox);
 	}
+	else
+	{
+		OnCustomControlPropertyUpdate().Broadcast(*ControlId, JsonObj);
+	}
 
-	return false;
+	return true;
 }
 
 

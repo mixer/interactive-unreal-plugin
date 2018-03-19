@@ -608,7 +608,9 @@ void FMixerInteractivityModule::FlushControlUpdates()
 	for (TMap<FName, TArray<TSharedPtr<FJsonValue>>>::TIterator It(PendingControlUpdates); It; ++It)
 	{
 		TSharedRef<FJsonObject> UpdateMethodParams = MakeShared<FJsonObject>();
-		UpdateMethodParams->SetStringField(TEXT("sceneID"), It->Key.ToString());
+
+		// Special case - 'default' is used all over the place as a name, but with 'D'
+		UpdateMethodParams->SetStringField(TEXT("sceneID"), It->Key != NAME_DefaultMixerParticipantGroup ? It->Key.ToString() : TEXT("default"));
 		UpdateMethodParams->SetArrayField(TEXT("controls"), It->Value);
 
 		CallRemoteMethod(TEXT("updateControls"), UpdateMethodParams);

@@ -26,7 +26,7 @@ public:
 	virtual void StartInteractivity();
 	virtual void StopInteractivity();
 	virtual void SetCurrentScene(FName Scene, FName GroupName = NAME_None);
-	virtual FName GetCurrentScene(FName GroupName = NAME_None) { return NAME_None; }
+	virtual FName GetCurrentScene(FName GroupName = NAME_None);
 	virtual bool CreateGroup(FName GroupName, FName InitialScene = NAME_None);
 	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId);
 	virtual void CaptureSparkTransaction(const FString& TransactionId);
@@ -57,6 +57,9 @@ private:
 	bool HandleParticipantLeave(FJsonObject* JsonObj);
 	bool HandleParticipantUpdate(FJsonObject* JsonObj);
 	bool HandleReadyStateChange(FJsonObject* JsonObj);
+	bool HandleGroupCreate(FJsonObject* JsonObj);
+	bool HandleGroupUpdate(FJsonObject* JsonObj);
+	bool HandleGroupDelete(FJsonObject* JsonObj);
 
 	bool HandleGetScenesReply(FJsonObject* JsonObj);
 
@@ -66,10 +69,11 @@ private:
 
 	bool ParsePropertiesFromGetScenesResult(FJsonObject *JsonObj);
 	bool ParsePropertiesFromSingleScene(FJsonObject* JsonObj);
-	bool ParsePropertiesFromSingleControl(FName SceneId, FJsonObject* JsonObj);
+	bool ParsePropertiesFromSingleControl(FName SceneId, TSharedRef<FJsonObject> JsonObj);
 
 private:
 	TArray<FString> Endpoints;
+	TMap<FName, FName> ScenesByGroup;
 };
 
 #endif
