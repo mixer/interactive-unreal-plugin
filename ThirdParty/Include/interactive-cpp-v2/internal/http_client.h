@@ -2,13 +2,14 @@
 
 #include <string>
 #include <memory>
+#include <map>
 
 namespace mixer
 {
 
 struct http_response
 {
-	int statusCode;
+	unsigned int statusCode;
 	std::string body;
 };
 
@@ -16,8 +17,8 @@ class http_client
 {
 public:
 	virtual ~http_client() = 0 {};
-
-	virtual int make_request(const std::string& uri, const std::string& requestType, const std::string& headers, const std::string& body, _Out_ http_response& response) const = 0;
+	
+	virtual int make_request(const std::string& uri, const std::string& requestType, const std::map<std::string, std::string>* headers, const std::string& body, _Out_ http_response& response, unsigned long timeoutMs = 5000) const = 0;
 };
 
 class http_factory

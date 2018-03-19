@@ -35,10 +35,10 @@ extern "C" {
 
 	typedef void* websocket_handle;
 
-	typedef void(*c_on_ws_connect)(const websocket_handle handle, const char* connectMessage, const unsigned int connectMessageSize);
-	typedef void(*c_on_ws_message)(const websocket_handle handle, const char* message, const unsigned int messageSize);
-	typedef void(*c_on_ws_error)(const websocket_handle handle, const unsigned short code, const char* message, const unsigned int messageSize);
-	typedef void(*c_on_ws_close)(const websocket_handle handle, const unsigned short code, const char* reason, const unsigned int reasonSize);
+	typedef void(*c_on_ws_connect)(const websocket_handle handle, const char* connectMessage, const size_t connectMessageSize);
+	typedef void(*c_on_ws_message)(const websocket_handle handle, const char* message, const size_t messageSize);
+	typedef void(*c_on_ws_error)(const websocket_handle handle, const unsigned short code, const char* message, const size_t messageSize);
+	typedef void(*c_on_ws_close)(const websocket_handle handle, const unsigned short code, const char* reason, const size_t reasonSize);
 
 	int create_websocket(websocket_handle* handlePtr);
 	int add_header(websocket_handle, const char* key, const char* value);

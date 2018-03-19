@@ -207,6 +207,7 @@ int verify_get_property_args_and_get_control_value(interactive_session session, 
 		return MIXER_OK;
 	}
 
+	std::shared_lock<std::shared_mutex> lock(sessionInternal->scenesMutex);
 	auto controlItr = sessionInternal->controls.find(std::string(controlId));
 	if (controlItr == sessionInternal->controls.end())
 	{
@@ -215,7 +216,7 @@ int verify_get_property_args_and_get_control_value(interactive_session session, 
 
 	std::string controlPointer = controlItr->second + "/" + std::string(key);
 	try
-	{
+	{	
 		*controlValue = rapidjson::Pointer(controlPointer.c_str()).Get(sessionInternal->scenesRoot);
 		if (nullptr == *controlValue)
 		{
@@ -393,7 +394,7 @@ int interactive_control_get_meta_property_string(interactive_session session, co
 		return MIXER_ERROR_INVALID_PROPERTY_TYPE;
 	}
 
-	if (*propertyLength < controlValue->GetStringLength() + 1)
+	if (nullptr == property || *propertyLength < controlValue->GetStringLength() + 1)
 	{
 		*propertyLength = controlValue->GetStringLength() + 1;
 		return MIXER_ERROR_BUFFER_SIZE;
