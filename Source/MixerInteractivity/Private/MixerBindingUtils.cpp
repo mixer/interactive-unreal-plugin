@@ -25,7 +25,7 @@ namespace MixerBindingUtils
 		{
 			if (!PropIt->HasAnyPropertyFlags(CPF_OutParm) || PropIt->HasAnyPropertyFlags(CPF_ReferenceParm))
 			{
-				check(PropIt->GetOffset_ForUFunction() + PropIt->GetSize() <= ParamStorageSize);
+				check(static_cast<SIZE_T>(PropIt->GetOffset_ForUFunction() + PropIt->GetSize()) <= ParamStorageSize);
 				void* ThisParamStorage = static_cast<uint8*>(ParamStorage) + PropIt->GetOffset_ForUFunction();
 				PropIt->InitializeValue(ThisParamStorage);
 				TSharedPtr<FJsonValue> F = JsonObject->TryGetField(PropIt->GetName());
@@ -50,7 +50,7 @@ namespace MixerBindingUtils
 		{
 			if (!PropIt->HasAnyPropertyFlags(CPF_OutParm) || PropIt->HasAnyPropertyFlags(CPF_ReferenceParm))
 			{
-				check(PropIt->GetOffset_ForUFunction() + PropIt->GetSize() <= ParamStorageSize);
+				check(static_cast<SIZE_T>(PropIt->GetOffset_ForUFunction() + PropIt->GetSize()) <= ParamStorageSize);
 				void* ThisParamStorage = static_cast<uint8*>(ParamStorage) + PropIt->GetOffset_ForUFunction();
 				PropIt->DestroyValue(ThisParamStorage);
 			}

@@ -17,4 +17,4 @@
 #endif
 
 // Suppress linker warning "warning LNK4221: no public symbols found; archive member will be inaccessible"
-int32 MixerV2SdkLinkerHelper;
+int MixerV2SdkLinkerHelper;
