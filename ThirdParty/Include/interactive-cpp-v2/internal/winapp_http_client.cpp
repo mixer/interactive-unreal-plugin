@@ -14,6 +14,7 @@
 
 #include <wrl.h>
 #include <shcore.h>
+#include <ppltasks.h>
 
 #define RETURN_HR_IF_FAILED(x) hr = x; if(0 != hr) { return hr; }
 
@@ -24,6 +25,7 @@ using namespace Platform;
 using namespace Windows::Foundation;
 using namespace Microsoft::WRL;
 using namespace Windows::Storage::Streams;
+using namespace concurrency;
 
 // Buffer with the required ISequentialStream interface to send data with and IXHR2 request. The only method
 // required for use is Read.  IXHR2 will not write to this buffer nor will it use anything from the IDispatch
@@ -105,113 +107,13 @@ private:
 	size_t            m_bufferSize;
 };
 
-/*
-class RequestCallback : public Microsoft::WRL::RuntimeClass<Microsoft::WRL::RuntimeClassFlags<ClassicCom>, IXMLHTTPRequest2Callback>
-{
-private:
-	std::mutex m_responseMutex;
-	std::condition_variable m_responseCV;
-	bool m_responseReceived;
-	std::string m_response;
-	DWORD m_status;
-	std::string m_statusMessage;
-	ULONG m_ref;
-
-public:
-	RequestCallback() : m_status(0), m_ref(0), m_responseReceived(false)
-	{
-	}
-
-	~RequestCallback()
-	{
-	}
-
-	HRESULT WaitForResponse(DWORD& status, std::string& response)
-	{
-		std::unique_lock<std::mutex> l(m_responseMutex);
-		if (!m_responseReceived)
-		{
-			m_responseCV.wait(l);
-		}
-
-		if (!m_responseReceived)
-		{
-			return HRESULT_FROM_WIN32(ERROR_TIMEOUT);
-		}
-
-		status = m_status;
-		response = m_response;
-		return S_OK;
-	}
-
-	// IXMLHTTPRequest2Callback
-	HRESULT CALLING_CONVENTION OnDataAvailable(IXMLHTTPRequest2* request, ISequentialStream* responseStream)
-	{
-		(request);
-		(responseStream);
-		return S_OK;
-	};
-
-	HRESULT CALLING_CONVENTION OnError(IXMLHTTPRequest2 *request, HRESULT error)
-	{
-		(request);
-		(error);
-		return S_OK;
-	}
-
-	HRESULT CALLING_CONVENTION OnHeadersAvailable(IXMLHTTPRequest2 *request, DWORD status, const WCHAR *statusMessage)
-	{
-		m_status = status;
-		m_statusMessage = wstring_to_utf8(statusMessage);
-		return S_OK;
-	}
-
-	HRESULT CALLING_CONVENTION OnRedirect(IXMLHTTPRequest2 *request, const WCHAR *redirectUrl)
-	{
-		(request);
-		(redirectUrl);
-		return S_OK;
-	}
-	
-	HRESULT CALLING_CONVENTION OnResponseReceived(IXMLHTTPRequest2 *request, ISequentialStream *responseStream)
-	{
-		std::stringstream s;
-		// Chunk the response in the stack rather than heap allocate.
-		char buffer[1024];
-		size_t bufferSize = sizeof(buffer) - 1; // Save a spot for the null terminator.
-		HRESULT hr = S_OK;
-		do
-		{
-			ULONG bytesRead = 0;
-			hr = responseStream->Read(buffer, (ULONG)bufferSize, &bytesRead);
-			if (FAILED(hr) || 0 == bytesRead)
-			{
-				break;
-			}
-			buffer[bytesRead] = 0;
-
-			s << buffer;
-		} while (S_OK == hr);
-
-		if (SUCCEEDED(hr))
-		{
-			m_response = s.str();
-		}
-
-		std::unique_lock<std::mutex> l(m_responseMutex);
-		m_responseReceived = true;
-		m_responseCV.notify_one();
-
-		return S_OK;
-	}
-};*/
-
 // Implementation of IXMLHTTPRequest2Callback used when only the complete response is needed.
 // When processing chunks of response data as they are received, use HttpRequestBuffersCallback instead.
 class HttpRequestStringCallback
 	: public RuntimeClass<RuntimeClassFlags<ClassicCom>, IXMLHTTPRequest2Callback, FtmBase>
 {
 public:
+
 	HttpRequestStringCallback(IXMLHTTPRequest2* httpRequest,
 		cancellation_token ct = concurrency::cancellation_token::none()) :
 		request(httpRequest), cancellationToken(ct)
@@ -244,8 +146,8 @@ public:
 		// We must not propagate exceptions back to IXHR2.
 		try
 		{
-			this->statusCode = statusCode;
-			this->reasonPhrase = reasonPhrase;
+			this->m_statusCode = statusCode;
+			this->m_reasonPhrase = reasonPhrase;
 		}
 		catch (std::bad_alloc&)
 		{
@@ -395,12 +297,12 @@ public:
 
 	int GetStatusCode() const
 	{
-		return statusCode;
+		return m_statusCode;
 	}
 
 	std::wstring GetReasonPhrase() const
 	{
-		return reasonPhrase;
+		return m_reasonPhrase;
 	}
 
 private:
@@ -426,8 +328,8 @@ private:
 	// download operation completes.
 	task_completion_event<std::tuple<HRESULT, std::wstring>> completionEvent;
 
-	int statusCode;
-	std::wstring reasonPhrase;
+	int m_statusCode;
+	std::wstring m_reasonPhrase;
 };
 
 winapp_http_client::winapp_http_client()
@@ -443,14 +345,14 @@ winapp_http_client::make_request(const std::string& uri, const std::string& verb
 {
 	HRESULT hr = S_OK;
 	ComPtr<IXMLHTTPRequest2> request;
-	ComPtr<HttpRequestStringCallback> callback = Make<HttpRequestStringCallback>();
 
 #if _DURANGO
 	DWORD context = CLSCTX_SERVER;
 #else
 	DWORD context = CLSCTX_INPROC;
 #endif
-	RETURN_HR_IF_FAILED(CoCreateInstance(__uuidof(FreeThreadedXMLHTTP60), nullptr, CLSCTX_INPROC, __uuidof(IXMLHTTPRequest2), reinterpret_cast<void**>(request.GetAddressOf())));
+	RETURN_HR_IF_FAILED(CoCreateInstance(__uuidof(FreeThreadedXMLHTTP60), nullptr, context, __uuidof(IXMLHTTPRequest2), reinterpret_cast<void**>(request.GetAddressOf())));
+	ComPtr<HttpRequestStringCallback> callback = Make<HttpRequestStringCallback>(request.Get());
 
 	if (nullptr != headers)
 	{
@@ -477,7 +379,18 @@ winapp_http_client::make_request(const std::string& uri, const std::string& verb
 		RETURN_HR_IF_FAILED(request->Send(requestStream.Get(), body.length()));
 	}
 
-	auto complete = create_task(callback->GetCompletionEvent());
+	auto sendTask = create_task(callback->GetCompletionEvent());
+	auto receiveTask = sendTask.then([&](std::tuple<HRESULT, std::wstring> resultTuple)
+	{
+		// If the GET operation failed, throw an Exception.
+		if (S_OK == std::get<0>(resultTuple))
+		{
+			response.statusCode = callback->GetStatusCode();
+			response.body = wstring_to_utf8(std::get<1>(resultTuple));
+		}
+	});
+
+	receiveTask.wait();
 	
 	return S_OK;
 }

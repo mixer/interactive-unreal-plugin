@@ -101,6 +101,8 @@ extern "C" {
 		interactive_control control;
 		const char* participantId;
 		size_t participantIdLength;
+		const char* jsonData;
+		size_t jsonDataLength;
 	};
 
 	enum button_action
@@ -158,24 +160,62 @@ extern "C" {
 	typedef void(*on_participants_changed)(void* context, interactive_session session, participant_action action, const interactive_participant* participant);
 
 	// Interactive authorization helpers
+	/// <summary>
+	/// Get a short code that can be used to obtain an OAuth token at <c>https://www.mixer.com/go?code=<shortCode></c>.
+	/// Note: Blocking function that waits on network IO.
+	/// </summary>
 	int interactive_auth_get_short_code(const char* clientId, char* shortCode, size_t* shortCodeLength, char* shortCodeHandle, size_t* shortCodeHandleLength);
+
+	/// <summary>
+	/// Wait for a <c>shortCode</c> to be authorized or rejected after presenting the OAuth short code web page. The resulting <c>refreshToken</c>
+	/// should be securely serialized and linked to the current user.
+	/// Note: Blocking function that waits on network IO.
+	/// </summary>
 	int interactive_auth_wait_short_code(const char* clientId, const char* shortCodeHandle, char* refreshToken, size_t* refreshTokenLength);
+
+	/// <summary>
+	/// Determine if a <c>refreshToken</c> returned by <c>interactive_auth_wait_short_code</c> is stale. A token is stale if it has exceeded its half-life.
+	/// </summary>
 	int interactive_auth_is_token_stale(const char* token, bool* isStale);
+
+	/// <summary>
+	/// Refresh a stale <c>refreshToken<c>.
+	/// Note: Blocking function that waits on network IO.
+	/// </summary>
 	int interactive_auth_refresh_token(const char* clientId, const char* staleToken, char* refreshToken, size_t* refreshTokenLength);
+
+	/// <summary>
+	/// Parse a <c>refreshToken</c> to get the authorization header that should be passed to <c>interactive_connect()</c>.
+	/// </summary>
 	int interactive_auth_parse_refresh_token(const char* token, char* authorization, size_t* authorizationLength);
 
 	/// <summary>
-	/// Connect to an interactive session with the supplied <c>interactive_config</c>. 
+	/// Connect to an interactive session.
+	/// The <c>auth</c> parameter is passed as the Authorization header to the service. This should either be a OAuth Bearer token or an XToken.
+	/// The <c>versionId</c> parameter is the id of the interative project that should be started.
+	/// The <c>shareCode</c> parameter is an optional parameter that is used when starting an interactive project that the user does not have implicit access to. This is usually required unless a project has been published.
+	/// The <c>manualStart</c> parameter specifies whether you intend to set the ready state manually after calling this function. Setting this to true will connect to the interactive service but remain in the `not ready` state.
+	/// Note: Blocking function that waits on network IO.
 	/// </summary>
 	int interactive_connect(const char* auth, const char* versionId, const char* shareCode, bool manualStart, interactive_session* sessionPtr);
 
 	/// <summary>
 	/// Disconnect from an interactive session and destroy it. This must not be called from inside an event handler as the lifetime of registered event handlers is assumed to outlive 
-	/// the session. Only call this when there is no thread processing events via interactive_run.
+	/// the session. Only call this when there is no thread processing events via <c>interactive_run</c>.
+	/// Note: Blocking function that waits on network IO.
 	/// </summary>
 	void interactive_disconnect(interactive_session session);
 
+	/// <summary>
+	/// Get the current <c>interactive_state</c> for the specified session.
+	/// </summary>
 	int interactive_get_state(interactive_session session, interactive_state* state);
+
+	/// <summary>
+	/// Set the ready state for specified session. No participants will be able to see interactive scenes or give input
+	/// until the interactive session is ready.
+	/// Note: Blocking function that waits on network IO.
+	/// </summary>
 	int interactive_set_ready(interactive_session session, bool isReady);
 
 	/// <summary>
@@ -183,7 +223,7 @@ extern "C" {
 	/// </summary>
 	int interactive_set_session_context(interactive_session session, void* context);
 
-	// Event handlers
+	// Event handlers for interactive events that will be called by the <c>interactive_run</c> thread.
 	int interactive_reg_error_handler(interactive_session session, on_error onError);
 	int interactive_reg_state_changed_handler(interactive_session session, on_state_changed onStateChanged);
 	int interactive_reg_button_input_handler(interactive_session session, on_button_input onButtonInput);
@@ -191,11 +231,16 @@ extern "C" {
 	int interactive_reg_participants_changed_handler(interactive_session session, on_participants_changed onParticipantsChanged);
 	int interactive_reg_unhandled_method_handler(interactive_session session, on_unhandled_method onUnhandledMethod);
 
+	/// <summary>
+	/// This function processes the specified number of events from the interactive service and calls back to the handlers registered above.
+	/// This should be called often, at least once per frame, so that interactive input is processed in a timely manner.
+	/// </summary>
 	int interactive_run(interactive_session session, unsigned int maxEventsToProcess);
 
 	/// <summary>
 	/// Send a method to the interactive session. This may be used to interface with the interactive protocol directly and implement functionality 
 	/// that this SDK does not provide out of the box.
+	/// Note: Blocking function that waits on network IO.
 	/// </summary>
 	int interactive_send_method(interactive_session session, const char* method, const char* paramsJson, bool discardReply, unsigned int* id);
 
@@ -205,16 +250,44 @@ extern "C" {
 	/// </summary>
 	int interactive_receive_reply(interactive_session session, unsigned int id, unsigned int timeoutMs, char* replyJson, size_t* replyJsonLength);
 	
+	/// <summary>
+	/// Capture a transaction to charge a participant the input's spark cost. This should be called before
+	/// taking further action on input as the participant may not have enough sparks or the transaction may have expired.
+	/// Note: Blocking function that waits on network IO.
+	/// </summary>
 	int interactive_capture_transaction(interactive_session session, const char* transactionId);
 
 	// Interactive Group
+	/// <summary>
+	/// Get the interactive groups for the specified session.
+	/// </summary>
 	int interactive_get_groups(interactive_session session, on_group_enumerate onGroup);
+
+	/// <summary>
+	/// Create a new group for the specified session.
+	/// </summary>
 	int interactive_create_group(interactive_session session, const char* groupId, const char* sceneId);
+
+	/// <summary>
+	/// Set a group's scene for the specified session. Use this and <c>interative_set_participant_group</c> to manage which scenes participants see.
+	/// </summary>
 	int interactive_group_set_scene(interactive_session session, const char* groupId, const char* sceneId);
 
 	// Interactive Scene
+	/// <summary>
+	/// Get all scenes for the specified session.
+	/// </summary>
 	int interactive_get_scenes(interactive_session session, on_scene_enumerate onScene);
+
+	/// <summary>
+	/// Get each group that this scene belongs to for the specified session.
+	/// </summary>
 	int interactive_scene_get_groups(interactive_session session, const char* sceneId, on_group_enumerate onGroup);
+
+	/// <summary>
+	/// Get a scene's controls for the specified session.
+	/// Note: Blocking function that waits on network IO.
+	/// </summary>
 	int interactive_scene_get_controls(interactive_session session, const char* sceneId, on_control_enumerate onControl);
 	
 	// Interactive control
@@ -229,6 +302,10 @@ extern "C" {
 		object_t
 	} interactive_property_type;
 
+	/// <summary>
+	/// Trigger a cooldown on a control for the specified number of milliseconds.
+	/// Note: Blocking function that waits on network IO.
+	/// </summary>
 	int interactive_control_trigger_cooldown(interactive_session session, const char* controlId, const unsigned int cooldownMs);
 
 	int interactive_control_get_property_count(interactive_session session, const char* controlId, size_t* count);
@@ -249,7 +326,15 @@ extern "C" {
 	int interactive_control_get_meta_property_string(interactive_session session, const char* controlId, const char* key, char* property, size_t* propertyLength);
 
 	// Interactive participant
+	/// <summary>
+	/// Get all participants for the specified session.
+	/// </summary>
 	int interactive_get_participants(interactive_session session, on_participant_enumerate onParticipant);
+
+	/// <summary>
+	/// Change the group that the specified participant belongs to. Use this along with <c>interactive_group_set_scene</c> to configure which scenes participants see.
+	/// Note: Blocking function that waits on network IO.
+	/// </summary>
 	int interactive_set_participant_group(interactive_session session, const char* participantId, const char* groupId);
 
 	int interactive_get_participant_user_id(interactive_session session, const char* participantId, unsigned int* userId);
@@ -272,7 +357,14 @@ extern "C" {
 
 	typedef void(*on_debug_msg)(const interactive_debug_level dbgMsgType, const char* dbgMsg, size_t dbgMsgSize);
 
+	/// <summary>
+	/// Configure the debug verbosity for all interactive sessions in the current process.
+	/// </summary>
 	void interactive_config_debug_level(const interactive_debug_level dbgLevel);
+
+	/// <summary>
+	/// Configure the debug verbosity and set the debug callback function for all interactive sessions in the current process.
+	/// </summary>
 	void interactive_config_debug(const interactive_debug_level dbgLevel, on_debug_msg dbgCallback);
 }
 
