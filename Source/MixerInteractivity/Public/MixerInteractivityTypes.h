@@ -238,8 +238,8 @@ struct FMixerLabelDescription
 	/* Text shown on the label */
 	FText Text;
 
-	/* Size in pts of text shown on the label */
-	uint32 TextSize;
+	/* Size of text shown on the label - supports CSS font-size values */
+	FString TextSize;
 
 	/* Color of text shown on the label */
 	FColor TextColor;

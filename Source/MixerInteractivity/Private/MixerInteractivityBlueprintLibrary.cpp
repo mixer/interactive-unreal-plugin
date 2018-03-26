@@ -249,7 +249,7 @@ void UMixerInteractivityBlueprintLibrary::SetLabelText(FMixerLabelReference Labe
 	IMixerInteractivityModule::Get().SetLabelText(Label.Name, Text);
 }
 
-void UMixerInteractivityBlueprintLibrary::GetLabelDescription(FMixerLabelReference Label, FText& Text, int32& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic)
+void UMixerInteractivityBlueprintLibrary::GetLabelDescription(FMixerLabelReference Label, FText& Text, FString& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic)
 {
 	FMixerLabelDescription LabelDesc;
 	if (IMixerInteractivityModule::Get().GetLabelDescription(Label.Name, LabelDesc))
@@ -263,7 +263,6 @@ void UMixerInteractivityBlueprintLibrary::GetLabelDescription(FMixerLabelReferen
 	}
 	else
 	{
-		TextSize = 0;
 		TextColor = FColor::Black;
 		Bold = false;
 		Underline = false;

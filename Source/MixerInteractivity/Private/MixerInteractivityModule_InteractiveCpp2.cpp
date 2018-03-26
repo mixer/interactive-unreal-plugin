@@ -21,7 +21,7 @@ IMPLEMENT_MODULE(FMixerInteractivityModule_InteractiveCpp2, MixerInteractivity);
 
 namespace
 {
-	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, FText& Result)
+	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, FString& Result)
 	{
 		size_t RequiredSize = 0;
 		TArray<char> Utf8String;
@@ -36,8 +36,22 @@ namespace
 			return false;
 		}
 
-		Result = FText::FromString(UTF8_TO_TCHAR(Utf8String.GetData()));
+		Result = UTF8_TO_TCHAR(Utf8String.GetData());
 		return true;
+	}
+
+	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, FText& Result)
+	{
+		FString IntermediateResult;
+		if (GetControlPropertyHelper(Session, ControlName, PropertyName, IntermediateResult))
+		{
+			Result = FText::FromString(IntermediateResult);
+			return true;
+		}
+		else
+		{
+			return false;
+		}
 	}
 
 	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, float& Result)

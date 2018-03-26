@@ -704,7 +704,7 @@ bool FMixerInteractivityModule_UE::ParsePropertiesFromSingleControl(FName SceneI
 			Label.Desc.TextColor = FColor::White;
 		}
 
-		JsonObj->TryGetNumberField(MixerStringConstants::FieldNames::TextSize, Label.Desc.TextSize);
+		JsonObj->TryGetStringField(MixerStringConstants::FieldNames::TextSize, Label.Desc.TextSize);
 		JsonObj->TryGetBoolField(MixerStringConstants::FieldNames::Underline, Label.Desc.Underline);
 		JsonObj->TryGetBoolField(MixerStringConstants::FieldNames::Bold, Label.Desc.Bold);
 		JsonObj->TryGetBoolField(MixerStringConstants::FieldNames::Italic, Label.Desc.Italic);
