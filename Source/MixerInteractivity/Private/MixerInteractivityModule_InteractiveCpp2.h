@@ -41,10 +41,13 @@ private:
 
 	static void OnSessionStateChanged(void* Context, mixer::interactive_session Session, mixer::interactive_state PreviousState, mixer::interactive_state NewState);
 	static void OnSessionError(void* Context, mixer::interactive_session Session, int ErrorCode, const char* ErrorMessage, size_t ErrorMessageLength);
-	static void OnSessionButtonInput(void* Context, mixer::interactive_session Session, const mixer::interactive_button_input* Input);
-	static void OnSessionCoordinateInput(void* Context, mixer::interactive_session Session, const mixer::interactive_coordinate_input* Input);
+	static void OnSessionInput(void* Context, mixer::interactive_session Session, const mixer::interactive_input* Input);
 	static void OnSessionParticipantsChanged(void* Context, mixer::interactive_session Session, mixer::participant_action Action, const mixer::interactive_participant* Participant);
 	static void OnUnhandledMethod(void* Context, mixer::interactive_session Session, const char* MethodJson, size_t MethodJsonLength);
+
+	void OnSessionButtonInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input);
+	void OnSessionCoordinateInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input);
+	bool OnSessionCustomInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input);
 
 	struct FGetCurrentSceneEnumContext
 	{

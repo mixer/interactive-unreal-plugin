@@ -14,6 +14,7 @@
 #include "MixerInteractivitySettings.h"
 #include "MixerInteractivityUserSettings.h"
 #include "MixerInteractivityLog.h"
+#include "MixerJsonHelpers.h"
 #include "StringConv.h"
 #include "Async.h"
 
@@ -257,8 +258,7 @@ bool FMixerInteractivityModule_InteractiveCpp2::Tick(float DeltaTime)
 
 			mixer::interactive_reg_error_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionError);
 			mixer::interactive_reg_state_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionStateChanged);
-			mixer::interactive_reg_button_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput);
-			mixer::interactive_reg_coordinate_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput);
+			mixer::interactive_reg_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionInput);
 			mixer::interactive_reg_participants_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged);
 			mixer::interactive_reg_unhandled_method_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod);
 
@@ -301,7 +301,7 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionError(void* Context, mi
 	UE_LOG(LogMixerInteractivity, Error, TEXT("Session error %d: %hs"), ErrorCode, ErrorMessage);
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput(void* Context, mixer::interactive_session Session, const mixer::interactive_button_input* Input)
+void FMixerInteractivityModule_InteractiveCpp2::OnSessionInput(void* Context, mixer::interactive_session Session, const mixer::interactive_input* Input)
 {
 	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
 
@@ -314,69 +314,78 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput(void* Conte
 
 	TSharedPtr<FMixerRemoteUser> ButtonUser = InteractiveModule.GetCachedUser(ParticipantGuid);
 
-	FMixerButtonPropertiesCached* CachedProps = InteractiveModule.GetButton(FName(Input->control.id));
+	switch (Input->type)
+	{
+	case mixer::input_type_button:
+		InteractiveModule.OnSessionButtonInput(ButtonUser, Input);
+		break;
+
+	case mixer::input_type_coordinate:
+		InteractiveModule.OnSessionCoordinateInput(ButtonUser, Input);
+		break;
+
+	case mixer::input_type_custom:
+	default:
+		InteractiveModule.OnSessionCustomInput(ButtonUser, Input);
+		break;
+	}
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input)
+{
+	FMixerButtonPropertiesCached* CachedProps = GetButton(FName(Input->control.id));
 	if (CachedProps != nullptr)
 	{
 		FMixerButtonEventDetails ButtonEventDetails;
-		ButtonEventDetails.Pressed = Input->action == mixer::down;
+		ButtonEventDetails.Pressed = Input->buttonData.action == mixer::down;
 		ButtonEventDetails.SparkCost = CachedProps->Desc.SparkCost;
 		if (ButtonEventDetails.Pressed)
 		{
 			CachedProps->State.DownCount += 1;
-			if (InteractiveModule.CachePerParticipantState())
+			if (CachePerParticipantState())
 			{
-				CachedProps->HoldingParticipants.Add(ButtonUser->Id);
+				CachedProps->HoldingParticipants.Add(User->Id);
 				CachedProps->State.PressCount = CachedProps->HoldingParticipants.Num();
 			}
 		}
 		else
 		{
 			CachedProps->State.UpCount += 1;
-			if (InteractiveModule.CachePerParticipantState())
+			if (CachePerParticipantState())
 			{
-				CachedProps->HoldingParticipants.Remove(ButtonUser->Id);
+				CachedProps->HoldingParticipants.Remove(User->Id);
 				CachedProps->State.PressCount = CachedProps->HoldingParticipants.Num();
 			}
 		}
 
-		InteractiveModule.OnButtonEvent().Broadcast(Input->control.id, ButtonUser, ButtonEventDetails);
+		OnButtonEvent().Broadcast(Input->control.id, User, ButtonEventDetails);
 	}
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput(void* Context, mixer::interactive_session Session, const mixer::interactive_coordinate_input* Input)
+void FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input)
 {
-	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
-
-	FGuid ParticipantGuid;
-	if (!FGuid::Parse(Input->participantId, ParticipantGuid))
+	if (CachePerParticipantState())
 	{
-		UE_LOG(LogMixerInteractivity, Error, TEXT("Participant id %hs was not in the expected format (guid)"), Input->participantId);
-		return;
-	}
-
-	TSharedPtr<FMixerRemoteUser> StickUser = InteractiveModule.GetCachedUser(ParticipantGuid);
-	if (InteractiveModule.CachePerParticipantState())
-	{
-		FMixerStickPropertiesCached* CachedProps = InteractiveModule.GetStick(FName(Input->control.id));
+		FMixerStickPropertiesCached* CachedProps = GetStick(FName(Input->control.id));
 		if (CachedProps != nullptr)
 		{
-			if (Input->x != 0 || Input->y != 0)
+			if (Input->coordinateData.x != 0 || Input->coordinateData.y != 0)
 			{
 				CachedProps->State.Axes *= CachedProps->PerParticipantStickValue.Num();
-				FVector2D& PerUserStickValue = CachedProps->PerParticipantStickValue.FindOrAdd(StickUser->Id);
+				FVector2D& PerUserStickValue = CachedProps->PerParticipantStickValue.FindOrAdd(User->Id);
 				CachedProps->State.Axes -= PerUserStickValue;
-				PerUserStickValue = FVector2D(Input->x, Input->y);
+				PerUserStickValue = FVector2D(Input->coordinateData.x, Input->coordinateData.y);
 				CachedProps->State.Axes += PerUserStickValue;
 				CachedProps->State.Axes /= CachedProps->PerParticipantStickValue.Num();
 			}
 			else
 			{
-				FVector2D* OldPerUserStickValue = CachedProps->PerParticipantStickValue.Find(StickUser->Id);
+				FVector2D* OldPerUserStickValue = CachedProps->PerParticipantStickValue.Find(User->Id);
 				if (OldPerUserStickValue != nullptr)
 				{
 					CachedProps->State.Axes *= CachedProps->PerParticipantStickValue.Num();
 					CachedProps->State.Axes -= *OldPerUserStickValue;
-					CachedProps->PerParticipantStickValue.Remove(StickUser->Id);
+					CachedProps->PerParticipantStickValue.Remove(User->Id);
 					if (CachedProps->PerParticipantStickValue.Num() > 0)
 					{
 						CachedProps->State.Axes /= CachedProps->PerParticipantStickValue.Num();
@@ -390,7 +399,61 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput(void* C
 		}
 	}
 
-	InteractiveModule.OnStickEvent().Broadcast(Input->control.id, StickUser, FVector2D(Input->x, Input->y));
+	OnStickEvent().Broadcast(Input->control.id, User, FVector2D(Input->coordinateData.x, Input->coordinateData.y));
+}
+
+bool FMixerInteractivityModule_InteractiveCpp2::OnSessionCustomInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input)
+{
+	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(FString(UTF8_TO_TCHAR(Input->jsonData)));
+	TSharedPtr<FJsonObject> FullParamsJson;
+	if (!FJsonSerializer::Deserialize(JsonReader, FullParamsJson) && FullParamsJson.IsValid())
+	{
+		return false;
+	}
+
+	// Alias so macros work
+	const FJsonObject* JsonObj = FullParamsJson.Get();
+	GET_JSON_OBJECT_RETURN_FAILURE(Input, InputObj);
+
+	JsonObj = InputObj->Get();
+
+	GET_JSON_STRING_RETURN_FAILURE(ControlId, ControlIdRaw);
+	GET_JSON_STRING_RETURN_FAILURE(Event, EventType);
+
+	FName ControlId = *ControlIdRaw;
+	bool bHandled = false;
+	if (EventType == MixerStringConstants::EventTypes::Submit)
+	{
+		FMixerTextboxPropertiesCached* Textbox = GetTextbox(ControlId);
+		if (Textbox != nullptr)
+		{
+			GET_JSON_STRING_RETURN_FAILURE(Value, Value);
+
+			FMixerTextboxEventDetails EventDetails;
+			EventDetails.SubmittedText = FText::FromString(Value);
+			if (Textbox->Desc.SparkCost > 0)
+			{
+				if (FullParamsJson->TryGetStringField(MixerStringConstants::FieldNames::TransactionId, EventDetails.TransactionId))
+				{
+					EventDetails.SparkCost = Textbox->Desc.SparkCost;
+				}
+			}
+			else
+			{
+				EventDetails.SparkCost = 0;
+			}
+
+			OnTextboxSubmitEvent().Broadcast(ControlId, User, EventDetails);
+			bHandled = true;
+		}
+	}
+
+	if (!bHandled)
+	{
+		OnCustomControlInput().Broadcast(ControlId, *EventType, User, InputObj->ToSharedRef());
+	}
+
+	return true;
 }
 
 void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(void* Context, mixer::interactive_session Session, mixer::participant_action Action, const mixer::interactive_participant* Participant)
@@ -459,11 +522,7 @@ void FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod(void* Context,
 			const TSharedPtr<FJsonObject> *ParamsObject;
 			if (JsonObject->TryGetObjectField(TEXT("params"), ParamsObject))
 			{
-				if (Method == TEXT("giveInput"))
-				{
-					InteractiveModule.HandleCustomControlInputMessage(ParamsObject->Get());
-				}
-				else if (Method == TEXT("onControlUpdate"))
+				if (Method == TEXT("onControlUpdate"))
 				{
 					InteractiveModule.HandleControlUpdateMessage(ParamsObject->Get());
 				}
