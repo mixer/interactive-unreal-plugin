@@ -108,14 +108,16 @@ void FMixerInteractivityModule_InteractiveCpp2::SetCurrentScene(FName Scene, FNa
 {
 	if (InteractiveSession != nullptr)
 	{
-		mixer::interactive_group_set_scene(InteractiveSession, GroupName != NAME_None ? GroupName.GetPlainANSIString() : "default", Scene.GetPlainANSIString());
+		// Special case - 'default' is used all over the place as a name, but with 'D'
+		const ANSICHAR* ActualGroupName = GroupName != NAME_None && GroupName != NAME_DefaultMixerParticipantGroup ? GroupName.GetPlainANSIString() : "default";
+		mixer::interactive_group_set_scene(InteractiveSession, ActualGroupName, Scene.GetPlainANSIString());
 	}
 }
 
 FName FMixerInteractivityModule_InteractiveCpp2::GetCurrentScene(FName GroupName)
 {
 	FGetCurrentSceneEnumContext Context;
-	Context.GroupName = GroupName != NAME_None ? GroupName : FName("default");
+	Context.GroupName = GroupName != NAME_None ? GroupName : NAME_DefaultMixerParticipantGroup;
 	Context.OutSceneName = NAME_None;
 	if (InteractiveSession != nullptr)
 	{
@@ -141,7 +143,9 @@ bool FMixerInteractivityModule_InteractiveCpp2::CreateGroup(FName GroupName, FNa
 		return false;
 	}
 
-	return mixer::interactive_create_group(InteractiveSession, GroupName.GetPlainANSIString(), InitialScene != NAME_None ? InitialScene.GetPlainANSIString() : "default") == mixer::MIXER_OK;
+	// Special case - 'default' is used all over the place as a name, but with 'D'
+	const ANSICHAR* ActualSceneName = InitialScene != NAME_None && InitialScene != NAME_DefaultMixerParticipantGroup ? InitialScene.GetPlainANSIString() : "default";
+	return mixer::interactive_create_group(InteractiveSession, GroupName.GetPlainANSIString(), ActualSceneName) == mixer::MIXER_OK;
 }
 
 bool FMixerInteractivityModule_InteractiveCpp2::MoveParticipantToGroup(FName GroupName, uint32 ParticipantId)
