@@ -55,8 +55,7 @@ win_http_client::~win_http_client()
 {
 }
 
-int
-win_http_client::make_request(const std::string& uri, const std::string& verb, const std::string& headers, const std::string& body, http_response& response) const
+int win_http_client::make_request(const std::string& uri, const std::string& verb, const std::map<std::string, std::string>* headers, const std::string& body, _Out_ http_response& response, unsigned long timeoutMs) const
 {
 	// Crack the URI.
 	// Parse the url with regex in accordance with RFC 3986.
@@ -118,7 +117,25 @@ win_http_client::make_request(const std::string& uri, const std::string& verb, c
 	}
 
 	hinternet_ptr request(hRequest);
-	if (!WinHttpSendRequest(request.get(), utf8_to_wstring(headers).c_str(), (DWORD)headers.length(), (void*)body.c_str(), body.length(), body.length(), 0))
+
+	if (nullptr != headers)
+	{
+		for (auto header : *headers)
+		{
+			std::wstring str = utf8_to_wstring(header.first + ": " + header.second);
+			if (!WinHttpAddRequestHeaders(request.get(), str.c_str(), (DWORD)str.length(), WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE))
+			{
+				return GetLastError();
+			}
+		}
+	}
+
+	if (!WinHttpSetTimeouts(request.get(), timeoutMs, timeoutMs, timeoutMs, timeoutMs))
+	{
+		return GetLastError();
+	}
+	
+	if (!WinHttpSendRequest(request.get(), WINHTTP_NO_ADDITIONAL_HEADERS, 0, (void*)body.c_str(), (DWORD)body.length(), (DWORD)body.length(), 0))
 	{
 		return GetLastError();
 	}

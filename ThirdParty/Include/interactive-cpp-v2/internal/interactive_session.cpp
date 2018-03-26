@@ -361,7 +361,7 @@ int get_hosts(interactive_session_internal& session)
 	DEBUG_INFO("Retrieving hosts.");
 	http_response response;
 	static std::string hosts = "https://mixer.com/api/v1/interactive/hosts";
-	RETURN_IF_FAILED(session.http->make_request(hosts, "GET", "", "", response));
+	RETURN_IF_FAILED(session.http->make_request(hosts, "GET", nullptr, "", response));
 
 	if (200 != response.statusCode)
 	{

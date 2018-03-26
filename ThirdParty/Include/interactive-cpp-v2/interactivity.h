@@ -139,6 +139,7 @@ extern "C" {
 	typedef void(*on_state_changed)(void* context, interactive_session session, interactive_state previousState, interactive_state newState);
 	typedef void(*on_button_input)(void* context, interactive_session session, const interactive_button_input* input);
 	typedef void(*on_coordinate_input)(void* context, interactive_session session, const interactive_coordinate_input* input);
+	typedef void(*on_custom_input)(void* context, interactive_session session, const interactive_input* input);
 	typedef void(*on_unhandled_method)(void* context, interactive_session session, const char* methodJson, size_t methodJsonLength);
 
 	// Enumeration callbacks
