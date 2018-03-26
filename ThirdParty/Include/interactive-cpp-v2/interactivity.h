@@ -96,13 +96,11 @@ extern "C" {
 		size_t kindLength;
 	};
 
-	struct interactive_input
+	enum interactive_input_type
 	{
-		interactive_control control;
-		const char* participantId;
-		size_t participantIdLength;
-		const char* jsonData;
-		size_t jsonDataLength;
+		input_type_button,
+		input_type_coordinate,
+		input_type_custom
 	};
 
 	enum button_action
@@ -111,17 +109,28 @@ extern "C" {
 		down
 	};
 
-	struct interactive_button_input : interactive_input
+	struct interactive_input
 	{
-		button_action action;
+		interactive_control control;
+		interactive_input_type type;
+		const char* participantId;
+		size_t participantIdLength;
+		const char* jsonData;
+		size_t jsonDataLength;
 		const char* transactionId;
 		size_t transactionIdLength;
-	};
-
-	struct interactive_coordinate_input : interactive_input
-	{
-		float x;
-		float y;
+		union
+		{
+			struct buttonData
+			{
+				button_action action;
+			} buttonData;
+			struct coordinateData
+			{
+				float x;
+				float y;
+			} coordinateData;
+		};
 	};
 
 	struct interactive_group : public interactive_object
@@ -139,9 +148,7 @@ extern "C" {
 	// Interactive events
 	typedef void(*on_error)(void* context, interactive_session session, int errorCode, const char* errorMessage, size_t errorMessageLength);
 	typedef void(*on_state_changed)(void* context, interactive_session session, interactive_state previousState, interactive_state newState);
-	typedef void(*on_button_input)(void* context, interactive_session session, const interactive_button_input* input);
-	typedef void(*on_coordinate_input)(void* context, interactive_session session, const interactive_coordinate_input* input);
-	typedef void(*on_custom_input)(void* context, interactive_session session, const interactive_input* input);
+	typedef void(*on_input)(void* context, interactive_session session, const interactive_input* input);
 	typedef void(*on_unhandled_method)(void* context, interactive_session session, const char* methodJson, size_t methodJsonLength);
 
 	// Enumeration callbacks
@@ -226,8 +233,7 @@ extern "C" {
 	// Event handlers for interactive events that will be called by the <c>interactive_run</c> thread.
 	int interactive_reg_error_handler(interactive_session session, on_error onError);
 	int interactive_reg_state_changed_handler(interactive_session session, on_state_changed onStateChanged);
-	int interactive_reg_button_input_handler(interactive_session session, on_button_input onButtonInput);
-	int interactive_reg_coordinate_input_handler(interactive_session session, on_coordinate_input onCoordinateInput);
+	int interactive_reg_input_handler(interactive_session session, on_input onInput);
 	int interactive_reg_participants_changed_handler(interactive_session session, on_participants_changed onParticipantsChanged);
 	int interactive_reg_unhandled_method_handler(interactive_session session, on_unhandled_method onUnhandledMethod);
 
@@ -306,7 +312,7 @@ extern "C" {
 	/// Trigger a cooldown on a control for the specified number of milliseconds.
 	/// Note: Blocking function that waits on network IO.
 	/// </summary>
-	int interactive_control_trigger_cooldown(interactive_session session, const char* controlId, const unsigned int cooldownMs);
+	int interactive_control_trigger_cooldown(interactive_session session, const char* controlId, const unsigned long long cooldownMs);
 
 	int interactive_control_get_property_count(interactive_session session, const char* controlId, size_t* count);
 	int interactive_control_get_property_data(interactive_session session, const char* controlId, size_t index, char* propName, size_t* propNameLength, interactive_property_type* type);

@@ -155,12 +155,29 @@ int handle_hello(interactive_session_internal& session, rapidjson::Document& doc
 
 int handle_input(interactive_session_internal& session, rapidjson::Document& doc)
 {
-	try
+	if (!session.onInput)
 	{
-		rapidjson::Value input = doc[RPC_PARAMS][RPC_PARAM_INPUT].GetObject();
+		// No input handler, return.
+		return MIXER_OK;
+	}
+
+	try
+	{	
 		interactive_input inputData;
+		memset(&inputData, 0, sizeof(inputData));
+		std::string inputJson = jsonStringify(doc[RPC_PARAMS]);
+		inputData.jsonData = inputJson.c_str();
+		inputData.jsonDataLength = inputJson.length();
+		rapidjson::Value& input = doc[RPC_PARAMS][RPC_PARAM_INPUT];
 		inputData.control.id = input[RPC_CONTROL_ID].GetString();
 		inputData.control.idLength = input[RPC_CONTROL_ID].GetStringLength();
+		
+		if (doc[RPC_PARAMS].HasMember(RPC_PARTICIPANT_ID))
+		{
+			inputData.participantId = doc[RPC_PARAMS][RPC_PARTICIPANT_ID].GetString();
+			inputData.participantIdLength = doc[RPC_PARAMS][RPC_PARTICIPANT_ID].GetStringLength();
+		}
+
 		// Locate the cached control data.
 		auto itr = session.controls.find(inputData.control.id);
 		if (itr == session.controls.end())
@@ -190,53 +207,48 @@ int handle_input(interactive_session_internal& session, rapidjson::Document& doc
 
 		inputData.control.kind = control->GetObject()[RPC_CONTROL_KIND].GetString();
 		inputData.control.kindLength = control->GetObject()[RPC_CONTROL_KIND].GetStringLength();
+		if (doc[RPC_PARAMS].HasMember(RPC_PARAM_TRANSACTION_ID))
+		{
+			inputData.transactionId = doc[RPC_PARAMS][RPC_PARAM_TRANSACTION_ID].GetString();
+			inputData.transactionIdLength = doc[RPC_PARAMS][RPC_PARAM_TRANSACTION_ID].GetStringLength();
+		}
 
 		std::string inputEvent = input[RPC_PARAM_INPUT_EVENT].GetString();
 		if (0 == inputEvent.compare(RPC_INPUT_EVENT_MOVE))
 		{
-			if (session.onCoordinateInput)
+			inputData.type = input_type_coordinate;
+			inputData.coordinateData.x = input[RPC_INPUT_EVENT_MOVE_X].GetFloat();
+			inputData.coordinateData.y = input[RPC_INPUT_EVENT_MOVE_Y].GetFloat();
+		}
+		else if (0 == inputEvent.compare(RPC_INPUT_EVENT_KEY_DOWN) ||
+			0 == inputEvent.compare(RPC_INPUT_EVENT_KEY_UP) ||
+			0 == inputEvent.compare(RPC_INPUT_EVENT_MOUSE_DOWN) ||
+			0 == inputEvent.compare(RPC_INPUT_EVENT_MOUSE_UP))
+		{
+			inputData.type = input_type_button;
+			bool keyDown = false;
+			if (0 == inputEvent.compare(RPC_INPUT_EVENT_KEY_DOWN) || 0 == inputEvent.compare(RPC_INPUT_EVENT_MOUSE_DOWN))
 			{
-				interactive_coordinate_input coordinateInput;
-				coordinateInput.control = std::move(inputData.control);
-				coordinateInput.participantId = doc[RPC_PARAMS][RPC_PARTICIPANT_ID].GetString();
-				coordinateInput.participantIdLength = doc[RPC_PARAMS][RPC_PARTICIPANT_ID].GetStringLength();
-				coordinateInput.x = input[RPC_INPUT_EVENT_MOVE_X].GetFloat();
-				coordinateInput.y = input[RPC_INPUT_EVENT_MOVE_Y].GetFloat();
-				session.onCoordinateInput(session.callerContext, &session, &coordinateInput);
+				keyDown = true;
 			}
+			inputData.buttonData.action = keyDown ? button_action::down : button_action::up;
 		}
 		else
 		{
-			if (session.onButtonInput)
-			{
-				interactive_button_input buttonInput;
-				buttonInput.control = std::move(inputData.control);
-				buttonInput.participantId = doc[RPC_PARAMS][RPC_PARTICIPANT_ID].GetString();
-				buttonInput.participantIdLength = doc[RPC_PARAMS][RPC_PARTICIPANT_ID].GetStringLength();
-				if (doc[RPC_PARAMS].HasMember(RPC_PARAM_TRANSACTION_ID))
-				{
-					buttonInput.transactionId = doc[RPC_PARAMS][RPC_PARAM_TRANSACTION_ID].GetString();
-					buttonInput.transactionIdLength = doc[RPC_PARAMS][RPC_PARAM_TRANSACTION_ID].GetStringLength();
-				}
-				else
-				{
-					buttonInput.transactionId = nullptr;
-					buttonInput.transactionIdLength = 0;
-				}
-				bool keyDown = false;
-				if (0 == inputEvent.compare(RPC_INPUT_EVENT_KEY_DOWN) || 0 == inputEvent.compare(RPC_INPUT_EVENT_MOUSE_DOWN))
-				{
-					keyDown = true;
-				}
-				buttonInput.action = keyDown ? button_action::down : button_action::up;
-				session.onButtonInput(session.callerContext, &session, &buttonInput);
-			}
+			inputData.type = input_type_custom;
 		}
 
+		session.onInput(session.callerContext, &session, &inputData);
 	}
 	catch (std::exception e)
 	{
-		return MIXER_ERROR_JSON_PARSE;
+		int errCode = MIXER_ERROR_JSON_PARSE;
+		if (session.onError)
+		{
+			std::string errMessage = "Exception while parsing interactive input data: " + std::string(e.what());
+			session.onError(session.callerContext, &session, errCode, errMessage.c_str(), errMessage.length());
+		}
+		return errCode;
 	}
 
 	return MIXER_OK;
@@ -650,7 +662,7 @@ int interactive_capture_transaction(interactive_session session, const char* tra
 	return receive_reply(*sessionInternal, id, doc);
 }
 
-int interactive_control_trigger_cooldown(interactive_session session, const char* controlId, const unsigned int cooldownMs)
+int interactive_control_trigger_cooldown(interactive_session session, const char* controlId, const unsigned long long cooldownMs)
 {
 	if (nullptr == session)
 	{
@@ -798,7 +810,7 @@ int interactive_reg_state_changed_handler(interactive_session session, on_state_
 	return MIXER_OK;
 }
 
-int interactive_reg_button_input_handler(interactive_session session, on_button_input onButtonInput)
+int interactive_reg_input_handler(interactive_session session, on_input onInput)
 {
 	if (nullptr == session)
 	{
@@ -806,20 +818,7 @@ int interactive_reg_button_input_handler(interactive_session session, on_button_
 	}
 
 	interactive_session_internal* sessionInternal = reinterpret_cast<interactive_session_internal*>(session);
-	sessionInternal->onButtonInput = onButtonInput;
-
-	return MIXER_OK;
-}
-
-int interactive_reg_coordinate_input_handler(interactive_session session, on_coordinate_input onCoordinateInput)
-{
-	if (nullptr == session)
-	{
-		return MIXER_ERROR_INVALID_POINTER;
-	}
-
-	interactive_session_internal* sessionInternal = reinterpret_cast<interactive_session_internal*>(session);
-	sessionInternal->onCoordinateInput = onCoordinateInput;
+	sessionInternal->onInput = onInput;
 
 	return MIXER_OK;
 }
