@@ -29,74 +29,22 @@
 
 DEFINE_LOG_CATEGORY(LogMixerChat);
 
-namespace
-{
-	template <class T>
-	void WriteSingleRemoteMethodParam(TJsonWriter<>& Writer, T Param1)
-	{
-		Writer.WriteValue(Param1);
-	}
-
-	template <class T>
-	void WriteSingleRemoteMethodParam(TJsonWriter<>& Writer, const TArray<T>& Param1)
-	{
-		Writer.WriteArrayStart();
-		for (const T& Val : Param1)
-		{
-			Writer.WriteValue(Val);
-		}
-		Writer.WriteArrayEnd();
-	}
-
-	template <class T, class ...ArgTypes>
-	void WriteRemoteMethodParams(TJsonWriter<>& Writer, T Param1, ArgTypes... AdditionalArgs)
-	{
-		WriteSingleRemoteMethodParam(Writer, Param1);
-		WriteRemoteMethodParams(Writer, AdditionalArgs...);
-	}
-
-	template <class T>
-	void WriteRemoteMethodParams(TJsonWriter<>& Writer, T Param1)
-	{
-		WriteSingleRemoteMethodParam(Writer, Param1);
-	}
-
-	template <class ... ArgTypes>
-	FString WriteRemoteMethodPacket(const FString& MethodName, int32 MessageId, ArgTypes... Args)
-	{
-		FString MethodPacketString;
-		TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&MethodPacketString);
-		Writer->WriteObjectStart();
-		Writer->WriteValue(MixerStringConstants::FieldNames::Type, MixerStringConstants::MessageTypes::Method);
-		Writer->WriteValue(MixerStringConstants::FieldNames::Method, MethodName);
-		Writer->WriteArrayStart(MixerStringConstants::FieldNames::Arguments);
-		WriteRemoteMethodParams(Writer.Get(), Args...);
-		Writer->WriteArrayEnd();
-		Writer->WriteValue(MixerStringConstants::FieldNames::Id, MessageId);
-		Writer->WriteObjectEnd();
-		Writer->Close();
-
-		return MethodPacketString;
-	}
-}
-
 FMixerChatConnection::FMixerChatConnection(FOnlineChatMixer* InChatInterface, const FUniqueNetId& UserId, const FChatRoomId& InRoomId, const FChatRoomConfig& Config)
-: ChatInterface(InChatInterface)
-, User(UserId.AsShared())
-, RoomId(InRoomId)
-, ChannelId(0)
-, MessageId(0)
-, ChatHistoryNum(0)
-, ChatHistoryMax(10) // @TODO: pull from config once available
-, bIsReady(false)
-, bRejoinOnDisconnect(Config.bRejoinOnDisconnect)
+	: TMixerWebSocketOwnerBase<FMixerChatConnection>(MixerStringConstants::MessageTypes::Event, MixerStringConstants::FieldNames::Event, MixerStringConstants::FieldNames::Data)
+	, ChatInterface(InChatInterface)
+	, User(UserId.AsShared())
+	, RoomId(InRoomId)
+	, ChannelId(0)
+	, ChatHistoryNum(0)
+	, ChatHistoryMax(10) // @TODO: pull from config once available
+	, bIsReady(false)
+	, bRejoinOnDisconnect(Config.bRejoinOnDisconnect)
 {
 	FMemory::Memzero(Permissions);
 }
 
 FMixerChatConnection::~FMixerChatConnection()
 {
-	CloseWebSocket();
 }
 
 bool FMixerChatConnection::Init()
@@ -172,6 +120,8 @@ void FMixerChatConnection::OnGetChannelInfoForRoomIdComplete(FHttpRequestPtr Htt
 
 void FMixerChatConnection::OnDiscoverChatServersComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded)
 {
+	FMemory::Memzero(Permissions);
+
 	if (bSucceeded && HttpResponse.IsValid())
 	{
 		if (EHttpResponseCodes::IsOk(HttpResponse->GetResponseCode()))
@@ -202,8 +152,6 @@ void FMixerChatConnection::OnDiscoverChatServersComplete(FHttpRequestPtr HttpReq
 						Permissions.bClearMessages = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::ClearMessages; });
 						Permissions.bPurge = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::Purge; });
 						Permissions.bGiveawayStart = JsonPermissions->ContainsByPredicate([](const TSharedPtr<FJsonValue>& V) { return V->AsString() == MixerStringConstants::Permissions::GiveawayStart; });
-
-						OpenWebSocket();
 					}
 				}
 			}
@@ -211,114 +159,67 @@ void FMixerChatConnection::OnDiscoverChatServersComplete(FHttpRequestPtr HttpReq
 	}
 
 	// Should have a web socket going by now.
-	if (!WebSocket.IsValid())
+	if (Permissions.bConnect)
 	{
-		ChatInterface->ConnectAttemptFinished(*User, RoomId, false, TEXT("Failed to create web socket"));
+		const FString& SelectedEndpoint = Endpoints[FMath::RandRange(0, Endpoints.Num() - 1)];
+		UE_LOG(LogMixerChat, Verbose, TEXT("Opening web socket to %s for chat room %s"), *SelectedEndpoint, *RoomId);
 
-		// Note: we have probably self-destructed at this point
+		TMap<FString, FString> EmptyHeaders;
+		InitConnection(SelectedEndpoint, EmptyHeaders);
+	}
+	else
+	{
+		ChatInterface->ConnectAttemptFinished(*User, RoomId, false, TEXT("No permission to connect"));
 	}
 }
 
-void FMixerChatConnection::OnChatSocketConnected()
+void FMixerChatConnection::HandleSocketConnected()
 {
 	TSharedPtr<const FMixerLocalUser> CurrentUser = IMixerInteractivityModule::Get().GetCurrentUser();
-	SendAuth(ChannelId, CurrentUser.Get(), AuthKey);
+	if (CurrentUser.IsValid() && !AuthKey.IsEmpty())
+	{
+		UE_LOG(LogMixerChat, Log, TEXT("Authenticating to chat room %s as user '%s'"), *RoomId, *CurrentUser->Name);
+		SendMethodMessageArrayParams(MixerStringConstants::MethodNames::Auth, &FMixerChatConnection::HandleAuthReply, ChannelId, CurrentUser->Id, AuthKey);
+	}
+	else
+	{
+		UE_LOG(LogMixerChat, Log, TEXT("Authenticating to chat room %s anonymously"), *RoomId);
+		SendMethodMessageArrayParams(MixerStringConstants::MethodNames::Auth, &FMixerChatConnection::HandleAuthReply, ChannelId);
+	}
 }
 
-void FMixerChatConnection::OnChatConnectionError(const FString& ErrorMessage)
+void FMixerChatConnection::HandleSocketConnectionError()
 {
-	UE_LOG(LogMixerChat, Warning, TEXT("Failed to connect chat web socket for room %s with error '%s'"), *RoomId, *ErrorMessage);
-	ChatInterface->ConnectAttemptFinished(*User, RoomId, false, ErrorMessage);
+	ChatInterface->ConnectAttemptFinished(*User, RoomId, false, TEXT("Failed to connect chat web socket"));
 
 	// Note: we have probably self-destructed at this point
 }
 
-void FMixerChatConnection::OnChatSocketClosed(int32 StatusCode, const FString& Reason, bool bWasClean)
+void FMixerChatConnection::HandleSocketClosed(bool bWasClean)
 {
-	// This should be a remote close since we unhook event handlers before closing on our end.
 	// Do a full close and re-open of the websocket so as to (potentially) hit a different endpoint, per Mixer guidance.
 
-	UE_LOG(LogMixerChat, Warning, TEXT("Chat websocket closed with reason '%s'."), *Reason);
-
 	bool bWasReady = bIsReady;
-
-	CloseWebSocket();
 
 	if (bRejoinOnDisconnect)
 	{
 		UE_LOG(LogMixerChat, Warning, TEXT("Attempting automatic reconnect to %s."), *RoomId);
-		OpenWebSocket();
+		const FString& NewRandomEndpoint = Endpoints[FMath::RandRange(0, Endpoints.Num() - 1)];
+		TMap<FString, FString> EmptyHeaders;
+		InitConnection(NewRandomEndpoint, EmptyHeaders);
 	}
 	else if (bWasReady)
 	{
-		ChatInterface->ExitRoomWithReason(*User, RoomId, bWasClean, Reason);
+		ChatInterface->ExitRoomWithReason(*User, RoomId, bWasClean, TEXT("Chat socket connection closed"));
 
 		// Note: we have probably self-destructed at this point
 	}
 	else 
 	{
-		ChatInterface->ConnectAttemptFinished(*User, RoomId, false, Reason);
+		ChatInterface->ConnectAttemptFinished(*User, RoomId, false, TEXT("Chat socket connection closed"));
 
 		// Note: we have probably self-destructed at this point
 	}
-}
-
-void FMixerChatConnection::OnChatPacket(const FString& PacketJsonString)
-{
-	bool bHandled = false;
-	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(PacketJsonString);
-	TSharedPtr<FJsonObject> JsonObj;
-	if (FJsonSerializer::Deserialize(JsonReader, JsonObj) && JsonObj.IsValid())
-	{
-		bHandled = OnChatPacketInternal(JsonObj.Get());
-	}
-
-	if (!bHandled)
-	{
-		UE_LOG(LogMixerChat, Error, TEXT("Failed to handle chat packet from server: %s"), *PacketJsonString);
-	}
-}
-
-bool FMixerChatConnection::OnChatPacketInternal(FJsonObject* JsonObj)
-{
-	bool bHandled = false;
-	GET_JSON_STRING_RETURN_FAILURE(Type, MessageType);
-	if (MessageType == MixerStringConstants::MessageTypes::Reply)
-	{
-		GET_JSON_INT_RETURN_FAILURE(Id, ReplyingToMessageId);
-
-		FServerMessageHandler Handler;
-		if (ReplyHandlers.RemoveAndCopyValue(ReplyingToMessageId, Handler))
-		{
-			if (Handler != nullptr)
-			{
-				(this->*Handler)(JsonObj);
-			}
-			bHandled = true;
-		}
-		else
-		{
-			UE_LOG(LogMixerChat, Error, TEXT("Received unexpected reply for unknown message id %d"), ReplyingToMessageId);
-		}
-	}
-	else if (MessageType == MixerStringConstants::MessageTypes::Event)
-	{
-		GET_JSON_STRING_RETURN_FAILURE(Event, EventType);
-		GET_JSON_OBJECT_RETURN_FAILURE(Data, Data);
-
-		FServerMessageHandler Handler = GetEventHandler(EventType);
-		if (Handler != nullptr)
-		{
-			(this->*Handler)(Data->Get());
-			bHandled = true;
-		}
-		else
-		{
-			UE_LOG(LogMixerChat, Warning, TEXT("Received event type %s which is not handled in the current implementation."), *EventType);
-		}
-	}
-
-	return bHandled;
 }
 
 bool FMixerChatConnection::HandleWelcomeEvent(class FJsonObject* JsonObj)
@@ -711,11 +612,7 @@ bool FMixerChatConnection::SendChatMessage(const FString& MessageBody)
 		return false;
 	}
 
-	check(WebSocket.IsValid());
-	check(WebSocket->IsConnected());
-
-	FString MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::Msg, MessageId, MessageBody);
-	SendMethodPacket(MethodPacket, nullptr);
+	SendMethodMessageArrayParams(MixerStringConstants::MethodNames::Msg, nullptr, MessageBody);
 
 	return true;
 }
@@ -740,8 +637,7 @@ bool FMixerChatConnection::SendWhisper(const FString& ToUser, const FString& Mes
 		return false;
 	}
 
-	FString MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::Whisper, MessageId, ToUser, MessageBody);
-	SendMethodPacket(MethodPacket, nullptr);
+	SendMethodMessageArrayParams(MixerStringConstants::MethodNames::Whisper, nullptr, ToUser, MessageBody);
 
 	return true;
 }
@@ -766,8 +662,7 @@ bool FMixerChatConnection::SendVoteStart(const FString& Question, const TArray<F
 		return false;
 	}
 
-	FString MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::VoteStart, MessageId, Question, Answers, Duration.GetTotalSeconds());
-	SendMethodPacket(MethodPacket, nullptr);
+	SendMethodMessageArrayParams(MixerStringConstants::MethodNames::VoteStart, nullptr, Question, Answers, Duration.GetTotalSeconds());
 
 	return true;
 }
@@ -798,41 +693,9 @@ bool FMixerChatConnection::SendVoteChoose(const FChatPollMixer& Poll, int32 Answ
 		return false;
 	}
 
-	FString MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::VoteChoose, MessageId, AnswerIndex);
-	SendMethodPacket(MethodPacket, nullptr);
+	SendMethodMessageArrayParams(MixerStringConstants::MethodNames::VoteChoose, nullptr, AnswerIndex);
 
 	return true;
-}
-
-void FMixerChatConnection::SendAuth(int32 InChannelId, const FMixerLocalUser* InUser, const FString& InAuthKey)
-{
-	FString MethodPacket;
-	if (InUser != nullptr && !InAuthKey.IsEmpty())
-	{
-		UE_LOG(LogMixerChat, Log, TEXT("Authenticating to chat room %s as user '%s'"), *RoomId, *InUser->Name);
-		MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::Auth, MessageId, InChannelId, InUser->Id, InAuthKey);
-	}
-	else
-	{
-		UE_LOG(LogMixerChat, Log, TEXT("Authenticating to chat room %s anonymously"), *RoomId);
-		MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::Auth, MessageId, InChannelId);
-	}
-	SendMethodPacket(MethodPacket, &FMixerChatConnection::HandleAuthReply);
-}
-
-void FMixerChatConnection::SendHistory(int32 MessageCount)
-{
-	FString MethodPacket = WriteRemoteMethodPacket(MixerStringConstants::MethodNames::History, MessageId, MessageCount);
-	SendMethodPacket(MethodPacket, &FMixerChatConnection::HandleHistoryReply);
-}
-
-void FMixerChatConnection::SendMethodPacket(const FString& Payload, FServerMessageHandler Handler)
-{
-	check(!ReplyHandlers.Contains(MessageId));
-	ReplyHandlers.Add(MessageId, Handler);
-	++MessageId;
-
-	WebSocket->Send(Payload);
 }
 
 void FMixerChatConnection::GetMessageHistory(int32 NumMessages, TArray< TSharedRef<FChatMessage> >& OutMessages) const
@@ -846,58 +709,17 @@ void FMixerChatConnection::GetMessageHistory(int32 NumMessages, TArray< TSharedR
 	}
 }
 
-
-void FMixerChatConnection::OpenWebSocket()
+void FMixerChatConnection::RegisterAllServerMessageHandlers()
 {
-	if (!Permissions.bConnect)
-	{
-		UE_LOG(LogMixerChat, Warning, TEXT("No permission to connect to room %s.  Web socket not opened."), *RoomId);
-		return;
-	}
-
-	// Shouldn't ever get this far if we don't have a websocket implementation.
-	check(WITH_WEBSOCKETS != 0);
-	const FString& SelectedEndpoint = Endpoints[FMath::RandRange(0, Endpoints.Num() - 1)];
-	UE_LOG(LogMixerChat, Verbose, TEXT("Opening web socket to %s for chat room %s"), *SelectedEndpoint, *RoomId);
-
-	// Regardless, CreateWebSocket won't compile on all platforms.
-#if WITH_WEBSOCKETS
-	// Explicitly list protocols for the benefit of Xbox
-	TArray<FString> Protocols;
-	Protocols.Add(TEXT("wss"));
-	Protocols.Add(TEXT("ws"));
-	WebSocket = FModuleManager::LoadModuleChecked<FWebSocketsModule>("WebSockets").CreateWebSocket(SelectedEndpoint, Protocols);
-#endif
-
-	if (WebSocket.IsValid())
-	{
-		WebSocket->OnConnected().AddRaw(this, &FMixerChatConnection::OnChatSocketConnected);
-		WebSocket->OnConnectionError().AddRaw(this, &FMixerChatConnection::OnChatConnectionError);
-		WebSocket->OnMessage().AddRaw(this, &FMixerChatConnection::OnChatPacket);
-		WebSocket->OnClosed().AddRaw(this, &FMixerChatConnection::OnChatSocketClosed);
-
-		WebSocket->Connect();
-	}
-}
-
-void FMixerChatConnection::CloseWebSocket()
-{
-	if (WebSocket.IsValid())
-	{
-		bIsReady = false;
-
-		WebSocket->OnConnected().RemoveAll(this);
-		WebSocket->OnConnectionError().RemoveAll(this);
-		WebSocket->OnMessage().RemoveAll(this);
-		WebSocket->OnClosed().RemoveAll(this);
-
-		if (WebSocket->IsConnected())
-		{
-			WebSocket->Close();
-		}
-
-		WebSocket.Reset();
-	}
+	RegisterServerMessageHandler(MixerStringConstants::EventTypes::Welcome, &FMixerChatConnection::HandleWelcomeEvent);
+	RegisterServerMessageHandler(MixerStringConstants::EventTypes::ChatMessage, &FMixerChatConnection::HandleChatMessageEvent);
+	RegisterServerMessageHandler(MixerStringConstants::EventTypes::UserJoin, &FMixerChatConnection::HandleUserJoinEvent);
+	RegisterServerMessageHandler(MixerStringConstants::EventTypes::UserLeave, &FMixerChatConnection::HandleUserLeaveEvent);
+	RegisterServerMessageHandler(MixerStringConstants::EventTypes::DeleteMessage, &FMixerChatConnection::HandleDeleteMessageEvent);
+	RegisterServerMessageHandler(MixerStringConstants::EventTypes::ClearMessages, &FMixerChatConnection::HandleClearMessagesEvent);
+	RegisterServerMessageHandler(MixerStringConstants::EventTypes::PurgeMessage, &FMixerChatConnection::HandlePurgeMessageEvent);
+	RegisterServerMessageHandler(MixerStringConstants::EventTypes::PollStart, &FMixerChatConnection::HandlePollStartEvent);
+	RegisterServerMessageHandler(MixerStringConstants::EventTypes::PollEnd, &FMixerChatConnection::HandlePollEndEvent);
 }
 
 void FMixerChatConnection::AddMessageToChatHistory(TSharedRef<FChatMessageMixerImpl> ChatMessage)
@@ -981,7 +803,7 @@ bool FMixerChatConnection::HandleAuthReply(FJsonObject* JsonObj)
 		bIsReady = true;
 		if (ChatHistoryMax > 0)
 		{
-			SendHistory(FMath::Min(ChatHistoryMax, 100));
+			SendMethodMessageArrayParams(MixerStringConstants::MethodNames::History, &FMixerChatConnection::HandleHistoryReply, FMath::Min(ChatHistoryMax, 100));
 		}
 		// Maybe we have some interest in roles?
 
@@ -1064,26 +886,6 @@ bool FMixerChatConnection::HandleHistoryReply(FJsonObject* JsonObj)
 	}
 
 	return true;
-}
-
-FMixerChatConnection::FServerMessageHandler FMixerChatConnection::GetEventHandler(const FString& EventType)
-{
-	static TMap<const FString, FServerMessageHandler> EventHandlers;
-	if (EventHandlers.Num() == 0)
-	{
-		EventHandlers.Add(MixerStringConstants::EventTypes::Welcome, &FMixerChatConnection::HandleWelcomeEvent);
-		EventHandlers.Add(MixerStringConstants::EventTypes::ChatMessage, &FMixerChatConnection::HandleChatMessageEvent);
-		EventHandlers.Add(MixerStringConstants::EventTypes::UserJoin, &FMixerChatConnection::HandleUserJoinEvent);
-		EventHandlers.Add(MixerStringConstants::EventTypes::UserLeave, &FMixerChatConnection::HandleUserLeaveEvent);
-		EventHandlers.Add(MixerStringConstants::EventTypes::DeleteMessage, &FMixerChatConnection::HandleDeleteMessageEvent);
-		EventHandlers.Add(MixerStringConstants::EventTypes::ClearMessages, &FMixerChatConnection::HandleClearMessagesEvent);
-		EventHandlers.Add(MixerStringConstants::EventTypes::PurgeMessage, &FMixerChatConnection::HandlePurgeMessageEvent);
-		EventHandlers.Add(MixerStringConstants::EventTypes::PollStart, &FMixerChatConnection::HandlePollStartEvent);
-		EventHandlers.Add(MixerStringConstants::EventTypes::PollEnd, &FMixerChatConnection::HandlePollEndEvent);
-	}
-
-	FServerMessageHandler* Handler = EventHandlers.Find(EventType);
-	return Handler != nullptr ? *Handler : nullptr;
 }
 
 void FMixerChatConnection::GetAllCachedUsers(TArray< TSharedRef<FChatRoomMember> >& OutUsers) const
