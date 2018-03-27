@@ -130,10 +130,10 @@ public:
 				result = ex->HResult;
 			}
 
-			m_messagesSemaphore.notify();
+			m_openSemaphore.notify();
 		});
 		
-		m_messagesSemaphore.wait();
+		m_openSemaphore.wait();
 		if (0 != result)
 		{
 			if (onError)
@@ -257,6 +257,7 @@ private:
 	bool m_closed;
 	std::mutex m_messagesMutex;
 	semaphore m_messagesSemaphore;
+	semaphore m_openSemaphore;
 	std::queue<std::string> m_messages;
 };
 

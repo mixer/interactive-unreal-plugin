@@ -54,8 +54,7 @@ struct interactive_session_internal
 	std::vector<std::string> hosts;
 
 	// Event handlers
-	on_button_input onButtonInput;
-	on_coordinate_input onCoordinateInput;
+	on_input onInput;
 	on_error onError;
 	on_state_changed onStateChanged;
 	on_participants_changed onParticipantsChanged;

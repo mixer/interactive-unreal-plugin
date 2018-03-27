@@ -8,7 +8,7 @@
 #include "internal/interactive_session.cpp"
 #include "internal/interactive_session_internal.cpp"
 #if _DURANGO || defined(WINAPI_FAMILY) && WINAPI_FAMILY == WINAPI_FAMILY_PC_APP
-#include "internal/win_http_client.cpp"
+#include "internal/winapp_http_client.cpp"
 #include "internal/simplewebsocketcpp/simplewebsocketUWP.cpp"
 #elif _WIN32
 #include "internal/win_http_client.cpp"

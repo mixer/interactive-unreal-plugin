@@ -1,4 +1,5 @@
 #include "interactive_session.h"
+#include "common.h"
 
 namespace mixer
 {

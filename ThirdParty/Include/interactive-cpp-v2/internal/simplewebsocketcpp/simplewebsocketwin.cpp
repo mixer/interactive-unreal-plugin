@@ -126,7 +126,7 @@ public:
 			std::string headers = headerStream.str();
 			// Perform websocket handshake by sending a request and receiving server's response. 
 			// Application may specify additional headers if needed. 
-			status = WinHttpSendRequest(requestHandle.get(), utf8_to_wstring(headers).c_str(), headers.length(), nullptr, 0, 0, 0);
+			status = WinHttpSendRequest(requestHandle.get(), utf8_to_wstring(headers).c_str(), (DWORD)headers.length(), nullptr, 0, 0, 0);
 			if (!status)
 			{
 				return GetLastError();
@@ -243,7 +243,7 @@ public:
 			}
 		}
 
-		return WinHttpWebSocketSend(m_websocketHandle.get(), WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, (void*)message.c_str(), message.length());
+		return WinHttpWebSocketSend(m_websocketHandle.get(), WINHTTP_WEB_SOCKET_UTF8_MESSAGE_BUFFER_TYPE, (void*)message.c_str(), (DWORD)message.length());
 	}
 
 	int read(std::string& message)
@@ -293,7 +293,7 @@ public:
 		{
 			m_closed = true;
 			m_closeReason = "Close requested";
-			WinHttpWebSocketClose(m_websocketHandle.get(), WINHTTP_WEB_SOCKET_SUCCESS_CLOSE_STATUS, (void*)m_closeReason.c_str(), m_closeReason.length());
+			WinHttpWebSocketClose(m_websocketHandle.get(), WINHTTP_WEB_SOCKET_SUCCESS_CLOSE_STATUS, (void*)m_closeReason.c_str(), (DWORD)m_closeReason.length());
 		}
 	}
 

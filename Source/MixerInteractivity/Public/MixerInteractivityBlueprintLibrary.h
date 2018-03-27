@@ -322,14 +322,14 @@ public:
 	*
 	* @param	Label			Reference to the label for which information should be returned.
 	* @param	Text			Text displayed on this label to remote users.
-	* @param	TextSize		Size in pts of the label text.
+	* @param	TextSize		Size of the label text (CSS font size)
 	* @param	TextColor		Color of the the label text.
 	* @param	Bold			Whether the label text is bold.
 	* @param	Underline		Whether the label text is underlined.
 	* @param	Italic			Whether the label text is italicized.
 	*/
 	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity")
-	static void GetLabelDescription(FMixerLabelReference Label, FText& Text, int32& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic);
+	static void GetLabelDescription(FMixerLabelReference Label, FText& Text, FString& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic);
 
 	/**
 	* Retrieve information about properties of a textbox that are configured at design time and

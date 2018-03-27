@@ -6,7 +6,7 @@ namespace mixer
 
 interactive_session_internal::interactive_session_internal(bool manualStart)
 	: callerContext(nullptr), manualStart(manualStart), state(interactive_state::disconnected), shutdownRequested(false), packetId(0), sequenceId(0), wsOpen(false),
-	onButtonInput(nullptr), onCoordinateInput(nullptr), onError(nullptr), onStateChanged(nullptr), onParticipantsChanged(nullptr), onUnhandledMethod(nullptr)
+	onInput(nullptr), onError(nullptr), onStateChanged(nullptr), onParticipantsChanged(nullptr), onUnhandledMethod(nullptr)
 {
 	scenesRoot.SetObject();
 }

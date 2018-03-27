@@ -11,9 +11,17 @@
 // If using interactive-cpp v2, bring in the entire sdk in source form.
 // Placed here to isolate it from other UE code (e.g. IWebSocket conflicts)
 #if MIXER_BACKEND_INTERACTIVE_CPP_2
+#if PLATFORM_WINDOWS
 #include "PreWindowsApi.h"
+#elif PLATFORM_XBOXONE
+#include "XboxOnePreApi.h"
+#endif
 #include <interactive-cpp-v2/interactivity.cpp>
+#if PLATFORM_WINDOWS
 #include "PostWindowsApi.h"
+#elif PLATFORM_XBOXONE
+#include "XboxOnePostApi.h"
+#endif
 #endif
 
 // Suppress linker warning "warning LNK4221: no public symbols found; archive member will be inaccessible"

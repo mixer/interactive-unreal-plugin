@@ -65,7 +65,7 @@ int interactive_auth_get_short_code(const char* clientId, char* shortCode, size_
 	// Construct the json body
 	std::string jsonBody = "{ \"client_id\": \"" + std::string(clientId) + "\", \"scope\": \"interactive:robot:self\" }";
 	std::unique_ptr<http_client> client = http_factory::make_http_client();
-	RETURN_IF_FAILED(client->make_request(oauthCodeUrl, "POST", "", jsonBody, response));
+	RETURN_IF_FAILED(client->make_request(oauthCodeUrl, "POST", nullptr, jsonBody, response));
 	if (200 != response.statusCode)
 	{
 		return response.statusCode;
@@ -130,7 +130,7 @@ int interactive_auth_wait_short_code(const char* clientId, const char* shortCode
 	int handleStatus = 204;
 	while (204 == handleStatus)
 	{
-		RETURN_IF_FAILED(httpClient->make_request(validateUrl, "GET", "", "", response));
+		RETURN_IF_FAILED(httpClient->make_request(validateUrl, "GET", nullptr, "", response));
 		handleStatus = response.statusCode;
 	}
 
@@ -162,7 +162,7 @@ int interactive_auth_wait_short_code(const char* clientId, const char* shortCode
 	std::string refreshTokenData;
 	const std::string exchangeUrl = "https://mixer.com/api/v1/oauth/token";
 	std::string jsonBody = "{ \"client_id\": \"" + std::string(clientId) + "\", \"code\": \"" + oauthCode + "\", \"grant_type\": \"authorization_code\" }";
-	httpClient->make_request(exchangeUrl, "POST", "", jsonBody, response);
+	httpClient->make_request(exchangeUrl, "POST", nullptr, jsonBody, response);
 	if (200 != response.statusCode)
 	{
 		return MIXER_ERROR_AUTH;
@@ -212,7 +212,7 @@ int interactive_auth_refresh_token(const char* clientId, const char* staleToken,
 	const std::string exchangeUrl = "https://mixer.com/api/v1/oauth/token";
 	std::string jsonBody = "{ \"client_id\": \"" + std::string(clientId) + "\", \"refresh_token\": \"" + refreshTokenData + "\", \"grant_type\": \"refresh_token\" }";
 	std::unique_ptr<http_client> httpClient = http_factory::make_http_client();
-	httpClient->make_request(exchangeUrl, "POST", "", jsonBody, response);
+	httpClient->make_request(exchangeUrl, "POST", nullptr, jsonBody, response);
 	if (200 != response.statusCode)
 	{
 		return MIXER_ERROR_AUTH;

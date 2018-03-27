@@ -13,7 +13,7 @@ namespace mixer
 std::wstring utf8_to_wstring(const std::string& str);
 std::string wstring_to_utf8(const std::wstring& wstr);
 
-std::string jsonStringify(rapidjson::Document& doc);
+std::string jsonStringify(rapidjson::Value& doc);
 
 // Debuggig
 static on_debug_msg g_dbgCallback = nullptr;

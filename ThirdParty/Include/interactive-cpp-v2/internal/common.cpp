@@ -19,11 +19,11 @@ std::string wstring_to_utf8(const std::wstring& wstr)
 	return conv.to_bytes(wstr);
 }
 
-std::string jsonStringify(rapidjson::Document& doc)
+std::string jsonStringify(rapidjson::Value& value)
 {
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-	doc.Accept(writer);
+	value.Accept(writer);
 	return std::string(buffer.GetString(), buffer.GetSize());
 }
 
