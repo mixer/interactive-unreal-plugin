@@ -1,3 +1,7 @@
 [submodule "ThirdParty/interactive-cpp"]
 	path = ThirdParty/interactive-cpp
 	url = https://github.com/mixer/interactive-cpp.git
+[submodule "ThirdParty/interactive-cpp-v2"]
+	path = ThirdParty/interactive-cpp-v2
+	url = https://github.com/mixer/interactive-cpp.git
+	branch = v2

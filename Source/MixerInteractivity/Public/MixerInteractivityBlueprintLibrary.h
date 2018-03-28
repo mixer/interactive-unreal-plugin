@@ -15,8 +15,9 @@
 #include "MixerInteractivityTypes.h"
 #include "Engine/LatentActionManager.h"
 #include "TextProperty.h"
-
 #include "MixerInteractivityBlueprintLibrary.generated.h"
+
+extern MIXERINTERACTIVITY_API const FName MixerObjectKindMetadataTag;
 
 USTRUCT(BlueprintType)
 struct MIXERINTERACTIVITY_API FMixerObjectReference
@@ -44,7 +45,7 @@ public:
 	}
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta=(MixerObjectKind="button"))
 struct MIXERINTERACTIVITY_API FMixerButtonReference : public FMixerObjectReference
 {
 public:
@@ -61,7 +62,7 @@ struct TStructOpsTypeTraits<FMixerButtonReference> : public TStructOpsTypeTraits
 	};
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "scene"))
 struct MIXERINTERACTIVITY_API FMixerSceneReference : public FMixerObjectReference
 {
 public:
@@ -78,7 +79,7 @@ struct TStructOpsTypeTraits<FMixerSceneReference> : public TStructOpsTypeTraitsB
 	};
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "stick"))
 struct MIXERINTERACTIVITY_API FMixerStickReference : public FMixerObjectReference
 {
 public:
@@ -95,7 +96,7 @@ struct TStructOpsTypeTraits<FMixerStickReference> : public TStructOpsTypeTraitsB
 	};
 };
 
-USTRUCT(BlueprintType)
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "group"))
 struct MIXERINTERACTIVITY_API FMixerGroupReference : public FMixerObjectReference
 {
 public:
@@ -109,6 +110,57 @@ public:
 
 template<>
 struct TStructOpsTypeTraits<FMixerGroupReference> : public TStructOpsTypeTraitsBase2<FMixerGroupReference>
+{
+	enum
+	{
+		WithExportTextItem = true,
+		WithImportTextItem = true
+	};
+};
+
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "custom"))
+struct MIXERINTERACTIVITY_API FMixerCustomControlReference : public FMixerObjectReference
+{
+public:
+	GENERATED_BODY()
+};
+
+template<>
+struct TStructOpsTypeTraits<FMixerCustomControlReference> : public TStructOpsTypeTraitsBase2<FMixerCustomControlReference>
+{
+	enum
+	{
+		WithExportTextItem = true,
+		WithImportTextItem = true
+	};
+};
+
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "label"))
+struct MIXERINTERACTIVITY_API FMixerLabelReference : public FMixerObjectReference
+{
+public:
+	GENERATED_BODY()
+};
+
+template<>
+struct TStructOpsTypeTraits<FMixerLabelReference> : public TStructOpsTypeTraitsBase2<FMixerLabelReference>
+{
+	enum
+	{
+		WithExportTextItem = true,
+		WithImportTextItem = true
+	};
+};
+
+USTRUCT(BlueprintType, meta = (MixerObjectKind = "textbox"))
+struct MIXERINTERACTIVITY_API FMixerTextboxReference : public FMixerObjectReference
+{
+public:
+	GENERATED_BODY()
+};
+
+template<>
+struct TStructOpsTypeTraits<FMixerTextboxReference> : public TStructOpsTypeTraitsBase2<FMixerTextboxReference>
 {
 	enum
 	{
@@ -256,6 +308,44 @@ public:
 	static void GetStickState(FMixerStickReference Stick, float& XAxis, float& YAxis, bool& Enabled, int32 ParticipantId = 0);
 
 	/**
+	* Change the text that will be displayed to remote users on a label.
+	*
+	* @param	Label			Reference to the label for which text should be set.
+	* @param	DisplayText		New text to display on the label.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Mixer|Interactivity")
+	static void SetLabelText(FMixerLabelReference Label, const FText& Text);
+
+	/**
+	* Retrieve information about properties of a label that are configured at design time and
+	* are expected to change infrequently (or not at all) during runtime.
+	*
+	* @param	Label			Reference to the label for which information should be returned.
+	* @param	Text			Text displayed on this label to remote users.
+	* @param	TextSize		Size of the label text (CSS font size)
+	* @param	TextColor		Color of the the label text.
+	* @param	Bold			Whether the label text is bold.
+	* @param	Underline		Whether the label text is underlined.
+	* @param	Italic			Whether the label text is italicized.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity")
+	static void GetLabelDescription(FMixerLabelReference Label, FText& Text, FString& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic);
+
+	/**
+	* Retrieve information about properties of a textbox that are configured at design time and
+	* are expected to change infrequently (or not at all) during runtime.
+	*
+	* @param	Textbox				Reference to the textbox for which information should be returned.
+	* @param	PlaceholderText		Hint text displayed inside an empty textbox to prompt for user text entry.
+	* @param	Multiline			Whether the textbox supports entering multiple lines of text.
+	* @param	HasSubmit			Whether the textbox has an associated button that may be pressed to submit text.
+	* @param	SubmitText			Text displayed on the associated submit button (if in use).
+	* @param	SparkCost			Number of Sparks a remote user will be charged for submitting text via this box.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity")
+	static void GetTextboxDescription(FMixerTextboxReference Textbox, FText& PlaceholderText, bool& Multiline, bool& HasSubmit, FText& SubmitText, int32& SparkCost);
+
+	/**
 	* Request a change in the interactive scene displayed to remote users.
 	*
 	* @param	Scene			Reference to the new interactive scene to display.
@@ -323,4 +413,10 @@ public:
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Mixer|Interactivity")
 	static void CaptureSparkTransaction(FMixerTransactionId TransactionId);
+
+	UFUNCTION(BlueprintPure, Category = "Mixer|Interactivity", CustomThunk, meta=(BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"))
+	static void GetCustomControlProperty_Helper(UObject* WorldContextObject, FMixerCustomControlReference Control, FString PropertyName, int32 &OutProperty);
+
+	DECLARE_FUNCTION(execGetCustomControlProperty_Helper);
+
 };

@@ -9,12 +9,16 @@
 //*********************************************************
 #include "MixerInteractivityBlueprintLibrary.h"
 #include "MixerInteractivityModule.h"
+#include "MixerCustomControl.h"
 #include "LatentActions.h"
 #include "Engine/Engine.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "MessageLog.h"
 #include "Resources/Version.h"
+#include "JsonObjectConverter.h"
+
+const FName MixerObjectKindMetadataTag = "MixerObjectKind";
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
@@ -240,6 +244,51 @@ void UMixerInteractivityBlueprintLibrary::GetStickState(FMixerStickReference Sti
 	}
 }
 
+void UMixerInteractivityBlueprintLibrary::SetLabelText(FMixerLabelReference Label, const FText& Text)
+{
+	IMixerInteractivityModule::Get().SetLabelText(Label.Name, Text);
+}
+
+void UMixerInteractivityBlueprintLibrary::GetLabelDescription(FMixerLabelReference Label, FText& Text, FString& TextSize, FColor& TextColor, bool& Bold, bool& Underline, bool& Italic)
+{
+	FMixerLabelDescription LabelDesc;
+	if (IMixerInteractivityModule::Get().GetLabelDescription(Label.Name, LabelDesc))
+	{
+		Text = LabelDesc.Text;
+		TextSize = LabelDesc.TextSize;
+		TextColor = LabelDesc.TextColor;
+		Bold = LabelDesc.Bold;
+		Underline = LabelDesc.Underline;
+		Italic = LabelDesc.Italic;
+	}
+	else
+	{
+		TextColor = FColor::Black;
+		Bold = false;
+		Underline = false;
+		Italic = false;
+	}
+}
+
+void UMixerInteractivityBlueprintLibrary::GetTextboxDescription(FMixerTextboxReference Textbox, FText& PlaceholderText, bool& Multiline, bool& HasSubmit, FText& SubmitText, int32& SparkCost)
+{
+	FMixerTextboxDescription TextboxDesc;
+	if (IMixerInteractivityModule::Get().GetTextboxDescription(Textbox.Name, TextboxDesc))
+	{
+		PlaceholderText = TextboxDesc.Placeholder;
+		Multiline = TextboxDesc.Multiline;
+		HasSubmit = TextboxDesc.HasSubmit;
+		SubmitText = TextboxDesc.SubmitText;
+		SparkCost = TextboxDesc.SparkCost;
+	}
+	else
+	{
+		Multiline = false;
+		HasSubmit = false;
+		SparkCost = 0;
+	}
+}
+
 void UMixerInteractivityBlueprintLibrary::SetCurrentScene(FMixerSceneReference Scene, FMixerGroupReference Group)
 {
 	IMixerInteractivityModule::Get().SetCurrentScene(Scene.Name, Group.Name);
@@ -319,6 +368,40 @@ FName UMixerInteractivityBlueprintLibrary::GetName(const FMixerObjectReference& 
 void UMixerInteractivityBlueprintLibrary::CaptureSparkTransaction(FMixerTransactionId TransactionId)
 {
 	IMixerInteractivityModule::Get().CaptureSparkTransaction(TransactionId.Id);
+}
+
+DECLARE_FUNCTION(UMixerInteractivityBlueprintLibrary::execGetCustomControlProperty_Helper)
+{
+	P_GET_PROPERTY(UObjectProperty, WorldContextObject);
+	P_GET_STRUCT(FMixerCustomControlReference, Control);
+	P_GET_PROPERTY(UStrProperty, PropertyName);
+
+	Stack.MostRecentPropertyAddress = nullptr;
+	Stack.MostRecentProperty = nullptr;
+	Stack.StepCompiledIn<UProperty>(nullptr);
+	P_FINISH;
+
+	P_NATIVE_BEGIN;
+	if (WorldContextObject != nullptr)
+	{
+		UWorld* ForWorld = WorldContextObject->GetWorld();
+		if (ForWorld != nullptr)
+		{
+			if (Stack.MostRecentPropertyAddress != nullptr && Stack.MostRecentProperty != nullptr)
+			{
+				TSharedPtr<FJsonObject> ControlObject;
+				if (IMixerInteractivityModule::Get().GetCustomControl(ForWorld, Control.Name, ControlObject))
+				{
+					TSharedPtr<FJsonValue> LocatedProperty = ControlObject->TryGetField(PropertyName);
+					if (LocatedProperty.IsValid())
+					{
+						FJsonObjectConverter::JsonValueToUProperty(LocatedProperty, Stack.MostRecentProperty, Stack.MostRecentPropertyAddress, 0, 0);
+					}
+				}
+			}
+		}
+	}
+	P_NATIVE_END;
 }
 
 #undef LOCTEXT_NAMESPACE

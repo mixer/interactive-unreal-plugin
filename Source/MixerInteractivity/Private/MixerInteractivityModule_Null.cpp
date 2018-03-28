@@ -7,9 +7,12 @@
 // PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
 //
 //*********************************************************
+#include "MixerInteractivityModule_Null.h"
 
-#include "MixerInteractiveGame.h"
-#include "JsonObject.h"
+#if MIXER_BACKEND_NULL
+IMPLEMENT_MODULE(FMixerInteractivityModule_Null, MixerInteractivity);
+#endif
 
-const FString FMixerInteractiveControl::ButtonKind = TEXT("button");
-const FString FMixerInteractiveControl::JoystickKind = TEXT("joystick");
+// Suppress linker warning "warning LNK4221: no public symbols found; archive member will be inaccessible"
+int32 MixerNullLinkerHelper;
+

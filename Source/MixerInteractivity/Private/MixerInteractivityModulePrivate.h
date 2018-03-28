@@ -27,6 +27,7 @@
 #include "JsonSerializerMacros.h"
 #include "Future.h"
 #include "Input/Reply.h"
+#include "CoreOnline.h"
 #include <memory>
 
 #define PLATFORM_NEEDS_OSS_LIVE !PLATFORM_XBOXONE && !PLATFORM_SUPPORTS_MIXER_OAUTH
@@ -35,21 +36,11 @@
 #include "OnlineSubsystemTypes.h"
 #endif
 
-namespace Microsoft
-{
-	namespace mixer
-	{
-		class interactive_button_control;
-		class interactive_joystick_control;
-		class interactive_participant;
-		enum interactivity_state : int;
-	}
-}
-
 struct FMixerChannelJsonSerializable : public FMixerChannel, public FJsonSerializable
 {
 public:
 	BEGIN_JSON_SERIALIZER
+		JSON_SERIALIZE("id", Id);
 		JSON_SERIALIZE("name", Name);
 		JSON_SERIALIZE("viewersCurrent", CurrentViewers);
 		JSON_SERIALIZE("viewersTotal", LifetimeUniqueViewers);
@@ -81,18 +72,6 @@ public:
 	}
 };
 
-struct FMixerRemoteUserCached : public FMixerRemoteUser
-{
-public:
-	FMixerRemoteUserCached(std::shared_ptr<Microsoft::mixer::interactive_participant> InParticipant);
-
-	void UpdateFromSourceParticipant();
-
-	std::shared_ptr<Microsoft::mixer::interactive_participant> GetSourceParticipant() { return SourceParticipant; }
-private:
-	std::shared_ptr<Microsoft::mixer::interactive_participant> SourceParticipant;
-};
-
 class SWindow;
 class SOverlay;
 class IWebBrowserWindow;
@@ -114,43 +93,55 @@ public:
 	virtual bool Logout();
 	virtual EMixerLoginState GetLoginState();
 
-	virtual void StartInteractivity();
-	virtual void StopInteractivity();
 	virtual EMixerInteractivityState GetInteractivityState();
 
-	virtual void SetCurrentScene(FName Scene, FName GroupName = NAME_None);
-	virtual FName GetCurrentScene(FName GroupName = NAME_None);
-	virtual void TriggerButtonCooldown(FName Button, FTimespan CooldownTime);
-	virtual bool GetButtonDescription(FName Button, FMixerButtonDescription& OutDesc);
-	virtual bool GetButtonState(FName Button, FMixerButtonState& OutState);
-	virtual bool GetButtonState(FName Button, uint32 ParticipantId, FMixerButtonState& OutState);
-	virtual bool GetStickDescription(FName Stick, FMixerStickDescription& OutDesc);
-	virtual bool GetStickState(FName Stick, FMixerStickState& OutState);
-	virtual bool GetStickState(FName Stick, uint32 ParticipantId, FMixerStickState& OutState);
+	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, TSharedPtr<FJsonObject>& OutControlObject);
+	virtual bool GetCustomControl(UWorld* ForWorld, FName ControlName, class UMixerCustomControl*& OutControlObject);
+	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()				{ return CurrentUser; }
 
-	virtual TSharedPtr<const FMixerLocalUser> GetCurrentUser()
-	{
-		return CurrentUser;
-	}
-	virtual TSharedPtr<const FMixerRemoteUser> GetParticipant(uint32 ParticipantId);
+	virtual TSharedPtr<class IOnlineChat> GetChatInterface();
+	virtual TSharedPtr<class IOnlineChatMixer> GetExtendedChatInterface();
 
-	virtual bool CreateGroup(FName GroupName, FName InitialScene = NAME_None);
-	virtual bool GetParticipantsInGroup(FName GroupName, TArray<TSharedPtr<const FMixerRemoteUser>>& OutParticipants);
-	virtual bool MoveParticipantToGroup(FName GroupName, uint32 ParticipantId);
-	virtual void CaptureSparkTransaction(const FString& TransactionId);
-
-	virtual FOnLoginStateChanged& OnLoginStateChanged()						{ return LoginStateChanged; }
-	virtual FOnInteractivityStateChanged& OnInteractivityStateChanged()		{ return InteractivityStateChanged; }
-	virtual FOnParticipantStateChangedEvent& OnParticipantStateChanged()	{ return ParticipantStateChanged; }
-	virtual FOnButtonEvent& OnButtonEvent()									{ return ButtonEvent; }
-	virtual FOnStickEvent& OnStickEvent()									{ return StickEvent; }
-	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged()		{ return BroadcastingStateChanged; }
+	virtual FOnLoginStateChanged& OnLoginStateChanged()							{ return LoginStateChanged; }
+	virtual FOnInteractivityStateChanged& OnInteractivityStateChanged()			{ return InteractivityStateChanged; }
+	virtual FOnParticipantStateChangedEvent& OnParticipantStateChanged()		{ return ParticipantStateChanged; }
+	virtual FOnButtonEvent& OnButtonEvent()										{ return ButtonEvent; }
+	virtual FOnStickEvent& OnStickEvent()										{ return StickEvent; }
+	virtual FOnBroadcastingStateChanged& OnBroadcastingStateChanged()			{ return BroadcastingStateChanged; }
+	virtual FOnCustomControlInput& OnCustomControlInput()						{ return CustomControlInputEvent; }
+	virtual FOnCustomControlPropertyUpdate& OnCustomControlPropertyUpdate()		{ return CustomControlPropertyUpdate; }
+	virtual FOnCustomMethodCall& OnCustomMethodCall()							{ return CustomMethodCall; }
+	virtual FOnTextboxSubmitEvent& OnTextboxSubmitEvent()						{ return TextboxSubmitEvent; }
 
 public:
-
 	virtual bool Tick(float DeltaTime);
 
+public:
+	void UpdateRemoteControl(FName SceneName, FName ControlName, TSharedRef<FJsonObject> PropertiesToUpdate);
+
+protected:
+	virtual bool StartInteractiveConnection() = 0;
+	virtual void StopInteractiveConnection() = 0;
+	EMixerLoginState GetInteractiveConnectionAuthState() const			{ return InteractiveConnectionAuthState; }
+	void SetInteractiveConnectionAuthState(EMixerLoginState InState);
+	EMixerInteractivityState GetInteractivityState() const				{ return InteractivityState; }
+	void SetInteractivityState(EMixerInteractivityState InState)		{ InteractivityState = InState; InteractivityStateChanged.Broadcast(InState); }
+#if PLATFORM_XBOXONE
+	Windows::Xbox::System::User^ GetXboxUser()							{ return XboxUserOperation.Get(); }
+#endif
+
+	bool HandleControlUpdateMessage(FJsonObject* ParamsJson);
+	void HandleCustomControlInputMessage(FJsonObject* ParamsJson);
+
+	virtual bool HandleSingleControlUpdate(FName ControlId, const TSharedRef<FJsonObject> ControlData) { return false; }
+
 private:
+	EMixerLoginState GetUserAuthState() const { return UserAuthState; }
+	void SetUserAuthState(EMixerLoginState InState);
+	void HandleLoginStateChange(EMixerLoginState OldState, EMixerLoginState NewState);
+
+	bool LoginSilentlyInternal(TSharedPtr<const FUniqueNetId> UserId);
+	void LoginWithUIInternal(TSharedPtr<const FUniqueNetId> UserId);
 	bool LoginWithAuthCodeInternal(const FString& AuthCode, TSharedPtr<const FUniqueNetId> UserId);
 
 	void OnTokenRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
@@ -164,23 +155,16 @@ private:
 	bool NeedsClientLibraryActive();
 	void InitDesignTimeGroups();
 
-	std::shared_ptr<Microsoft::mixer::interactive_button_control> FindButton(FName Name);
-	std::shared_ptr<Microsoft::mixer::interactive_joystick_control> FindStick(FName Name);
-	TSharedPtr<FMixerRemoteUserCached> CreateOrUpdateCachedParticipant(std::shared_ptr<Microsoft::mixer::interactive_participant> Participant);
-
-	void TickParticipantCacheMaintenance();
-	void TickClientLibrary();
 	void TickLocalUserMaintenance();
-
-	void LoginAttemptFinished(bool Success);
+	void FlushControlUpdates();
 
 private:
 
 #if PLATFORM_XBOXONE
-	TFuture<Windows::Xbox::System::User^> PlatformUser;
+	TFuture<Windows::Xbox::System::User^> XboxUserOperation;
 	Windows::Foundation::IAsyncOperation<Windows::Xbox::System::GetTokenAndSignatureResult^>^ GetXTokenOperation;
 	void TickXboxLogin();
-
+	void OnXboxUserRemoved(Windows::Xbox::System::User^ RemovedUser);
 #elif !PLATFORM_SUPPORTS_MIXER_OAUTH
 	void OnXTokenRetrievalComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& ErrorMessage);
 	FDelegateHandle LoginCompleteDelegateHandle[MAX_LOCAL_PLAYERS];
@@ -192,10 +176,8 @@ private:
 	TSharedPtr<const FUniqueNetId> NetId;
 	TSharedPtr<FMixerLocalUserJsonSerializable> CurrentUser;
 
-	TMap<uint32, TSharedPtr<FMixerRemoteUserCached>> RemoteParticipantCache;
-
 	EMixerLoginState UserAuthState;
-	Microsoft::mixer::interactivity_state ClientLibraryState;
+	EMixerLoginState InteractiveConnectionAuthState;
 	EMixerInteractivityState InteractivityState;
 
 	FOnLoginStateChanged LoginStateChanged;
@@ -204,7 +186,14 @@ private:
 	FOnButtonEvent ButtonEvent;
 	FOnStickEvent StickEvent;
 	FOnBroadcastingStateChanged BroadcastingStateChanged;
+	FOnCustomControlInput CustomControlInputEvent;
+	FOnCustomControlPropertyUpdate CustomControlPropertyUpdate;
+	FOnCustomMethodCall CustomMethodCall;
+	FOnTextboxSubmitEvent TextboxSubmitEvent;
+
+	TSharedPtr<class FOnlineChatMixer> ChatInterface;
+
+	TMap<FName, TArray<TSharedPtr<FJsonValue>>> PendingControlUpdates;
 
 	bool RetryLoginWithUI;
-	bool HasCreatedGroups;
 };

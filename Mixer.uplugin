@@ -34,7 +34,7 @@
 	],
 	"Plugins": [
 		{
-			"Name": "OnlineSubsystemUtils",
+			"Name": "OnlineSubsystem",
 			"Enabled": true
 		},
 	]
