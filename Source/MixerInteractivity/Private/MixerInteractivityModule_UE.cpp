@@ -145,13 +145,19 @@ void FMixerInteractivityModule_UE::SetCurrentScene(FName Scene, FName GroupName)
 
 FName FMixerInteractivityModule_UE::GetCurrentScene(FName GroupName)
 {
-	FName FindGroup = GroupName != NAME_None ? GroupName : FName("default");
+	FName FindGroup = GroupName != NAME_None ? GroupName : NAME_DefaultMixerParticipantGroup;
 	FName* Scene = ScenesByGroup.Find(FindGroup);
 	return Scene != nullptr ? *Scene : NAME_None;
 }
 
 bool FMixerInteractivityModule_UE::CreateGroup(FName GroupName, FName InitialScene)
 {
+	// Default group is created automatically, don't send this to the service.
+	if (GroupName == NAME_None || GroupName == NAME_DefaultMixerParticipantGroup)
+	{
+		return false;
+	}
+
 	return CreateOrUpdateGroup(MixerStringConstants::MethodNames::CreateGroups, InitialScene, GroupName);
 }
 

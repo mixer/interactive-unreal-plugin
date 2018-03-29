@@ -146,6 +146,7 @@ bool FMixerXboxOneWebSocket::Tick(float DeltaTime)
 		case Windows::Foundation::AsyncStatus::Completed:
 			Writer = ref new Windows::Storage::Streams::DataWriter(Socket->OutputStream);
 			Writer->UnicodeEncoding = Windows::Storage::Streams::UnicodeEncoding::Utf8;
+			OnConnected().Broadcast();
 			ConnectAction = nullptr;
 			break;
 

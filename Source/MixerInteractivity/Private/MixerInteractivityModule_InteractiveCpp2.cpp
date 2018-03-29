@@ -111,7 +111,8 @@ void FMixerInteractivityModule_InteractiveCpp2::SetCurrentScene(FName Scene, FNa
 	{
 		// Special case - 'default' is used all over the place as a name, but with 'D'
 		const ANSICHAR* ActualGroupName = GroupName != NAME_None && GroupName != NAME_DefaultMixerParticipantGroup ? GroupName.GetPlainANSIString() : "default";
-		mixer::interactive_group_set_scene(InteractiveSession, ActualGroupName, Scene.GetPlainANSIString());
+		const ANSICHAR* ActualSceneName = Scene != NAME_None && Scene != NAME_DefaultMixerParticipantGroup ? Scene.GetPlainANSIString() : "default";
+		mixer::interactive_group_set_scene(InteractiveSession, ActualGroupName, ActualSceneName);
 	}
 }
 
@@ -140,6 +141,12 @@ void FMixerInteractivityModule_InteractiveCpp2::TriggerButtonCooldown(FName Butt
 bool FMixerInteractivityModule_InteractiveCpp2::CreateGroup(FName GroupName, FName InitialScene)
 {
 	if (InteractiveSession == nullptr)
+	{
+		return false;
+	}
+
+	// Default group is created automatically, don't send this to the service.
+	if (GroupName == NAME_None || GroupName == NAME_DefaultMixerParticipantGroup)
 	{
 		return false;
 	}
