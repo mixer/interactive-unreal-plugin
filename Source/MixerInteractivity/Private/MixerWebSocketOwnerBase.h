@@ -7,6 +7,7 @@
 #include "MixerJsonHelpers.h"
 #include "JsonPrintPolicy.h"
 #include "CondensedJsonPrintPolicy.h"
+#include "JsonSerializerMacros.h"
 
 #if PLATFORM_XBOXONE
 #include "XboxOne/MixerXboxOneWebSocket.h"
