@@ -14,10 +14,13 @@
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
 #include "OnlineChatMixerPrivate.h"
+#include "MixerWebSocketOwnerBase.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMixerChat, Log, All);
 
-class FMixerChatConnection : public TSharedFromThis<FMixerChatConnection>
+class FMixerChatConnection
+	: public TMixerWebSocketOwnerBase<FMixerChatConnection>
+	, public TSharedFromThis<FMixerChatConnection>
 {
 public:
 	FMixerChatConnection(class FOnlineChatMixer* InChatInterface, const FUniqueNetId& UserId, const FChatRoomId& InRoomId, const FChatRoomConfig& Config);
@@ -41,22 +44,20 @@ public:
 
 	TSharedPtr<FMixerChatUser> FindUser(const FUniqueNetId& UserId) const;
 
-private:
+protected:
+	virtual void RegisterAllServerMessageHandlers();
+	virtual bool OnUnhandledServerMessage(const FString& MessageType, const TSharedPtr<FJsonObject> Params) { return false; }
 
-	void OpenWebSocket();
-	void CloseWebSocket();
+	virtual void HandleSocketConnected();
+	virtual void HandleSocketConnectionError();
+	virtual void HandleSocketClosed(bool bWasClean);
+
+private:
 
 	void JoinDiscoveredChatChannel();
 
 	void OnGetChannelInfoForRoomIdComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
 	void OnDiscoverChatServersComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded);
-
-	void OnChatSocketConnected();
-	void OnChatConnectionError(const FString& ErrorMessage);
-	void OnChatPacket(const FString& PacketJsonString);
-	void OnChatSocketClosed(int32 StatusCode, const FString& Reason, bool bWasClean);
-
-	bool OnChatPacketInternal(class FJsonObject* JsonObj);
 
 	bool HandleWelcomeEvent(class FJsonObject* JsonObj);
 	bool HandleChatMessageEvent(class FJsonObject* JsonObj);
@@ -78,17 +79,8 @@ private:
 	void DeleteFromChatHistoryIf(TFunctionRef<bool(TSharedPtr<FChatMessageMixerImpl>)> Predicate);
 
 private:
-	typedef bool (FMixerChatConnection::*FServerMessageHandler)(class FJsonObject*);
-
-	void SendAuth(int32 ChannelId, const FMixerLocalUser* User, const FString& AuthKey);
-	void SendHistory(int32 MessageCount);
-
 	bool HandleAuthReply(class FJsonObject* JsonObj);
 	bool HandleHistoryReply(class FJsonObject* JsonObj);
-
-	void SendMethodPacket(const FString& Payload, FServerMessageHandler Handler);
-
-	FServerMessageHandler GetEventHandler(const FString& EventType);
 
 private:
 	class FOnlineChatMixer* ChatInterface;
@@ -96,16 +88,13 @@ private:
 	FChatRoomId RoomId;
 	FString AuthKey;
 	TArray<FString> Endpoints;
-	TSharedPtr<class IWebSocket> WebSocket;
 	TMap<FUniqueNetIdMixer, TSharedPtr<FMixerChatUser>> CachedUsers;
-	TMap<int32, FServerMessageHandler> ReplyHandlers;
 	TSharedPtr<struct FChatPollMixerImpl> ActivePoll;
 	TSharedPtr<struct FChatMessageMixerImpl> ChatHistoryNewest;
 	TSharedPtr<struct FChatMessageMixerImpl> ChatHistoryOldest;
 	int32 ChatHistoryNum;
 	int32 ChatHistoryMax;
 	int32 ChannelId;
-	int32 MessageId;
 	bool bIsReady;
 	bool bRejoinOnDisconnect;
 

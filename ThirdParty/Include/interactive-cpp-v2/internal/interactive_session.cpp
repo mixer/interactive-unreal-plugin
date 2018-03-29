@@ -604,6 +604,12 @@ int interactive_run(interactive_session session, unsigned int maxEventsToProcess
 		{
 			std::shared_ptr<rapidjson::Document> method = methods.front();
 			methods.pop();
+
+			if (method->HasMember(RPC_SEQUENCE))
+			{
+				sessionInternal->sequenceId = (*method)[RPC_SEQUENCE].GetInt();
+			}
+
 			RETURN_IF_FAILED(route_method(*sessionInternal, *method));
 			if (sessionInternal->shutdownRequested)
 			{

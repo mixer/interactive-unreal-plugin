@@ -220,7 +220,7 @@ int verify_get_property_args_and_get_control_value(interactive_session session, 
 		*controlValue = rapidjson::Pointer(controlPointer.c_str()).Get(sessionInternal->scenesRoot);
 		if (nullptr == *controlValue)
 		{
-			return MIXER_ERROR_OBJECT_NOT_FOUND;
+			return MIXER_ERROR_PROPERTY_NOT_FOUND;
 		}
 	}
 	catch (std::exception e)
