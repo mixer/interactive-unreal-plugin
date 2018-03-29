@@ -43,7 +43,7 @@ public class MixerInteractivity : ModuleRules
 		{
 			SelectedBackend = Backend.InteractiveCppV1;
 
-			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=1");
+			AddPrivateDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=1");
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
@@ -54,7 +54,7 @@ public class MixerInteractivity : ModuleRules
 		{
 			SelectedBackend = Backend.InteractiveCppV1;
 
-			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
+			AddPrivateDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
 		}
 		else if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
@@ -66,7 +66,7 @@ public class MixerInteractivity : ModuleRules
 		}
 		else
 		{
-			Definitions.Add("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
+			AddPrivateDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
 		}
 
 		if (SelectedBackend == Backend.InteractiveCppV1)
@@ -92,13 +92,22 @@ public class MixerInteractivity : ModuleRules
 			}
 		}
 
-		Definitions.Add(string.Format("MIXER_BACKEND_INTERACTIVE_CPP={0}", SelectedBackend == Backend.InteractiveCppV1 ? 1 : 0));
-		Definitions.Add(string.Format("MIXER_BACKEND_INTERACTIVE_CPP_2={0}", SelectedBackend == Backend.InteractiveCppV2 ? 1 : 0));
-		Definitions.Add(string.Format("MIXER_BACKEND_NULL={0}", SelectedBackend == Backend.Null ? 1 : 0));
-		Definitions.Add(string.Format("MIXER_BACKEND_UE={0}", SelectedBackend == Backend.UE ? 1 : 0));
+		AddPrivateDefinition(string.Format("MIXER_BACKEND_INTERACTIVE_CPP={0}", SelectedBackend == Backend.InteractiveCppV1 ? 1 : 0));
+		AddPrivateDefinition(string.Format("MIXER_BACKEND_INTERACTIVE_CPP_2={0}", SelectedBackend == Backend.InteractiveCppV2 ? 1 : 0));
+		AddPrivateDefinition(string.Format("MIXER_BACKEND_NULL={0}", SelectedBackend == Backend.Null ? 1 : 0));
+		AddPrivateDefinition(string.Format("MIXER_BACKEND_UE={0}", SelectedBackend == Backend.UE ? 1 : 0));
 
 		bEnableExceptions = true;
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		bFasterWithoutUnity = true;
+	}
+
+	void AddPrivateDefinition(string Definition)
+	{
+#if WITH_UE_4_19_OR_LATER
+		PrivateDefinitions.Add(Definition);
+#else
+		Definitions.Add(Definition);
+#endif
 	}
 }

@@ -12,6 +12,7 @@
 #include "OnlineChatMixer.h"
 #include "MixerInteractivityTypes.h"
 #include "Guid.h"
+#include "Resources/Version.h"
 
 class FUniqueNetIdMixer : public FUniqueNetId
 {
@@ -188,6 +189,12 @@ private:
 	FDateTime EndsAt;
 };
 
+#if ENGINE_MINOR_VERSION >=19
+#define CHAT_INTERFACE_4_19 override
+#else
+#define CHAT_INTERFACE_4_19
+#endif
+
 class FOnlineChatMixer : public IOnlineChatMixer, public TSharedFromThis<FOnlineChatMixer>
 {
 public:
@@ -216,6 +223,8 @@ public:
 	virtual TSharedPtr<FChatRoomMember> GetMember(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FUniqueNetId& MemberId) override;
 
 	virtual bool GetLastMessages(const FUniqueNetId& UserId, const FChatRoomId& RoomId, int32 NumMessages, TArray< TSharedRef<FChatMessage> >& OutMessages) override;
+
+	virtual bool IsMessageFromLocalUser(const FUniqueNetId& UserId, const FChatMessage& Message, const bool bIncludeExternalInstances) CHAT_INTERFACE_4_19;
 
 	virtual void DumpChatState() const override {}
 

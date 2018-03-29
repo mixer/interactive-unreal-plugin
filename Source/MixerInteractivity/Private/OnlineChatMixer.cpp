@@ -187,6 +187,11 @@ bool FOnlineChatMixer::GetLastMessages(const FUniqueNetId& UserId, const FChatRo
 	}
 }
 
+bool FOnlineChatMixer::IsMessageFromLocalUser(const FUniqueNetId& UserId, const FChatMessage& Message, const bool bIncludeExternalInstances)
+{
+	return UserId == *Message.GetUserId();
+}
+
 bool FOnlineChatMixer::StartPoll(const FUniqueNetId& UserId, const FChatRoomId& RoomId, const FString& Question, const TArray<FString>& Answers, FTimespan Duration)
 {
 	TSharedPtr<FMixerChatConnection> Connection = FindConnectionForRoomId(RoomId);

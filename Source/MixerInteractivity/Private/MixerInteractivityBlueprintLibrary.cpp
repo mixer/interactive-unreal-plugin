@@ -370,7 +370,11 @@ void UMixerInteractivityBlueprintLibrary::CaptureSparkTransaction(FMixerTransact
 	IMixerInteractivityModule::Get().CaptureSparkTransaction(TransactionId.Id);
 }
 
+#if defined(DEFINE_FUNCTION)
+DEFINE_FUNCTION(UMixerInteractivityBlueprintLibrary::execGetCustomControlProperty_Helper)
+#else
 DECLARE_FUNCTION(UMixerInteractivityBlueprintLibrary::execGetCustomControlProperty_Helper)
+#endif
 {
 	P_GET_PROPERTY(UObjectProperty, WorldContextObject);
 	P_GET_STRUCT(FMixerCustomControlReference, Control);
