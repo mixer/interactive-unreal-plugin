@@ -91,7 +91,7 @@ public class MixerInteractivity : ModuleRules
 
 	void AddPrivateDefinition(string Definition)
 	{
-#if WITH_UE_4_19_OR_LATER
+#if UE_4_19_OR_LATER
 		PrivateDefinitions.Add(Definition);
 #else
 		Definitions.Add(Definition);
