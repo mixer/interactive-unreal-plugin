@@ -22,11 +22,11 @@ void UK2Node_MixerGetCustomControlProperty::AllocateDefaultPins()
 {
 	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 
-	UEdGraphPin* WorldContextPin = CreatePin(EGPD_Input, K2Schema->PC_Object, TEXT(""), UObject::StaticClass(), false, false, TEXT("WorldContextObject"));
+	UEdGraphPin* WorldContextPin = CreatePin(EGPD_Input, K2Schema->PC_Object, UObject::StaticClass(), TEXT("WorldContextObject"));
 	WorldContextPin->bHidden = true;
-	CreatePin(EGPD_Input, K2Schema->PC_Struct, TEXT(""), FMixerCustomControlReference::StaticStruct(), false, false, TEXT("Control"));
-	CreatePin(EGPD_Input, K2Schema->PC_Name, TEXT(""), nullptr, false, false, TEXT("PropertyName"));
-	CreatePin(EGPD_Output, K2Schema->PC_Wildcard, TEXT(""), nullptr, false, false, K2Schema->PN_ReturnValue);
+	CreatePin(EGPD_Input, K2Schema->PC_Struct, FMixerCustomControlReference::StaticStruct(), TEXT("Control"));
+	CreatePin(EGPD_Input, K2Schema->PC_Name, TEXT("PropertyName"));
+	CreatePin(EGPD_Output, K2Schema->PC_Wildcard, K2Schema->PN_ReturnValue);
 
 	Super::AllocateDefaultPins();
 }
@@ -113,7 +113,7 @@ void UK2Node_MixerGetCustomControlProperty::RefreshOutputPinType()
 		else
 		{
 			ResultPin->PinType.PinCategory = K2Schema->PC_String;
-			ResultPin->PinType.PinSubCategory.Empty();
+			ResultPin->PinType.PinSubCategory = decltype(ResultPin->PinType.PinSubCategory)();
 			ResultPin->PinType.PinSubCategoryObject = nullptr;
 		}
 		ResultPin->PinType.bIsReference = false;
@@ -121,7 +121,7 @@ void UK2Node_MixerGetCustomControlProperty::RefreshOutputPinType()
 	else
 	{
 		ResultPin->PinType.PinCategory = K2Schema->PC_Wildcard;
-		ResultPin->PinType.PinSubCategory.Empty();
+		ResultPin->PinType.PinSubCategory = decltype(ResultPin->PinType.PinSubCategory)();
 		ResultPin->PinType.PinSubCategoryObject = nullptr;
 	}
 }
@@ -151,7 +151,7 @@ bool UK2Node_MixerGetCustomControlProperty::IsConnectionDisallowed(const UEdGrap
 		const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 		if (MyPin == FindPinChecked(K2Schema->PN_ReturnValue))
 		{
-			const FString& OtherPinCategory = OtherPin->PinType.PinCategory;
+			const auto& OtherPinCategory = OtherPin->PinType.PinCategory;
 			bDisallowed = OtherPinCategory != K2Schema->PC_Boolean &&
 				OtherPinCategory != K2Schema->PC_Byte &&
 				OtherPinCategory != K2Schema->PC_Float &&
