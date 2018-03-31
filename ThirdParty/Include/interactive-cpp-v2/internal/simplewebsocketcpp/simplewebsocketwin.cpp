@@ -110,7 +110,7 @@ public:
 
 			// Request protocol upgrade from http to websocket. 
 #pragma prefast(suppress:6387, "WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET does not take any arguments.") 
-			bool status = WinHttpSetOption(requestHandle.get(), WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET, nullptr, 0);
+			BOOL status = WinHttpSetOption(requestHandle.get(), WINHTTP_OPTION_UPGRADE_TO_WEB_SOCKET, nullptr, 0);
 			if (!status)
 			{
 				return GetLastError();
