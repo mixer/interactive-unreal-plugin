@@ -43,7 +43,7 @@ public class MixerInteractivity : ModuleRules
 		{
 			SelectedBackend = Backend.InteractiveCppV1;
 
-			AddPrivateDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=1");
+			AddPublicDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=1");
 			PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
@@ -54,11 +54,11 @@ public class MixerInteractivity : ModuleRules
 		{
 			SelectedBackend = Backend.InteractiveCppV1;
 
-			AddPrivateDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
+			AddPublicDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
 		}
 		else
 		{
-			AddPrivateDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
+			AddPublicDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
 		}
 
 		if (SelectedBackend == Backend.InteractiveCppV1)
@@ -93,6 +93,15 @@ public class MixerInteractivity : ModuleRules
 	{
 #if UE_4_19_OR_LATER
 		PrivateDefinitions.Add(Definition);
+#else
+		Definitions.Add(Definition);
+#endif
+	}
+
+	void AddPublicDefinition(string Definition)
+	{
+#if UE_4_19_OR_LATER
+		PublicDefinitions.Add(Definition);
 #else
 		Definitions.Add(Definition);
 #endif
