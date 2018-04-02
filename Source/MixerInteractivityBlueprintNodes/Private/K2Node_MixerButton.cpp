@@ -172,15 +172,15 @@ void UK2Node_MixerButton::AllocateDefaultPins()
 {
 	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 
-	CreatePin(EGPD_Output, K2Schema->PC_Exec, TEXT("Pressed"));
-	CreatePin(EGPD_Output, K2Schema->PC_Exec, TEXT("Released"));
-	CreatePin(EGPD_Output, K2Schema->PC_Struct, FMixerButtonReference::StaticStruct(), TEXT("Button"));
-	CreatePin(EGPD_Output, K2Schema->PC_Int, TEXT("ParticipantId"));
+	CreatePin(EGPD_Output, K2Schema->PC_Exec, FString(), nullptr, TEXT("Pressed"));
+	CreatePin(EGPD_Output, K2Schema->PC_Exec, FString(), nullptr, TEXT("Released"));
+	CreatePin(EGPD_Output, K2Schema->PC_Struct, FString(), FMixerButtonReference::StaticStruct(), TEXT("Button"));
+	CreatePin(EGPD_Output, K2Schema->PC_Int, FString(), nullptr, TEXT("ParticipantId"));
 
 	// Advanced pins
-	UEdGraphPin* AdvancedPin = CreatePin(EGPD_Output, K2Schema->PC_Struct, FMixerTransactionId::StaticStruct(), TEXT("TransactionId"));
+	UEdGraphPin* AdvancedPin = CreatePin(EGPD_Output, K2Schema->PC_Struct, FString(), FMixerTransactionId::StaticStruct(), TEXT("TransactionId"));
 	AdvancedPin->bAdvancedView = 1;
-	AdvancedPin = CreatePin(EGPD_Output, K2Schema->PC_Int, TEXT("SparkCost"));
+	AdvancedPin = CreatePin(EGPD_Output, K2Schema->PC_Int, FString(), nullptr, TEXT("SparkCost"));
 	AdvancedPin->bAdvancedView = 1;
 
 	Super::AllocateDefaultPins();
