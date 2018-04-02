@@ -60,7 +60,7 @@ public class MixerInteractivity : ModuleRules
 		{
 			SelectedBackend = Backend.InteractiveCppV1;
 
-			AddPrivateDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
+			AddPublicDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
 
 			PrivateDependencyModuleNames.Add("OnlineSubsystemUtils");
 		}
