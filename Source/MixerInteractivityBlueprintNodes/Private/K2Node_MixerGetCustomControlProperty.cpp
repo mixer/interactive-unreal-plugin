@@ -14,19 +14,26 @@
 #include "KismetCompiler.h"
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "K2Node_CallFunction.h"
+#include "Resources/Version.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
 
 void UK2Node_MixerGetCustomControlProperty::AllocateDefaultPins()
 {
+#if ENGINE_MINOR_VERSION >= 19
+	typedef FName FPinSubCategoryParamType;
+#else
+	typedef FString FPinSubCategoryParamType;
+#endif
+
 	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 
-	UEdGraphPin* WorldContextPin = CreatePin(EGPD_Input, K2Schema->PC_Object, FString(), UObject::StaticClass(), TEXT("WorldContextObject"));
+	UEdGraphPin* WorldContextPin = CreatePin(EGPD_Input, K2Schema->PC_Object, FPinSubCategoryParamType(), UObject::StaticClass(), TEXT("WorldContextObject"));
 	WorldContextPin->bHidden = true;
-	CreatePin(EGPD_Input, K2Schema->PC_Struct, FString(), FMixerCustomControlReference::StaticStruct(), TEXT("Control"));
-	CreatePin(EGPD_Input, K2Schema->PC_Name, FString(), nullptr, TEXT("PropertyName"));
-	CreatePin(EGPD_Output, K2Schema->PC_Wildcard, FString(), nullptr, K2Schema->PN_ReturnValue);
+	CreatePin(EGPD_Input, K2Schema->PC_Struct, FPinSubCategoryParamType(), FMixerCustomControlReference::StaticStruct(), TEXT("Control"));
+	CreatePin(EGPD_Input, K2Schema->PC_Name, FPinSubCategoryParamType(), nullptr, TEXT("PropertyName"));
+	CreatePin(EGPD_Output, K2Schema->PC_Wildcard, FPinSubCategoryParamType(), nullptr, K2Schema->PN_ReturnValue);
 
 	Super::AllocateDefaultPins();
 }

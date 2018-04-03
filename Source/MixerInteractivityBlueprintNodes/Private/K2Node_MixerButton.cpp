@@ -22,6 +22,7 @@
 #include "MixerInteractivityJsonTypes.h"
 #include "K2Node_MixerButtonEvent.h"
 #include "MixerInteractivityBlueprintLibrary.h"
+#include "Resources/Version.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 
@@ -170,17 +171,23 @@ FBlueprintNodeSignature UK2Node_MixerButton::GetSignature() const
 
 void UK2Node_MixerButton::AllocateDefaultPins()
 {
+#if ENGINE_MINOR_VERSION >= 19
+	typedef FName FPinSubCategoryParamType;
+#else
+	typedef FString FPinSubCategoryParamType;
+#endif
+
 	const UEdGraphSchema_K2* K2Schema = GetDefault<UEdGraphSchema_K2>();
 
-	CreatePin(EGPD_Output, K2Schema->PC_Exec, FString(), nullptr, TEXT("Pressed"));
-	CreatePin(EGPD_Output, K2Schema->PC_Exec, FString(), nullptr, TEXT("Released"));
-	CreatePin(EGPD_Output, K2Schema->PC_Struct, FString(), FMixerButtonReference::StaticStruct(), TEXT("Button"));
-	CreatePin(EGPD_Output, K2Schema->PC_Int, FString(), nullptr, TEXT("ParticipantId"));
+	CreatePin(EGPD_Output, K2Schema->PC_Exec, FPinSubCategoryParamType(), nullptr, TEXT("Pressed"));
+	CreatePin(EGPD_Output, K2Schema->PC_Exec, FPinSubCategoryParamType(), nullptr, TEXT("Released"));
+	CreatePin(EGPD_Output, K2Schema->PC_Struct, FPinSubCategoryParamType(), FMixerButtonReference::StaticStruct(), TEXT("Button"));
+	CreatePin(EGPD_Output, K2Schema->PC_Int, FPinSubCategoryParamType(), nullptr, TEXT("ParticipantId"));
 
 	// Advanced pins
-	UEdGraphPin* AdvancedPin = CreatePin(EGPD_Output, K2Schema->PC_Struct, FString(), FMixerTransactionId::StaticStruct(), TEXT("TransactionId"));
+	UEdGraphPin* AdvancedPin = CreatePin(EGPD_Output, K2Schema->PC_Struct, FPinSubCategoryParamType(), FMixerTransactionId::StaticStruct(), TEXT("TransactionId"));
 	AdvancedPin->bAdvancedView = 1;
-	AdvancedPin = CreatePin(EGPD_Output, K2Schema->PC_Int, FString(), nullptr, TEXT("SparkCost"));
+	AdvancedPin = CreatePin(EGPD_Output, K2Schema->PC_Int, FPinSubCategoryParamType(), nullptr, TEXT("SparkCost"));
 	AdvancedPin->bAdvancedView = 1;
 
 	Super::AllocateDefaultPins();
