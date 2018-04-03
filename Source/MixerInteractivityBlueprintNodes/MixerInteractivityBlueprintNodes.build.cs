@@ -23,6 +23,8 @@ public class MixerInteractivityBlueprintNodes : ModuleRules
 				"KismetCompiler",
 			});
 
+		PrivateIncludePathModuleNames.Add("Launch");
+
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	}
 }
