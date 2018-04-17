@@ -5,7 +5,7 @@
 #elif _WIN32
 #include "win_http_client.h"
 #endif
-namespace mixer
+namespace mixer_internal
 {
 std::unique_ptr<http_client>
 http_factory::make_http_client()

@@ -1,8 +1,9 @@
 #include "interactive_session.h"
 #include "common.h"
 
-namespace mixer
+namespace mixer_internal
 {
+
 int cache_scenes(interactive_session_internal& session)
 {
 	DEBUG_INFO("Caching scenes.");
@@ -11,44 +12,39 @@ int cache_scenes(interactive_session_internal& session)
 	std::shared_ptr<rapidjson::Document> reply;
 	RETURN_IF_FAILED(receive_reply(session, id, reply));
 
-	try
+	// Get the scenes array from the result and set up pointers to scenes and controls.
+	std::unique_lock<std::shared_mutex> l(session.scenesMutex);
+	session.controls.clear();
+	session.scenes.clear();
+	session.scenesRoot.RemoveAllMembers();
+
+	// Copy just the scenes array portion of the reply into the cached scenes root.
+	rapidjson::Value scenesArray(rapidjson::kArrayType);
+	rapidjson::Value replyScenesArray = (*reply)[RPC_RESULT][RPC_PARAM_SCENES].GetArray();
+	scenesArray.CopyFrom(replyScenesArray, session.scenesRoot.GetAllocator());
+	session.scenesRoot.AddMember(RPC_PARAM_SCENES, scenesArray, session.scenesRoot.GetAllocator());
+
+	// Iterate through each scene and set up a pointer to each control.
+	int sceneIndex = 0;
+	for (auto& scene : session.scenesRoot[RPC_PARAM_SCENES].GetArray())
 	{
-		// Get the scenes array from the result and set up pointers to scenes and controls.
-		std::unique_lock<std::shared_mutex> l(session.scenesMutex);
-		session.controls.clear();
-		session.scenes.clear();
-		session.scenesRoot.RemoveAllMembers();
-
-		// Copy just the scenes array portion of the reply into the cached scenes root.
-		rapidjson::Value scenesArray(rapidjson::kArrayType);
-		rapidjson::Value replyScenesArray = (*reply)[RPC_RESULT][RPC_PARAM_SCENES].GetArray();
-		scenesArray.CopyFrom(replyScenesArray, session.scenesRoot.GetAllocator());
-		session.scenesRoot.AddMember(RPC_PARAM_SCENES, scenesArray, session.scenesRoot.GetAllocator());
-
-		// Iterate through each scene and set up a pointer to each control.
-		int sceneIndex = 0;
-		for (auto& scene : session.scenesRoot[RPC_PARAM_SCENES].GetArray())
+		std::string scenePointer = "/" + std::string(RPC_PARAM_SCENES) + "/" + std::to_string(sceneIndex++);
+		auto controlsArray = scene.FindMember(RPC_PARAM_CONTROLS);
+		if (controlsArray != scene.MemberEnd() && controlsArray->value.IsArray())
 		{
-			std::string scenePointer = "/" + std::string(RPC_PARAM_SCENES) + "/" + std::to_string(sceneIndex++);
-			auto controlsArray = scene.FindMember(RPC_PARAM_CONTROLS);
-			if (controlsArray != scene.MemberEnd() && controlsArray->value.IsArray())
+			int controlIndex = 0;
+			for (auto& control : controlsArray->value.GetArray())
 			{
-				int controlIndex = 0;
-				for (auto& control : controlsArray->value.GetArray())
-				{
-					session.controls.emplace(control[RPC_CONTROL_ID].GetString(), scenePointer + "/" + std::string(RPC_PARAM_CONTROLS) + "/" + std::to_string(controlIndex++));
-				}
+				session.controls.emplace(control[RPC_CONTROL_ID].GetString(), scenePointer + "/" + std::string(RPC_PARAM_CONTROLS) + "/" + std::to_string(controlIndex++));
 			}
-
-			session.scenes.emplace(scene[RPC_SCENE_ID].GetString(), scenePointer);
 		}
-	}
-	catch (std::exception e)
-	{
-		return MIXER_ERROR_JSON_PARSE;
+
+		session.scenes.emplace(scene[RPC_SCENE_ID].GetString(), scenePointer);
 	}
 
 	return MIXER_OK;
+}
+
 }
 
 int interactive_get_scenes(interactive_session session, on_scene_enumerate onScene)
@@ -143,5 +139,4 @@ int interactive_scene_get_controls(interactive_session session, const char* scen
 	}
 
 	return MIXER_OK;
-}
 }

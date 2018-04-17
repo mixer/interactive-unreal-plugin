@@ -1,7 +1,7 @@
 #pragma once
 #include "interactivity.h"
 #include "http_client.h"
-#include "simplewebsocketcpp\simplewebsocket.h"
+#include "websocket.h"
 #include "rapidjson\document.h"
 #include "rapidjson\pointer.h"
 
@@ -11,36 +11,48 @@
 #include <thread>
 #include <mutex>
 #include <shared_mutex>
+#include <atomic>
 
-namespace mixer
+namespace mixer_internal
 {
 
 struct interactive_session_internal;
 
+typedef std::pair<unsigned int, std::string> protocol_error;
 typedef std::map<std::string, std::string> scenes_by_id;
 typedef std::map<std::string, std::string> scenes_by_group;
 typedef std::map<std::string, std::string> controls_by_id;
 typedef std::map<std::string, std::shared_ptr<rapidjson::Document>> participants_by_id;
 typedef std::function<int(interactive_session_internal&, rapidjson::Document&)> method_handler;
 typedef std::map<std::string, method_handler> method_handlers_by_method;
+typedef std::function<int(unsigned int statusCode, const std::string& body)> http_response_handler;
+
+struct http_request_data
+{
+	uint32_t packetId;
+	std::string uri;
+	std::string verb;
+	std::map<std::string, std::string> headers;
+	std::string body;
+};
 
 struct interactive_session_internal
 {
-	interactive_session_internal(bool manualStart);
+	interactive_session_internal();
 
 	// Configuration
-	bool manualStart;
+	bool isReady;
 
 	// State
+	std::string authorization;
+	std::string versionId;
+	std::string shareCode;
 	interactive_state state;
 	bool shutdownRequested;
 	void* callerContext;
-	uint32_t packetId;
+	std::atomic<uint32_t> packetId;
 	int sequenceId;
 	long long serverTimeOffsetMs;
-
-	// Http
-	std::unique_ptr<http_client> http;
 
 	// Cached data
 	std::shared_mutex scenesMutex;
@@ -58,24 +70,41 @@ struct interactive_session_internal
 	on_error onError;
 	on_state_changed onStateChanged;
 	on_participants_changed onParticipantsChanged;
+	on_transaction_complete onTransactionComplete;
 	on_unhandled_method onUnhandledMethod;
+
+	// Transactions that have been completed.
+	std::map<std::string, protocol_error> completedTransactions;
+
+	// Http
+	std::unique_ptr<http_client> http;
 
 	// Websocket
 	std::unique_ptr<websocket> ws;
-	std::thread wsThread;
+	std::mutex sendMutex;
 
-	// Methods from websocket.
+	// Outgoing data
+	std::thread outgoingThread;
+	std::mutex outgoingMutex;
+	std::condition_variable outgoingCV;
+	std::queue<std::shared_ptr<rapidjson::Document>> outgoingMethods;
+	std::queue<http_request_data> outgoingRequests;
+	std::mutex httpResponsesMutex;
+	std::map<unsigned int, http_response_handler> httpResponseHandlers;
+	std::map<unsigned int, http_response> httpResponsesById;
+
+	// Incoming data
+	std::thread incomingThread;
 	std::mutex methodsMutex;
-	std::queue<std::shared_ptr<rapidjson::Document>> methods;
-	
-	// Replies from websocket.
+	std::queue<std::shared_ptr<rapidjson::Document>> incomingMethods;
 	std::mutex repliesMutex;
 	std::condition_variable repliesCV;
 	std::map<unsigned int, std::shared_ptr<rapidjson::Document>> replies;
+	std::map<unsigned int, method_handler> replyHandlersById;
 
-	// Errors from websocket
+	// Network errors
 	std::mutex errorsMutex;
-    std::queue<std::pair<unsigned short, std::string>> errors;
+	std::queue<protocol_error> errors;
 
 	// Websocket handlers
 	std::mutex wsOpenMutex;
@@ -85,22 +114,28 @@ struct interactive_session_internal
 	void handle_ws_message(const websocket& socket, const std::string& message);
 	void handle_ws_error(const websocket& socket, unsigned short code, const std::string& message);
 	void handle_ws_close(const websocket& socket, unsigned short code, const std::string& message);
-	void run_ws();
+	void run_incoming_thread();
+	void run_outgoing_thread();
 
 	// Method handlers
 	method_handlers_by_method methodHandlers;
 };
 
-
 typedef std::function<void(rapidjson::Document::AllocatorType& allocator, rapidjson::Value& value)> on_get_params;
 
 // Common helper functions
 int send_method(interactive_session_internal& session, const std::string& method, on_get_params getParams, bool discard, unsigned int* id);
+int queue_method(interactive_session_internal& session, const std::string& method, on_get_params getParams, method_handler onReply);
 int receive_reply(interactive_session_internal& session, unsigned int id, std::shared_ptr<rapidjson::Document>& replyPtr, unsigned int timeoutMs = 5000);
 
 int cache_groups(interactive_session_internal& session);
 int cache_scenes(interactive_session_internal& session);
 void parse_participant(rapidjson::Value& participantJson, interactive_participant& participant);
+
+// Common reply handler that checks a reply for errors and calls the session's error handler if it exists.
+int check_reply_errors(interactive_session_internal& session, rapidjson::Document& reply);
+
+}
 
 // Interactive RPC protocol strings.
 #define RPC_ETAG                       "etag"
@@ -129,6 +164,9 @@ void parse_participant(rapidjson::Value& participantJson, interactive_participan
 #define RPC_METHOD_GET_TIME            "getTime"
 #define RPC_TIME                       "time"
 #define RPC_PARAM_IS_READY             "isReady"
+#define RPC_METHOD_SET_THROTTLE		   "setBandwidthThrottle"
+#define RPC_PARAM_CAPACITY			   "capacity"
+#define RPC_PARAM_DRAIN_RATE		   "drainRate"
 #define RPC_METHOD_GIVE_INPUT          "giveInput"
 
 #define RPC_GET_PARTICIPANTS           "getAllParticipants"
@@ -213,5 +251,3 @@ void parse_participant(rapidjson::Value& participantJson, interactive_participan
 #define RPC_PART_CONNECTED             "connectedAt"
 #define RPC_GROUP_ID                   "groupID"
 #define RPC_GROUP_DEFAULT              "default"
-
-}

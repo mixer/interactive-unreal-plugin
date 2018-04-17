@@ -1,9 +1,13 @@
 #include "common.h"
+#include "json.h"
+#include "debugging.h"
 
 #include "rapidjson\stringbuffer.h"
 #include "rapidjson\writer.h"
 
-namespace mixer
+#include <codecvt>
+
+namespace mixer_internal
 {
 
 // String conversion functions
@@ -19,25 +23,14 @@ std::string wstring_to_utf8(const std::wstring& wstr)
 	return conv.to_bytes(wstr);
 }
 
+// JSON
+
 std::string jsonStringify(rapidjson::Value& value)
 {
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
 	value.Accept(writer);
 	return std::string(buffer.GetString(), buffer.GetSize());
-}
-
-// Debugging
-
-void interactive_config_debug_level(const interactive_debug_level dbgLevel)
-{
-	g_dbgLevel = dbgLevel;
-}
-
-void interactive_config_debug(const interactive_debug_level dbgLevel, const on_debug_msg dbgCallback)
-{
-	g_dbgLevel = dbgLevel;
-	g_dbgCallback = dbgCallback;
 }
 
 }
