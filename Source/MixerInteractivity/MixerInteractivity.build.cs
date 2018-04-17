@@ -41,7 +41,7 @@ public class MixerInteractivity : ModuleRules
 
 		if (Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Win32)
 		{
-			SelectedBackend = Backend.InteractiveCppV1;
+			SelectedBackend = Backend.InteractiveCppV2;
 
 			AddPublicDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=1");
 			PrivateDependencyModuleNames.AddRange(
@@ -52,7 +52,7 @@ public class MixerInteractivity : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.XboxOne)
 		{
-			SelectedBackend = Backend.InteractiveCppV1;
+			SelectedBackend = Backend.InteractiveCppV2;
 
 			AddPublicDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
 		}

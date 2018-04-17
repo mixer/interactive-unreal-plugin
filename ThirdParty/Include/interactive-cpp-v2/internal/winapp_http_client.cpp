@@ -18,7 +18,7 @@
 
 #define RETURN_HR_IF_FAILED(x) hr = x; if(0 != hr) { return hr; }
 
-namespace mixer
+namespace mixer_internal
 {
 
 using namespace Platform;

@@ -1,11 +1,11 @@
 #include "interactive_session.h"
 #include "common.h"
 
-namespace mixer
+namespace mixer_internal
 {
 
-interactive_session_internal::interactive_session_internal(bool manualStart)
-	: callerContext(nullptr), manualStart(manualStart), state(interactive_state::disconnected), shutdownRequested(false), packetId(0), sequenceId(0), wsOpen(false),
+interactive_session_internal::interactive_session_internal()
+	: callerContext(nullptr), isReady(false), state(interactive_state::disconnected), shutdownRequested(false), packetId(0), sequenceId(0), wsOpen(false),
 	onInput(nullptr), onError(nullptr), onStateChanged(nullptr), onParticipantsChanged(nullptr), onUnhandledMethod(nullptr)
 {
 	scenesRoot.SetObject();
@@ -22,8 +22,6 @@ void interactive_session_internal::handle_ws_open(const websocket& socket, const
 		this->wsOpen = true;
 		this->wsOpenCV.notify_one();
 	}
-
-	
 }
 
 void interactive_session_internal::handle_ws_message(const websocket& socket, const std::string& message)
@@ -36,13 +34,13 @@ void interactive_session_internal::handle_ws_message(const websocket& socket, co
 	}
 
 	// Parse the message to determine packet type.
-	try
+	std::shared_ptr<rapidjson::Document> doc = std::make_shared<rapidjson::Document>();
+	if (!doc->Parse(message.c_str(), message.length()).HasParseError())
 	{
-		std::shared_ptr<rapidjson::Document> doc = std::make_shared<rapidjson::Document>();
-		doc->Parse(message.c_str(), message.length());
 		if (!doc->HasMember(RPC_TYPE))
 		{
 			// Message does not conform to protocol, ignore it.
+			DEBUG_WARNING("Incoming RPC packet missing type parameter.");
 			return;
 		}
 
@@ -50,7 +48,7 @@ void interactive_session_internal::handle_ws_message(const websocket& socket, co
 		if (0 == type.compare(RPC_METHOD))
 		{
 			std::lock_guard<std::mutex> l(this->methodsMutex);
-			this->methods.emplace(doc);
+			this->incomingMethods.emplace(doc);
 		}
 		else if (0 == type.compare(RPC_REPLY))
 		{
@@ -60,9 +58,9 @@ void interactive_session_internal::handle_ws_message(const websocket& socket, co
 			this->repliesCV.notify_all();
 		}
 	}
-	catch (...)
+	else
 	{
-		// Assume any failed parsed messages do not conform to protocol.
+		DEBUG_ERROR("Failed to parse websocket message: " + message);
 	}
 }
 
@@ -73,6 +71,11 @@ void interactive_session_internal::handle_ws_error(const websocket& socket, cons
 	if (this->shutdownRequested)
 	{
 		return;
+	}
+
+	if (this->onError)
+	{
+		this->onError(this->callerContext, this, code, message.c_str(), message.length());
 	}
 
 	std::lock_guard<std::mutex> l(this->errorsMutex);
@@ -92,7 +95,7 @@ void interactive_session_internal::handle_ws_close(const websocket& socket, cons
 	this->errors.emplace(std::pair<unsigned short, std::string>(code, message));
 }
 
-void interactive_session_internal::run_ws()
+void interactive_session_internal::run_incoming_thread()
 {
 	// Attempt to connect to all hosts in the order they were returned by the service.
 	for (auto hostItr = this->hosts.begin(); hostItr < this->hosts.end(); ++hostItr)
@@ -126,6 +129,72 @@ void interactive_session_internal::run_ws()
 	{
 		// No connections were made, unblock the connect thread.
 		this->wsOpenCV.notify_one();
+	}
+}
+
+void interactive_session_internal::run_outgoing_thread()
+{
+	std::queue<std::shared_ptr<rapidjson::Document>> methodsToProcess;
+	std::queue<http_request_data> requestsToProcess;
+	while (!shutdownRequested)
+	{	
+		{
+			// Critical section: Check if there are any queued methods that need to be sent.
+			std::unique_lock<std::mutex> lock(outgoingMutex);
+			if (outgoingMethods.empty())
+			{
+				outgoingCV.wait(lock);
+			}
+
+			if (shutdownRequested)
+			{
+				break;
+			}
+			
+			if (!outgoingRequests.empty())
+			{
+				requestsToProcess.swap(outgoingRequests);
+			}
+			if (!outgoingMethods.empty())
+			{
+				methodsToProcess.swap(outgoingMethods);
+			}
+		}
+
+		while (!requestsToProcess.empty() && !shutdownRequested)
+		{
+			http_request_data request = requestsToProcess.front();
+			requestsToProcess.pop();
+			http_response response;
+			DEBUG_TRACE(request.verb + " to " + request.uri + ". Body: " + request.body);
+			int err = http->make_request(request.uri, request.verb, request.headers.empty() ? nullptr : &request.headers, request.body, response);
+			if (err)
+			{
+				std::string errorMessage = "Failed to '" + request.verb + "' to " + request.uri;
+				DEBUG_ERROR(errorMessage);
+				// Synchronize access to errors.
+				std::unique_lock<std::mutex> errorsLock(errorsMutex);
+				errors.emplace(err, errorMessage);
+				continue;
+			}
+
+			DEBUG_TRACE("HTTP response received: (" + std::to_string(response.statusCode) + ") " + response.body);
+			{
+				// Synchronize access to responses.
+				std::unique_lock<std::mutex> httpResponsesLock(httpResponsesMutex);
+				httpResponsesById[request.packetId] = response;
+			}
+		}
+
+		while (!methodsToProcess.empty() && !shutdownRequested)
+		{
+			std::shared_ptr<rapidjson::Document> method = methodsToProcess.front();
+			methodsToProcess.pop();
+			std::string packet = jsonStringify(*method);
+			std::unique_lock<std::mutex> sendLock(sendMutex);
+			DEBUG_TRACE("Sending websocket message: " + packet);
+			ws->send(packet);
+		}
 	}
 }
 

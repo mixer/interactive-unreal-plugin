@@ -4,15 +4,8 @@
 #include <map>
 #include <string>
 
-namespace mixer
+namespace mixer_internal
 {
-
-struct hinternet_deleter
-{
-	void operator()(void* internet);
-};
-
-typedef std::unique_ptr<void, hinternet_deleter> hinternet_ptr;
 
 class win_http_client : public http_client
 {
