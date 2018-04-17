@@ -58,7 +58,7 @@ public class MixerInteractivity : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
 		{
-			SelectedBackend = Backend.InteractiveCppV1;
+			SelectedBackend = Backend.InteractiveCppV2;
 
 			AddPublicDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
 
