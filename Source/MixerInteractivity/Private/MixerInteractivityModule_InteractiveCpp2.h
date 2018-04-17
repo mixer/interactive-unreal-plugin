@@ -39,15 +39,15 @@ protected:
 
 private:
 
-	static void OnSessionStateChanged(void* Context, mixer::interactive_session Session, mixer::interactive_state PreviousState, mixer::interactive_state NewState);
-	static void OnSessionError(void* Context, mixer::interactive_session Session, int ErrorCode, const char* ErrorMessage, size_t ErrorMessageLength);
-	static void OnSessionInput(void* Context, mixer::interactive_session Session, const mixer::interactive_input* Input);
-	static void OnSessionParticipantsChanged(void* Context, mixer::interactive_session Session, mixer::participant_action Action, const mixer::interactive_participant* Participant);
-	static void OnUnhandledMethod(void* Context, mixer::interactive_session Session, const char* MethodJson, size_t MethodJsonLength);
+	static void OnSessionStateChanged(void* Context, interactive_session Session, interactive_state PreviousState, interactive_state NewState);
+	static void OnSessionError(void* Context, interactive_session Session, int ErrorCode, const char* ErrorMessage, size_t ErrorMessageLength);
+	static void OnSessionInput(void* Context, interactive_session Session, const interactive_input* Input);
+	static void OnSessionParticipantsChanged(void* Context, interactive_session Session, interactive_participant_action Action, const interactive_participant* Participant);
+	static void OnUnhandledMethod(void* Context, interactive_session Session, const char* MethodJson, size_t MethodJsonLength);
 
-	void OnSessionButtonInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input);
-	void OnSessionCoordinateInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input);
-	bool OnSessionCustomInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input);
+	void OnSessionButtonInput(TSharedPtr<const FMixerRemoteUser> User, const interactive_input* Input);
+	void OnSessionCoordinateInput(TSharedPtr<const FMixerRemoteUser> User, const interactive_input* Input);
+	bool OnSessionCustomInput(TSharedPtr<const FMixerRemoteUser> User, const interactive_input* Input);
 
 	struct FGetCurrentSceneEnumContext
 	{
@@ -55,13 +55,13 @@ private:
 		FName OutSceneName;
 	};
 
-	static void OnEnumerateForGetCurrentScene(void* Context, mixer::interactive_session Session, mixer::interactive_group* Group);
+	static void OnEnumerateForGetCurrentScene(void* Context, interactive_session Session, interactive_group* Group);
 
-	static void OnEnumerateScenesForInit(void* Context, mixer::interactive_session Session, mixer::interactive_scene* Scene);
-	static void OnEnumerateControlsForInit(void* Context, mixer::interactive_session Session, mixer::interactive_control* Control);
+	static void OnEnumerateScenesForInit(void* Context, interactive_session Session, interactive_scene* Scene);
+	static void OnEnumerateControlsForInit(void* Context, interactive_session Session, interactive_control* Control);
 
-	mixer::interactive_session InteractiveSession;
-	TFuture<mixer::interactive_session> ConnectOperation;
+	interactive_session InteractiveSession;
+	TFuture<interactive_session> ConnectOperation;
 };
 
 #endif
