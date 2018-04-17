@@ -2,7 +2,7 @@
 
 #include "http_client.h"
 
-namespace mixer
+namespace mixer_internal
 {
 
 class winapp_http_client : public http_client

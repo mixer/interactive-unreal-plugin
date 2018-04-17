@@ -3,10 +3,8 @@
 #include <windows.h>
 #include <winhttp.h>
 #include <urlmon.h>
-#include <locale>
 #include <string>
 #include <memory>
-#include <iostream>
 #include <sstream>
 #include <regex>
 
@@ -15,8 +13,14 @@
 #define HTTP_VER L"HTTP/1.1"
 #define ACCEPT_TYPES L"*/*"
 
-namespace mixer
+namespace mixer_internal
 {
+
+void
+hinternet_deleter::operator()(void* internet)
+{
+	WinHttpCloseHandle(internet);
+}
 
 std::string GetDebugError(DWORD errorCode)
 {
@@ -38,12 +42,6 @@ std::string GetDebugError(DWORD errorCode)
 	std::string error(errorText);
 	LocalFree(errorText);
 	return error;
-}
-
-void
-hinternet_deleter::operator()(void* internet)
-{
-	WinHttpCloseHandle(internet);
 }
 
 win_http_client::win_http_client()

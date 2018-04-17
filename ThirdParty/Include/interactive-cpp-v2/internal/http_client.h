@@ -4,7 +4,7 @@
 #include <memory>
 #include <map>
 
-namespace mixer
+namespace mixer_internal
 {
 
 struct http_response
@@ -17,7 +17,7 @@ class http_client
 {
 public:
 	virtual ~http_client() = 0 {};
-	
+
 	virtual int make_request(const std::string& uri, const std::string& requestType, const std::map<std::string, std::string>* headers, const std::string& body, _Out_ http_response& response, unsigned long timeoutMs = 5000) const = 0;
 };
 
