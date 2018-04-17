@@ -22,17 +22,17 @@ IMPLEMENT_MODULE(FMixerInteractivityModule_InteractiveCpp2, MixerInteractivity);
 
 namespace
 {
-	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, FString& Result)
+	bool GetControlPropertyHelper(interactive_session Session, const char* ControlName, const char *PropertyName, FString& Result)
 	{
 		size_t RequiredSize = 0;
 		TArray<char> Utf8String;
-		if (mixer::interactive_control_get_property_string(Session, ControlName, PropertyName, nullptr, &RequiredSize) != mixer::MIXER_ERROR_BUFFER_SIZE)
+		if (interactive_control_get_property_string(Session, ControlName, PropertyName, nullptr, &RequiredSize) != MIXER_ERROR_BUFFER_SIZE)
 		{
 			return false;
 		}
 
 		Utf8String.AddUninitialized(RequiredSize);
-		if (mixer::interactive_control_get_property_string(Session, ControlName, PropertyName, Utf8String.GetData(), &RequiredSize) != mixer::MIXER_OK)
+		if (interactive_control_get_property_string(Session, ControlName, PropertyName, Utf8String.GetData(), &RequiredSize) != MIXER_OK)
 		{
 			return false;
 		}
@@ -41,7 +41,7 @@ namespace
 		return true;
 	}
 
-	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, FText& Result)
+	bool GetControlPropertyHelper(interactive_session Session, const char* ControlName, const char *PropertyName, FText& Result)
 	{
 		FString IntermediateResult;
 		if (GetControlPropertyHelper(Session, ControlName, PropertyName, IntermediateResult))
@@ -55,25 +55,25 @@ namespace
 		}
 	}
 
-	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, float& Result)
+	bool GetControlPropertyHelper(interactive_session Session, const char* ControlName, const char *PropertyName, float& Result)
 	{
-		return mixer::interactive_control_get_property_float(Session, ControlName, PropertyName, &Result) == mixer::MIXER_OK;
+		return interactive_control_get_property_float(Session, ControlName, PropertyName, &Result) == MIXER_OK;
 	}
 
-	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, bool& Result)
+	bool GetControlPropertyHelper(interactive_session Session, const char* ControlName, const char *PropertyName, bool& Result)
 	{
-		return mixer::interactive_control_get_property_bool(Session, ControlName, PropertyName, &Result) == mixer::MIXER_OK;
+		return interactive_control_get_property_bool(Session, ControlName, PropertyName, &Result) == MIXER_OK;
 	}
 
-	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, int64& Result)
+	bool GetControlPropertyHelper(interactive_session Session, const char* ControlName, const char *PropertyName, int64& Result)
 	{
-		return mixer::interactive_control_get_property_int64(Session, ControlName, PropertyName, &Result) == mixer::MIXER_OK;
+		return interactive_control_get_property_int64(Session, ControlName, PropertyName, &Result) == MIXER_OK;
 	}
 
-	bool GetControlPropertyHelper(mixer::interactive_session Session, const char* ControlName, const char *PropertyName, uint32& Result)
+	bool GetControlPropertyHelper(interactive_session Session, const char* ControlName, const char *PropertyName, uint32& Result)
 	{
 		int SignedResult;
-		if (mixer::interactive_control_get_property_int(Session, ControlName, PropertyName, &SignedResult) != mixer::MIXER_OK)
+		if (interactive_control_get_property_int(Session, ControlName, PropertyName, &SignedResult) != MIXER_OK)
 		{
 			return false;
 		}
@@ -87,7 +87,7 @@ void FMixerInteractivityModule_InteractiveCpp2::StartInteractivity()
 {
 	if (InteractiveSession != nullptr)
 	{
-		if (mixer::interactive_set_ready(InteractiveSession, true) == mixer::MIXER_OK)
+		if (interactive_set_ready(InteractiveSession, true) == MIXER_OK)
 		{
 			SetInteractivityState(EMixerInteractivityState::Interactivity_Starting);
 		}
@@ -98,7 +98,7 @@ void FMixerInteractivityModule_InteractiveCpp2::StopInteractivity()
 {
 	if (InteractiveSession != nullptr)
 	{
-		if (mixer::interactive_set_ready(InteractiveSession, false) == mixer::MIXER_OK)
+		if (interactive_set_ready(InteractiveSession, false) == MIXER_OK)
 		{
 			SetInteractivityState(EMixerInteractivityState::Interactivity_Stopping);
 		}
@@ -112,7 +112,7 @@ void FMixerInteractivityModule_InteractiveCpp2::SetCurrentScene(FName Scene, FNa
 		// Special case - 'default' is used all over the place as a name, but with 'D'
 		const ANSICHAR* ActualGroupName = GroupName != NAME_None && GroupName != NAME_DefaultMixerParticipantGroup ? GroupName.GetPlainANSIString() : "default";
 		const ANSICHAR* ActualSceneName = Scene != NAME_None && Scene != NAME_DefaultMixerParticipantGroup ? Scene.GetPlainANSIString() : "default";
-		mixer::interactive_group_set_scene(InteractiveSession, ActualGroupName, ActualSceneName);
+		interactive_group_set_scene(InteractiveSession, ActualGroupName, ActualSceneName);
 	}
 }
 
@@ -123,9 +123,9 @@ FName FMixerInteractivityModule_InteractiveCpp2::GetCurrentScene(FName GroupName
 	Context.OutSceneName = NAME_None;
 	if (InteractiveSession != nullptr)
 	{
-		mixer::interactive_set_session_context(InteractiveSession, &Context);
-		mixer::interactive_get_groups(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateForGetCurrentScene);
-		mixer::interactive_set_session_context(InteractiveSession, nullptr);
+		interactive_set_session_context(InteractiveSession, &Context);
+		interactive_get_groups(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateForGetCurrentScene);
+		interactive_set_session_context(InteractiveSession, nullptr);
 	}
 	return Context.OutSceneName;
 }
@@ -134,7 +134,7 @@ void FMixerInteractivityModule_InteractiveCpp2::TriggerButtonCooldown(FName Butt
 {
 	if (InteractiveSession != nullptr)
 	{
-		mixer::interactive_control_trigger_cooldown(InteractiveSession, Button.GetPlainANSIString(), static_cast<uint32>(CooldownTime.GetTotalMilliseconds()));
+		interactive_control_trigger_cooldown(InteractiveSession, Button.GetPlainANSIString(), static_cast<uint32>(CooldownTime.GetTotalMilliseconds()));
 	}
 }
 
@@ -153,7 +153,7 @@ bool FMixerInteractivityModule_InteractiveCpp2::CreateGroup(FName GroupName, FNa
 
 	// Special case - 'default' is used all over the place as a name, but with 'D'
 	const ANSICHAR* ActualSceneName = InitialScene != NAME_None && InitialScene != NAME_DefaultMixerParticipantGroup ? InitialScene.GetPlainANSIString() : "default";
-	return mixer::interactive_create_group(InteractiveSession, GroupName.GetPlainANSIString(), ActualSceneName) == mixer::MIXER_OK;
+	return interactive_create_group(InteractiveSession, GroupName.GetPlainANSIString(), ActualSceneName) == MIXER_OK;
 }
 
 bool FMixerInteractivityModule_InteractiveCpp2::MoveParticipantToGroup(FName GroupName, uint32 ParticipantId)
@@ -169,17 +169,17 @@ bool FMixerInteractivityModule_InteractiveCpp2::MoveParticipantToGroup(FName Gro
 		return false;
 	}
 
-	return mixer::interactive_set_participant_group(
+	return interactive_set_participant_group(
 		InteractiveSession,
 		TCHAR_TO_UTF8(*Participant->SessionGuid.ToString(EGuidFormats::DigitsWithHyphens).ToLower()),
-		GroupName.GetPlainANSIString()) == mixer::MIXER_OK;
+		GroupName.GetPlainANSIString()) == MIXER_OK;
 }
 
 void FMixerInteractivityModule_InteractiveCpp2::CaptureSparkTransaction(const FString& TransactionId)
 {
 	if (InteractiveSession != nullptr)
 	{
-		mixer::interactive_capture_transaction(InteractiveSession, TCHAR_TO_UTF8(*TransactionId));
+		interactive_capture_transaction(InteractiveSession, TCHAR_TO_UTF8(*TransactionId));
 	}
 }
 
@@ -192,7 +192,7 @@ void FMixerInteractivityModule_InteractiveCpp2::CallRemoteMethod(const FString& 
 		FJsonSerializer::Serialize(MethodParams, Writer);
 
 		uint32 MessageId = 0;
-		mixer::interactive_send_method(InteractiveSession, TCHAR_TO_UTF8(*MethodName), TCHAR_TO_UTF8(*SerializedParams), true, &MessageId);
+		interactive_send_method(InteractiveSession, TCHAR_TO_UTF8(*MethodName), TCHAR_TO_UTF8(*SerializedParams), true, &MessageId);
 	}
 }
 
@@ -207,20 +207,20 @@ bool FMixerInteractivityModule_InteractiveCpp2::StartInteractiveConnection()
 
 	SetInteractiveConnectionAuthState(EMixerLoginState::Logging_In);
 
-	ConnectOperation = Async<mixer::interactive_session>(EAsyncExecution::ThreadPool,
-		[]() -> mixer::interactive_session
+	ConnectOperation = Async<interactive_session>(EAsyncExecution::ThreadPool,
+		[]() -> interactive_session
 	{
 		const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
 		const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
 
-		mixer::interactive_session Session;
-		int32 ConnectResult = mixer::interactive_connect(
+		interactive_session Session;
+		int32 ConnectResult = interactive_open_session(
 			TCHAR_TO_UTF8(*UserSettings->GetAuthZHeaderValue()),
 			TCHAR_TO_UTF8(*FString::FromInt(Settings->GameVersionId)),
 			TCHAR_TO_UTF8(*Settings->ShareCode),
-			true,
+			false,
 			&Session);
-		if (ConnectResult == mixer::MIXER_OK)
+		if (ConnectResult == MIXER_OK)
 		{
 			return Session;
 		}
@@ -238,7 +238,7 @@ void FMixerInteractivityModule_InteractiveCpp2::StopInteractiveConnection()
 	if (GetInteractiveConnectionAuthState() != EMixerLoginState::Not_Logged_In)
 	{
 		SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
-		mixer::interactive_disconnect(InteractiveSession);
+		interactive_close_session(InteractiveSession);
 		EndSession();
 		InteractiveSession = nullptr;
 	}
@@ -250,12 +250,12 @@ bool FMixerInteractivityModule_InteractiveCpp2::Tick(float DeltaTime)
 
 	if (InteractiveSession != nullptr)
 	{
-		mixer::interactive_run(InteractiveSession, 10);
+		interactive_run(InteractiveSession, 10);
 	}
 	else if (ConnectOperation.IsReady())
 	{
 		InteractiveSession = ConnectOperation.Get();
-		ConnectOperation = TFuture<mixer::interactive_session>();
+		ConnectOperation = TFuture<interactive_session>();
 
 		if (InteractiveSession != nullptr)
 		{
@@ -263,13 +263,13 @@ bool FMixerInteractivityModule_InteractiveCpp2::Tick(float DeltaTime)
 
 			StartSession(Settings->bPerParticipantStateCaching);
 
-			mixer::interactive_reg_error_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionError);
-			mixer::interactive_reg_state_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionStateChanged);
-			mixer::interactive_reg_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionInput);
-			mixer::interactive_reg_participants_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged);
-			mixer::interactive_reg_unhandled_method_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod);
+			interactive_register_error_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionError);
+			interactive_register_state_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionStateChanged);
+			interactive_register_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionInput);
+			interactive_register_participants_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged);
+			interactive_register_unhandled_method_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod);
 
-			mixer::interactive_get_scenes(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateScenesForInit);
+			interactive_get_scenes(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateScenesForInit);
 
 			SetInteractiveConnectionAuthState(EMixerLoginState::Logged_In);
 		}
@@ -282,20 +282,20 @@ bool FMixerInteractivityModule_InteractiveCpp2::Tick(float DeltaTime)
 	return true;
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnSessionStateChanged(void* Context, mixer::interactive_session Session, mixer::interactive_state PreviousState, mixer::interactive_state NewState)
+void FMixerInteractivityModule_InteractiveCpp2::OnSessionStateChanged(void* Context, interactive_session Session, interactive_state PreviousState, interactive_state NewState)
 {
 	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
 	switch (NewState)
 	{
-	case mixer::not_ready:
+	case not_ready:
 		InteractiveModule.SetInteractivityState(EMixerInteractivityState::Not_Interactive);
 		break;
 
-	case mixer::ready:
+	case ready:
 		InteractiveModule.SetInteractivityState(EMixerInteractivityState::Interactive);
 		break;
 
-	case mixer::disconnected:
+	case disconnected:
 	default:
 		InteractiveModule.SetInteractivityState(EMixerInteractivityState::Not_Interactive);
 		InteractiveModule.SetInteractiveConnectionAuthState(EMixerLoginState::Not_Logged_In);
@@ -303,12 +303,12 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionStateChanged(void* Cont
 	}
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnSessionError(void* Context, mixer::interactive_session Session, int ErrorCode, const char* ErrorMessage, size_t ErrorMessageLength)
+void FMixerInteractivityModule_InteractiveCpp2::OnSessionError(void* Context, interactive_session Session, int ErrorCode, const char* ErrorMessage, size_t ErrorMessageLength)
 {
 	UE_LOG(LogMixerInteractivity, Error, TEXT("Session error %d: %hs"), ErrorCode, ErrorMessage);
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnSessionInput(void* Context, mixer::interactive_session Session, const mixer::interactive_input* Input)
+void FMixerInteractivityModule_InteractiveCpp2::OnSessionInput(void* Context, interactive_session Session, const interactive_input* Input)
 {
 	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
 
@@ -323,28 +323,28 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionInput(void* Context, mi
 
 	switch (Input->type)
 	{
-	case mixer::input_type_button:
+	case input_type_click:
 		InteractiveModule.OnSessionButtonInput(ButtonUser, Input);
 		break;
 
-	case mixer::input_type_coordinate:
+	case input_type_move:
 		InteractiveModule.OnSessionCoordinateInput(ButtonUser, Input);
 		break;
 
-	case mixer::input_type_custom:
+	case input_type_custom:
 	default:
 		InteractiveModule.OnSessionCustomInput(ButtonUser, Input);
 		break;
 	}
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input)
+void FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput(TSharedPtr<const FMixerRemoteUser> User, const interactive_input* Input)
 {
 	FMixerButtonPropertiesCached* CachedProps = GetButton(FName(Input->control.id));
 	if (CachedProps != nullptr)
 	{
 		FMixerButtonEventDetails ButtonEventDetails;
-		ButtonEventDetails.Pressed = Input->buttonData.action == mixer::down;
+		ButtonEventDetails.Pressed = Input->buttonData.action == interactive_button_action_down;
 		ButtonEventDetails.SparkCost = CachedProps->Desc.SparkCost;
 		if (ButtonEventDetails.Pressed)
 		{
@@ -369,7 +369,7 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput(TSharedPtr<
 	}
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input)
+void FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput(TSharedPtr<const FMixerRemoteUser> User, const interactive_input* Input)
 {
 	if (CachePerParticipantState())
 	{
@@ -409,7 +409,7 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionCoordinateInput(TShared
 	OnStickEvent().Broadcast(Input->control.id, User, FVector2D(Input->coordinateData.x, Input->coordinateData.y));
 }
 
-bool FMixerInteractivityModule_InteractiveCpp2::OnSessionCustomInput(TSharedPtr<const FMixerRemoteUser> User, const mixer::interactive_input* Input)
+bool FMixerInteractivityModule_InteractiveCpp2::OnSessionCustomInput(TSharedPtr<const FMixerRemoteUser> User, const interactive_input* Input)
 {
 	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(FString(UTF8_TO_TCHAR(Input->jsonData)));
 	TSharedPtr<FJsonObject> FullParamsJson;
@@ -463,7 +463,7 @@ bool FMixerInteractivityModule_InteractiveCpp2::OnSessionCustomInput(TSharedPtr<
 	return true;
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(void* Context, mixer::interactive_session Session, mixer::participant_action Action, const mixer::interactive_participant* Participant)
+void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(void* Context, interactive_session Session, interactive_participant_action Action, const interactive_participant* Participant)
 {
 	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
 
@@ -476,7 +476,7 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(voi
 
 	switch (Action)
 	{
-	case mixer::participant_join:
+	case participant_join:
 		{
 			TSharedPtr<FMixerRemoteUser> CachedParticipant = MakeShared<FMixerRemoteUser>();
 			CachedParticipant->Id = Participant->userId;
@@ -493,11 +493,11 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(voi
 		}
 		break;
 
-	case mixer::participant_leave:
+	case participant_leave:
 		InteractiveModule.RemoveUser(SessionGuid);
 		break;
 
-	case mixer::participant_update:
+	case participant_update:
 		{
 			TSharedPtr<FMixerRemoteUser> CachedParticipant = InteractiveModule.GetCachedUser(SessionGuid);
 			check(CachedParticipant.IsValid());
@@ -516,7 +516,7 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged(voi
 	}
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod(void* Context, mixer::interactive_session Session, const char* MethodJson, size_t MethodJsonLength)
+void FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod(void* Context, interactive_session Session, const char* MethodJson, size_t MethodJsonLength)
 {
 	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
 	TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(FString(UTF8_TO_TCHAR(MethodJson)));
@@ -542,7 +542,7 @@ void FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod(void* Context,
 	}
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateForGetCurrentScene(void* Context, mixer::interactive_session Session, mixer::interactive_group* Group)
+void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateForGetCurrentScene(void* Context, interactive_session Session, interactive_group* Group)
 {
 	FGetCurrentSceneEnumContext* GetSceneContext = static_cast<FGetCurrentSceneEnumContext*>(Context);
 	if (GetSceneContext->GroupName == Group->id)
@@ -551,17 +551,17 @@ void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateForGetCurrentScene(vo
 	}
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateScenesForInit(void* Context, mixer::interactive_session Session, mixer::interactive_scene* Scene)
+void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateScenesForInit(void* Context, interactive_session Session, interactive_scene* Scene)
 {
-	mixer::interactive_set_session_context(Session, Scene);
-	mixer::interactive_scene_get_controls(Session, Scene->id, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateControlsForInit);
-	mixer::interactive_set_session_context(Session, nullptr);
+	interactive_set_session_context(Session, Scene);
+	interactive_scene_get_controls(Session, Scene->id, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateControlsForInit);
+	interactive_set_session_context(Session, nullptr);
 }
 
-void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateControlsForInit(void* Context, mixer::interactive_session Session, mixer::interactive_control* Control)
+void FMixerInteractivityModule_InteractiveCpp2::OnEnumerateControlsForInit(void* Context, interactive_session Session, interactive_control* Control)
 {
 	FMixerInteractivityModule_InteractiveCpp2& InteractiveModule = static_cast<FMixerInteractivityModule_InteractiveCpp2&>(IMixerInteractivityModule::Get());
-	mixer::interactive_scene* Scene = static_cast<mixer::interactive_scene*>(Context);
+	interactive_scene* Scene = static_cast<interactive_scene*>(Context);
 
 	if (FPlatformString::Strcmp(Control->kind, "button") == 0)
 	{
