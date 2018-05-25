@@ -46,6 +46,11 @@
 #include "XboxOneInputInterface.h"
 #endif
 
+#if WITH_EDITOR
+#include "SNotificationList.h"
+#include "NotificationManager.h"
+#endif
+
 DEFINE_LOG_CATEGORY(LogMixerInteractivity);
 
 void FMixerInteractivityModule::StartupModule()
@@ -420,25 +425,27 @@ void FMixerInteractivityModule::OnTokenRequestComplete(FHttpRequestPtr HttpReque
 
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
 	bool GotAccessToken = false;
-	if (bSucceeded && HttpResponse.IsValid())
+	FString ErrorDescription;
+	if (HttpResponse.IsValid())
 	{
-		if (EHttpResponseCodes::IsOk(HttpResponse->GetResponseCode()))
+		FString ResponseStr = HttpResponse->GetContentAsString();
+		TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(ResponseStr);
+		TSharedPtr<FJsonObject> JsonObject;
+		if (FJsonSerializer::Deserialize(JsonReader, JsonObject) &&
+			JsonObject.IsValid())
 		{
-			FString ResponseStr = HttpResponse->GetContentAsString();
-			TSharedRef<TJsonReader<>> JsonReader = TJsonReaderFactory<>::Create(ResponseStr);
-			TSharedPtr<FJsonObject> JsonObject;
-			if (FJsonSerializer::Deserialize(JsonReader, JsonObject) &&
-				JsonObject.IsValid())
-			{
-				UMixerInteractivityUserSettings* UserSettings = GetMutableDefault<UMixerInteractivityUserSettings>();
+			UMixerInteractivityUserSettings* UserSettings = GetMutableDefault<UMixerInteractivityUserSettings>();
 
-				GotAccessToken = true;
-				GotAccessToken &= JsonObject->TryGetStringField(TEXT("access_token"), UserSettings->AccessToken);
-				GotAccessToken &= JsonObject->TryGetStringField(TEXT("refresh_token"), UserSettings->RefreshToken);
-				if (GotAccessToken)
-				{
-					UserSettings->SaveConfig();
-				}
+			GotAccessToken = bSucceeded && EHttpResponseCodes::IsOk(HttpResponse->GetResponseCode());
+			GotAccessToken &= JsonObject->TryGetStringField(TEXT("access_token"), UserSettings->AccessToken);
+			GotAccessToken &= JsonObject->TryGetStringField(TEXT("refresh_token"), UserSettings->RefreshToken);
+			if (GotAccessToken)
+			{
+				UserSettings->SaveConfig();
+			}
+			else
+			{
+				JsonObject->TryGetStringField(TEXT("error_description"), ErrorDescription);
 			}
 		}
 	}
@@ -459,6 +466,21 @@ void FMixerInteractivityModule::OnTokenRequestComplete(FHttpRequestPtr HttpReque
 	}
 	else
 	{
+#if WITH_EDITOR
+		FText NotificationText;
+		if (!ErrorDescription.IsEmpty())
+		{
+			NotificationText = FText::Format(NSLOCTEXT("MixerInteractivityEditor", "OnTokenRequestComplete_Failed_WithDescription", "Login failed with error: {0}"), FText::FromString(ErrorDescription));
+		}
+		else
+		{
+			NotificationText = NSLOCTEXT("MixerInteractivityEditor", "OnTokenRequestComplete_Failed_Generic", "Login failed with unknown error.");
+		}
+		FNotificationInfo Info(NotificationText);
+		Info.ExpireDuration = 8.0f;
+		FSlateNotificationManager::Get().AddNotification(Info);
+#endif
+
 		SetUserAuthState(EMixerLoginState::Not_Logged_In);
 	}
 #endif
