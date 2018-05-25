@@ -493,7 +493,8 @@ EVisibility FMixerInteractivitySettingsCustomization::GetVersionMismatchErrorVis
 EVisibility FMixerInteractivitySettingsCustomization::GetUpdateExistingControlSheetVisibility() const
 {
 	const UMixerInteractivitySettings* Settings = GetDefault<UMixerInteractivitySettings>();
-	return Settings->ProjectDefinition.IsValid() ? EVisibility::Visible : EVisibility::Collapsed;
+	// Full-on TryLoad here, since if this passes we assume the existing entry is fully usable.
+	return Settings->ProjectDefinition.TryLoad() != nullptr ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 EVisibility FMixerInteractivitySettingsCustomization::VisibleWhenGameBindingMethod(EGameBindingMethod InMethod) const
