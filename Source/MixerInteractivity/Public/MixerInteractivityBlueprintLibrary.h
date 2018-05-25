@@ -255,7 +255,7 @@ public:
 	* the button will be non-interactive.
 	*
 	* @param	Button			Reference to the button that should be on cooldown.
-	* @param	CooldownTime	Duration for which the button should be non-interactive.
+	* @param	Cooldown		Duration for which the button should be non-interactive.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "Mixer|Interactivity")
 	static void TriggerButtonCooldown(FMixerButtonReference Button, FTimespan Cooldown);
