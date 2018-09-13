@@ -13,7 +13,7 @@
 #include "UObject/Object.h"
 #include "Engine/DynamicBlueprintBinding.h"
 #include "MixerInteractivityModule.h"
-#include "Map.h"
+#include "Containers/Map.h"
 #include "UObject/WeakObjectPtr.h"
 #include "Delegates/Delegate.h"
 #include "MixerInteractivityBlueprintLibrary.h"

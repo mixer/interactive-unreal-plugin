@@ -13,7 +13,7 @@
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
 #include "EditorCategoryUtils.h"
-#include "BlueprintEditorUtils.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "GraphEditorSettings.h"
 #include "KismetCompiler.h"
 #include "K2Node_TemporaryVariable.h"
@@ -22,7 +22,6 @@
 #include "MixerInteractivityJsonTypes.h"
 #include "K2Node_MixerButtonEvent.h"
 #include "MixerInteractivityBlueprintLibrary.h"
-#include "Resources/Version.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 

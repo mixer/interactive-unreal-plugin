@@ -9,7 +9,7 @@
 //*********************************************************
 #include "MixerCustomControl.h"
 #include "MixerDynamicDelegateBinding.h"
-#include "Ticker.h"
+#include "Containers/Ticker.h"
 #include "JsonObjectConverter.h"
 #include "Engine/World.h"
 #include "Engine/BlueprintGeneratedClass.h"

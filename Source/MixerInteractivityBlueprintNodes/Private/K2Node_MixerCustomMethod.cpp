@@ -12,12 +12,12 @@
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
 #include "EditorCategoryUtils.h"
-#include "BlueprintEditorUtils.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "MixerInteractivityBlueprintLibrary.h"
 #include "MixerDynamicDelegateBinding.h"
 #include "MixerInteractivitySettings.h"
 #include "KismetCompiler.h"
-#include "JsonObject.h"
+#include "Dom/JsonObject.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 

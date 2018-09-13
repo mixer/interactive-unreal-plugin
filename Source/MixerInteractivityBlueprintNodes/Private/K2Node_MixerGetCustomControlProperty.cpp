@@ -14,7 +14,6 @@
 #include "KismetCompiler.h"
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "K2Node_CallFunction.h"
-#include "Resources/Version.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"
 

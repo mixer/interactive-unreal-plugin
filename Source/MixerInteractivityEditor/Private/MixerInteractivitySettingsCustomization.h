@@ -15,7 +15,7 @@
 #include "DetailLayoutBuilder.h"
 #include "MixerInteractivityTypes.h"
 #include "MixerInteractivityJsonTypes.h"
-#include "SComboBox.h"
+#include "Widgets/Input/SComboBox.h"
 
 struct FMixerInteractiveGame;
 struct FMixerInteractiveGameVersion;

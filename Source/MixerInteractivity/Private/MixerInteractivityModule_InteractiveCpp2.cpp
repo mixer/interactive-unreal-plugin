@@ -15,8 +15,8 @@
 #include "MixerInteractivityUserSettings.h"
 #include "MixerInteractivityLog.h"
 #include "MixerJsonHelpers.h"
-#include "StringConv.h"
-#include "Async.h"
+#include "Containers/StringConv.h"
+#include "Async/Async.h"
 
 IMPLEMENT_MODULE(FMixerInteractivityModule_InteractiveCpp2, MixerInteractivity);
 

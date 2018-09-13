@@ -18,8 +18,8 @@
 
 #include "HttpModule.h"
 #include "PlatformHttp.h"
-#include "JsonTypes.h"
-#include "JsonPrintPolicy.h"
+#include "Serialization/JsonTypes.h"
+#include "Policies/JsonPrintPolicy.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonWriter.h"
 #include "Serialization/JsonSerializer.h"

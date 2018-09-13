@@ -14,8 +14,7 @@
 #include "Engine/Engine.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
-#include "MessageLog.h"
-#include "Resources/Version.h"
+#include "Logging/MessageLog.h"
 #include "JsonObjectConverter.h"
 
 const FName MixerObjectKindMetadataTag = "MixerObjectKind";

@@ -12,8 +12,8 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "Engine/World.h"
-#include "STextBlock.h"
-#include "SBox.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Layout/SBox.h"
 
 void UMixerLoginPane::SynchronizeProperties()
 {
