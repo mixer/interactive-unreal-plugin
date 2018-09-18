@@ -44,6 +44,7 @@ private:
 	static void OnSessionInput(void* Context, interactive_session Session, const interactive_input* Input);
 	static void OnSessionParticipantsChanged(void* Context, interactive_session Session, interactive_participant_action Action, const interactive_participant* Participant);
 	static void OnUnhandledMethod(void* Context, interactive_session Session, const char* MethodJson, size_t MethodJsonLength);
+	static void OnTransactionComplete(void *Context, interactive_session Session, const char* TransactionId, size_t TransactionIdLength, unsigned int ErrorCode, const char* ErrorMessage, size_t ErrorMessageLength);
 
 	void OnSessionButtonInput(TSharedPtr<const FMixerRemoteUser> User, const interactive_input* Input);
 	void OnSessionCoordinateInput(TSharedPtr<const FMixerRemoteUser> User, const interactive_input* Input);

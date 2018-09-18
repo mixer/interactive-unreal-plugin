@@ -268,6 +268,7 @@ bool FMixerInteractivityModule_InteractiveCpp2::Tick(float DeltaTime)
 			interactive_register_input_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionInput);
 			interactive_register_participants_changed_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnSessionParticipantsChanged);
 			interactive_register_unhandled_method_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod);
+			interactive_register_transaction_complete_handler(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnTransactionComplete);
 
 			interactive_get_scenes(InteractiveSession, &FMixerInteractivityModule_InteractiveCpp2::OnEnumerateScenesForInit);
 
@@ -345,6 +346,7 @@ void FMixerInteractivityModule_InteractiveCpp2::OnSessionButtonInput(TSharedPtr<
 	{
 		FMixerButtonEventDetails ButtonEventDetails;
 		ButtonEventDetails.Pressed = Input->buttonData.action == interactive_button_action_down;
+		ButtonEventDetails.TransactionId = Input->transactionId;
 		ButtonEventDetails.SparkCost = CachedProps->Desc.SparkCost;
 		if (ButtonEventDetails.Pressed)
 		{
@@ -539,6 +541,14 @@ void FMixerInteractivityModule_InteractiveCpp2::OnUnhandledMethod(void* Context,
 				}
 			}
 		}
+	}
+}
+
+void FMixerInteractivityModule_InteractiveCpp2::OnTransactionComplete(void *Context, interactive_session Session, const char* TransactionId, size_t TransactionIdLength, unsigned int ErrorCode, const char* ErrorMessage, size_t ErrorMessageLength)
+{
+	if (ErrorCode != MIXER_OK)
+	{
+		UE_LOG(LogMixerInteractivity, Error, TEXT("Transaction completion error %d: %hs"), ErrorCode, ErrorMessage);
 	}
 }
 
