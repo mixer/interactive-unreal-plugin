@@ -9,7 +9,7 @@
 //*********************************************************
 #pragma once
 
-#include "UnrealString.h"
+#include "Containers/UnrealString.h"
 #include "Dom/JsonValue.h"
 #include "Dom/JsonObject.h"
 #include "MixerInteractivityLog.h"

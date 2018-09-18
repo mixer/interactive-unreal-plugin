@@ -11,8 +11,7 @@
 
 #include "OnlineChatMixer.h"
 #include "MixerInteractivityTypes.h"
-#include "Guid.h"
-#include "Resources/Version.h"
+#include "Misc/Guid.h"
 
 class FUniqueNetIdMixer : public FUniqueNetId
 {

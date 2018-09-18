@@ -13,7 +13,7 @@
 #include "Dom/JsonValue.h"
 #include "Dom/JsonObject.h"
 #include "JsonObjectConverter.h"
-#include "UObjectGlobals.h"
+#include "UObject/UObjectGlobals.h"
 #include "MixerInteractivityLog.h"
 
 namespace MixerBindingUtils

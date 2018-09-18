@@ -12,23 +12,29 @@
 
 #include "MixerInteractivityModule.h"
 #include "MixerInteractivityTypes.h"
-#include "Ticker.h"
+#include "Containers/Ticker.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
-#include "JsonTypes.h"
-#include "JsonValue.h"
-#include "JsonObject.h"
-#include "JsonPrintPolicy.h"
-#include "CondensedJsonPrintPolicy.h"
-#include "JsonReader.h"
-#include "JsonWriter.h"
-#include "JsonSerializer.h"
-#include "JsonSerializerMacros.h"
-#include "Future.h"
+#include "Serialization/JsonTypes.h"
+#include "DOM/JsonValue.h"
+#include "DOM/JsonObject.h"
+#include "Policies/JsonPrintPolicy.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonWriter.h"
+#include "Serialization/JsonSerializer.h"
+#include "Serialization/JsonSerializerMacros.h"
+#include "Async/Future.h"
 #include "Input/Reply.h"
-#include "CoreOnline.h"
+#include "UObject/CoreOnline.h"
 #include <memory>
+
+#define PLATFORM_NEEDS_OSS_LIVE !PLATFORM_XBOXONE && !PLATFORM_SUPPORTS_MIXER_OAUTH
+
+#if PLATFORM_NEEDS_OSS_LIVE
+#include "OnlineSubsystemTypes.h"
+#endif
 
 struct FMixerChannelJsonSerializable : public FMixerChannel, public FJsonSerializable
 {
@@ -159,6 +165,9 @@ private:
 	Windows::Foundation::IAsyncOperation<Windows::Xbox::System::GetTokenAndSignatureResult^>^ GetXTokenOperation;
 	void TickXboxLogin();
 	void OnXboxUserRemoved(Windows::Xbox::System::User^ RemovedUser);
+#elif !PLATFORM_SUPPORTS_MIXER_OAUTH
+	void OnXTokenRetrievalComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& ErrorMessage);
+	FDelegateHandle LoginCompleteDelegateHandle[MAX_LOCAL_PLAYERS];
 #endif
 
 	TSharedPtr<SWindow> LoginWindow;

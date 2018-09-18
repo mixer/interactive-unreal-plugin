@@ -11,7 +11,7 @@
 #pragma once
 
 #include "SGraphPin.h"
-#include "SComboBox.h"
+#include "Widgets/Input/SComboBox.h"
 
 // Based on SGraphPinNameList, but with additions to allow refreshing the list
 class SGraphPinMixerObjectNameList : public SGraphPin

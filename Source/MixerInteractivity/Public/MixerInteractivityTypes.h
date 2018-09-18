@@ -10,12 +10,12 @@
 
 #pragma once
 
-#include "UnrealString.h"
-#include "DateTime.h"
-#include "Text.h"
-#include "Vector2D.h"
-#include "Guid.h"
-#include "Color.h"
+#include "Containers/UnrealString.h"
+#include "Misc/DateTime.h"
+#include "Internationalization/Text.h"
+#include "Math/Vector2D.h"
+#include "Misc/Guid.h"
+#include "Math/Color.h"
 
 /** Base type for all Mixer users */
 struct FMixerUser

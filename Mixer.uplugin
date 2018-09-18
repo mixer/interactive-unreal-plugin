@@ -19,7 +19,7 @@
 			"Name": "MixerInteractivity",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
-			"WhitelistPlatforms" : [ "Win32", "Win64", "XboxOne" ]
+			"WhitelistPlatforms" : [ "Win32", "Win64", "XboxOne", "UWP64", "UWP32" ]
 		},
 		{
 			"Name": "MixerInteractivityEditor",
@@ -30,6 +30,16 @@
 			"Name": "MixerInteractivityBlueprintNodes",
 			"Type": "Developer",
 			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "OnlineSubsystemUtils",
+			"Enabled": true
+		},
+		{
+			"Name": "OnlineSubsystem",
+			"Enabled": true
 		}
 	]
 }

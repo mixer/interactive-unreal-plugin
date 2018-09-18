@@ -10,9 +10,9 @@
 
 #pragma once
 
-#include "ObjectMacros.h"
-#include "Object.h"
-#include "SubclassOf.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/Object.h"
+#include "Templates/SubclassOf.h"
 #include "MixerCustomControl.h"
 #include "MixerInteractivitySettings.generated.h"
 

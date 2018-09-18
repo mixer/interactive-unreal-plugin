@@ -12,7 +12,7 @@
 
 #include "Misc/Attribute.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
-#include "SCompoundWidget.h"
+#include "Widgets/SCompoundWidget.h"
 
 class FUniqueNetId;
 class SWebBrowserView;

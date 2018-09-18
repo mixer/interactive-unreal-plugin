@@ -10,8 +10,8 @@
 
 #pragma once
 
-#include "JsonTypes.h"
-#include "JsonSerializerMacros.h"
+#include "Serialization/JsonTypes.h"
+#include "Serialization/JsonSerializerMacros.h"
 
 struct MIXERINTERACTIVITY_API FMixerInteractiveControl : public FJsonSerializable
 {

@@ -9,8 +9,8 @@
 //*********************************************************
 
 #include "MixerEditorStyle.h"
-#include "SlateStyleRegistry.h"
-#include "IPluginManager.h"
+#include "Styling/SlateStyleRegistry.h"
+#include "Interfaces/IPluginManager.h"
 
 FMixerEditorStyle::FMixerEditorStyle()
 	: FSlateStyleSet("MixerEditorStyle")

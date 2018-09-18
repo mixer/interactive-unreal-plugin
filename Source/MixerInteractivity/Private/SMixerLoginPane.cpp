@@ -22,8 +22,8 @@
 #include "IWebBrowserCookieManager.h"
 #include "IWebBrowserWindow.h"
 #include "SWebBrowserView.h"
-#include "SOverlay.h"
-#include "PlatformProcess.h"
+#include "Widgets/SOverlay.h"
+#include "HAL/PlatformProcess.h"
 #include "MixerInteractivityLog.h"
 
 

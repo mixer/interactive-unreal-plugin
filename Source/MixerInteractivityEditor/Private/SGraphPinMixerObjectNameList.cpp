@@ -10,8 +10,8 @@
 
 #include "SGraphPinMixerObjectNameList.h"
 #include "Editor/UnrealEd/Public/ScopedTransaction.h"
-#include "Text/STextBlock.h"
-#include "SErrorHint.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/Notifications/SErrorHint.h"
 #include "MixerInteractivityEditorModule.h"
 
 #define LOCTEXT_NAMESPACE "MixerInteractivityEditor"

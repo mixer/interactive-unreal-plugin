@@ -67,6 +67,9 @@ bool FMixerInteractivityModule_InteractiveCpp::StartInteractiveConnection()
 #elif PLATFORM_SUPPORTS_MIXER_OAUTH
 	const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
 	interactivity_manager::get_singleton_instance()->set_oauth_token(*UserSettings->AccessToken);
+#elif PLATFORM_NEEDS_OSS_LIVE
+	const UMixerInteractivityUserSettings* UserSettings = GetDefault<UMixerInteractivityUserSettings>();
+	interactivity_manager::get_singleton_instance()->set_xtoken(*UserSettings->AccessToken);
 #endif
 
 	// Library may already be initialized, particularly on non-Xbox platforms

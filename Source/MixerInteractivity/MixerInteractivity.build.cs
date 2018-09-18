@@ -56,6 +56,14 @@ public class MixerInteractivity : ModuleRules
 
 			AddPublicDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
 		}
+		else if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+		{
+			SelectedBackend = Backend.InteractiveCppV2;
+
+			AddPublicDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
+
+			PrivateDependencyModuleNames.Add("OnlineSubsystemUtils");
+		}
 		else
 		{
 			AddPublicDefinition("PLATFORM_SUPPORTS_MIXER_OAUTH=0");
@@ -71,6 +79,11 @@ public class MixerInteractivity : ModuleRules
 				PublicAdditionalLibraries.Add("winhttp.lib");
 				PublicAdditionalLibraries.Add("crypt32.lib");
 				PublicAdditionalLibraries.Add("bcrypt.lib");
+			}
+			else if (Target.Platform == UnrealTargetPlatform.UWP64 || Target.Platform == UnrealTargetPlatform.UWP32)
+			{
+				PublicAdditionalLibraries.Add("Interactivity.UWP.Cpp.lib");
+				PublicAdditionalLibraries.Add("cpprest140_uwp_2_9.lib");
 			}
 			else if (Target.Platform == UnrealTargetPlatform.XboxOne)
 			{

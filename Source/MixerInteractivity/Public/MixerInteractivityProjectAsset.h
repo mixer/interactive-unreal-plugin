@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Engine/DataAsset.h"
-#include "SoftObjectPath.h"
+#include "UObject/SoftObjectPath.h"
 #include "MixerInteractivityJsonTypes.h"
 #include "MixerInteractivityProjectAsset.generated.h"
 

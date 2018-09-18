@@ -12,7 +12,7 @@
 #include "BlueprintActionDatabaseRegistrar.h"
 #include "BlueprintNodeSpawner.h"
 #include "EditorCategoryUtils.h"
-#include "BlueprintEditorUtils.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "GraphEditorSettings.h"
 #include "KismetCompiler.h"
 #include "MixerDynamicDelegateBinding.h"

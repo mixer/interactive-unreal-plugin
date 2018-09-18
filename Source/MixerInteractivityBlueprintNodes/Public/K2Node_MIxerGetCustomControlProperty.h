@@ -10,7 +10,7 @@
 #pragma once
 
 #include "K2Node.h"
-#include "EdGraphNodeUtils.h"
+#include "EdGraph/EdGraphNodeUtils.h"
 
 #include "K2Node_MixerGetCustomControlProperty.generated.h"
 

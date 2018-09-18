@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "SlateStyle.h"
+#include "Styling/SlateStyle.h"
 
 class FMixerEditorStyle : public FSlateStyleSet
 {

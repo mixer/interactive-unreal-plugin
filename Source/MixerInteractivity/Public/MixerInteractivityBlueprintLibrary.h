@@ -14,7 +14,7 @@
 
 #include "MixerInteractivityTypes.h"
 #include "Engine/LatentActionManager.h"
-#include "TextProperty.h"
+#include "UObject/TextProperty.h"
 #include "MixerInteractivityBlueprintLibrary.generated.h"
 
 extern MIXERINTERACTIVITY_API const FName MixerObjectKindMetadataTag;

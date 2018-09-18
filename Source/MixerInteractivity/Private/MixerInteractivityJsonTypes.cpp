@@ -9,7 +9,7 @@
 //*********************************************************
 
 #include "MixerInteractivityJsonTypes.h"
-#include "JsonObject.h"
+#include "Dom/JsonObject.h"
 
 const FString FMixerInteractiveControl::ButtonKind = TEXT("button");
 const FString FMixerInteractiveControl::JoystickKind = TEXT("joystick");

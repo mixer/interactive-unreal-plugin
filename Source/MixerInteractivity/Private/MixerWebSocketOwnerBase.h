@@ -1,13 +1,13 @@
 #pragma once
 
-#include "JsonObject.h"
+#include "Dom/JsonObject.h"
 #include "WebSocketsModule.h"
 #include "IWebSocket.h"
 #include "MixerInteractivityLog.h"
 #include "MixerJsonHelpers.h"
-#include "JsonPrintPolicy.h"
-#include "CondensedJsonPrintPolicy.h"
-#include "JsonSerializerMacros.h"
+#include "Policies/JsonPrintPolicy.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
+#include "Serialization/JsonSerializerMacros.h"
 
 #if PLATFORM_XBOXONE
 #include "XboxOne/MixerXboxOneWebSocket.h"

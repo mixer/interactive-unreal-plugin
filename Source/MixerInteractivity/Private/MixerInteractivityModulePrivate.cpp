@@ -19,8 +19,8 @@
 
 #include "HttpModule.h"
 #include "PlatformHttp.h"
-#include "JsonTypes.h"
-#include "JsonPrintPolicy.h"
+#include "Serialization/JsonTypes.h"
+#include "Policies/JsonPrintPolicy.h"
 #include "Policies/CondensedJsonPrintPolicy.h"
 #include "Dom/JsonValue.h"
 #include "Dom/JsonObject.h"
@@ -28,18 +28,20 @@
 #include "Serialization/JsonWriter.h"
 #include "Serialization/JsonSerializer.h"
 #include "JsonObjectConverter.h"
-#include "UObjectGlobals.h"
-#include "CoreOnline.h"
+#include "UObject/UObjectGlobals.h"
+#include "UObject/CoreOnline.h"
 #include "Engine/World.h"
-#include "Async.h"
-#include "TabManager.h"
-#include "SlateApplication.h"
-#include "App.h"
+#include "Async/Async.h"
+#include "Framework/Docking/TabManager.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Misc/App.h"
 #include "Engine/Engine.h"
 #include "OnlineSubsystemTypes.h"
 
 #if PLATFORM_SUPPORTS_MIXER_OAUTH
 #include "SMixerLoginPane.h"
+#elif PLATFORM_NEEDS_OSS_LIVE
+#include "OnlineSubsystemUtils.h"
 #endif
 
 #if PLATFORM_XBOXONE
@@ -65,6 +67,16 @@ void FMixerInteractivityModule::StartupModule()
 #if PLATFORM_XBOXONE
 	check(FSlateApplication::IsInitialized());
 	static_cast<FXboxOneInputInterface*>(FSlateApplication::Get().GetInputInterface())->OnUserRemovedDelegates.AddRaw(this, &FMixerInteractivityModule::OnXboxUserRemoved);
+#elif PLATFORM_NEEDS_OSS_LIVE
+	IOnlineIdentityPtr IdentityInterface = Online::GetIdentityInterface(nullptr, LIVE_SUBSYSTEM);
+	if (IdentityInterface.IsValid())
+	{
+		FOnLoginCompleteDelegate LoginCompleteDelegate = FOnLoginCompleteDelegate::CreateRaw(this, &FMixerInteractivityModule::OnXTokenRetrievalComplete);
+		for (int32 i = 0; i < MAX_LOCAL_PLAYERS; ++i)
+		{
+			LoginCompleteDelegateHandle[i] = IdentityInterface->AddOnLoginCompleteDelegate_Handle(i, LoginCompleteDelegate);
+		}
+	}
 #endif
 }
 
@@ -73,6 +85,18 @@ void FMixerInteractivityModule::ShutdownModule()
 #if PLATFORM_XBOXONE
 	check(FSlateApplication::IsInitialized());
 	static_cast<FXboxOneInputInterface*>(FSlateApplication::Get().GetInputInterface())->OnUserRemovedDelegates.RemoveAll(this);
+#elif PLATFORM_NEEDS_OSS_LIVE
+	IOnlineIdentityPtr IdentityInterface = Online::GetIdentityInterface(nullptr, LIVE_SUBSYSTEM);
+	if (IdentityInterface.IsValid())
+	{
+		for (int32 i = 0; i < MAX_LOCAL_PLAYERS; ++i)
+		{
+			if (LoginCompleteDelegateHandle[i].IsValid())
+			{
+				IdentityInterface->ClearOnLoginCompleteDelegate_Handle(i, LoginCompleteDelegateHandle[i]);
+			}
+		}
+	}
 #endif
 }
 
@@ -83,7 +107,7 @@ bool FMixerInteractivityModule::LoginSilently(TSharedPtr<const FUniqueNetId> Use
 		return false;
 	}
 
-	if (!PLATFORM_XBOXONE && !PLATFORM_SUPPORTS_MIXER_OAUTH)
+	if (!PLATFORM_XBOXONE && !PLATFORM_SUPPORTS_MIXER_OAUTH && !PLATFORM_NEEDS_OSS_LIVE)
 	{
 		UE_LOG(LogMixerInteractivity, Warning, TEXT("There is no supported user login flow for this platform."));
 		return false;
@@ -890,4 +914,72 @@ void FMixerInteractivityModule::OnXboxUserRemoved(Windows::Xbox::System::User^ R
 		}
 	}
 }
+#elif PLATFORM_NEEDS_OSS_LIVE
+bool FMixerInteractivityModule::LoginSilentlyInternal(TSharedPtr<const FUniqueNetId> UserId)
+{
+	// Non-Xbox platform using XToken auth.  Requires custom version of OnlineSubsystemLive
+	IOnlineIdentityPtr IdentityInterface = Online::GetIdentityInterface(nullptr, LIVE_SUBSYSTEM);
+	if (!IdentityInterface.IsValid())
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("Currently only Xbox Live XToken signin is supported for non-oauth platforms.  This requires OnlineSubsystemLive."));
+		return false;
+	}
+
+	FPlatformUserId LocalUserNum = IdentityInterface->GetPlatformUserIdFromUniqueNetId(*UserId);
+	if (LocalUserNum < 0 || LocalUserNum > MAX_LOCAL_PLAYERS)
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("Could not map user id %s to a local player index."), *UserId->ToString());
+		return false;
+	}
+	FOnlineAccountCredentials Credentials;
+	Credentials.Type = TEXT("https://mixer.com");
+	if (!IdentityInterface->Login(LocalUserNum, Credentials))
+	{
+		UE_LOG(LogMixerInteractivity, Warning, TEXT("Unexpected error performing XToken retrieval for Mixer login."));
+		return false;
+	}
+
+	check(LoginCompleteDelegateHandle[LocalUserNum].IsValid());
+	
+	SetUserAuthState(EMixerLoginState::Logging_In);
+	NetId = UserId;	
+	
+	return true;
+}
+
+void FMixerInteractivityModule::OnXTokenRetrievalComplete(int32 LocalUserNum, bool bWasSuccessful, const FUniqueNetId& UserId, const FString& ErrorMessage)
+{
+	if (UserId == *NetId && UserAuthState == EMixerLoginState::Logging_In)
+	{
+		bool MovedToNextLoginPhase = false;
+		if (bWasSuccessful)
+		{
+			IOnlineIdentityPtr IdentityInterface = Online::GetIdentityInterface(nullptr, LIVE_SUBSYSTEM);
+			check(IdentityInterface.IsValid());
+			TSharedPtr<FUserOnlineAccount> UserAccount = IdentityInterface->GetUserAccount(UserId);
+			if (UserAccount.IsValid())
+			{
+				FString XToken;
+				if (UserAccount->GetAuthAttribute(TEXT("https://mixer.com"), XToken))
+				{
+					UMixerInteractivityUserSettings* UserSettings = GetMutableDefault<UMixerInteractivityUserSettings>();
+					UserSettings->AccessToken = *XToken;
+
+					TSharedRef<IHttpRequest> UserRequest = FHttpModule::Get().CreateRequest();
+					UserRequest->SetVerb(TEXT("GET"));
+					UserRequest->SetURL(TEXT("https://mixer.com/api/v1/users/current"));
+					UserRequest->SetHeader(TEXT("Authorization"), XToken);
+					UserRequest->OnProcessRequestComplete().BindRaw(this, &FMixerInteractivityModule::OnUserRequestComplete);
+					MovedToNextLoginPhase = UserRequest->ProcessRequest();
+				}
+			}
+		}
+
+		if (!MovedToNextLoginPhase)
+		{
+			SetUserAuthState(EMixerLoginState::Not_Logged_In);
+		}
+	}
+}
+
 #endif
