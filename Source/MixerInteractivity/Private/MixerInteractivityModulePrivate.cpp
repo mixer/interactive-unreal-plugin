@@ -49,8 +49,8 @@
 #endif
 
 #if WITH_EDITOR
-#include "SNotificationList.h"
-#include "NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Framework/Notifications/NotificationManager.h"
 #endif
 
 DEFINE_LOG_CATEGORY(LogMixerInteractivity);
