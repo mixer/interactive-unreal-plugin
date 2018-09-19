@@ -9,7 +9,7 @@
 //*********************************************************
 
 #if !PLATFORM_XBOXONE
-#include "WindowsHWrapper.h"
+#include "Windows/WindowsHWrapper.h"
 #endif
 
 // If using interactive-cpp v2, bring in the entire sdk in source form.
