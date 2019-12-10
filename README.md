@@ -1,3 +1,7 @@
+# NOTE: This repo is no longer being maintained by Microsoft.
+You can find more information here: https://dev.mixer.com/blog/mixplaysdkchanges
+
+--------------
 
 ### Welcome!
 
